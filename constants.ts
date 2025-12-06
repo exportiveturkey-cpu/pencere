@@ -1,10 +1,18 @@
-import { ProfileSystem, GlassType, Project } from './types';
+import { ProfileSystem, GlassType, Project, Accessory } from './types';
 
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
   { id: 'eco50', name: 'EcoLine 50 (Cold)', uValue: 2.1, frameWidth: 50, pricePerMeter: 45, profileLength: 6.0 },
   { id: 'std65', name: 'Standard 65 (Thermal)', uValue: 1.6, frameWidth: 65, pricePerMeter: 85, profileLength: 6.0 },
   { id: 'prem75', name: 'Premium 75 (High Insulation)', uValue: 1.1, frameWidth: 75, pricePerMeter: 120, profileLength: 6.0 },
   { id: 'slide120', name: 'SlideMaster 120', uValue: 1.8, frameWidth: 120, pricePerMeter: 150, profileLength: 6.0 },
+];
+
+export const MOCK_ACCESSORIES: Accessory[] = [
+  { id: 'h1', name: 'Roto Swing White', type: 'handle', unit: 'pce', price: 12.5 },
+  { id: 'h2', name: 'Hoppe Secustik Silver', type: 'handle', unit: 'pce', price: 18.0 },
+  { id: 'g1', name: 'EPDM Black Seal (Std)', type: 'gasket', unit: 'meter', price: 1.5 },
+  { id: 'g2', name: 'EPDM Gray Seal (Prem)', type: 'gasket', unit: 'meter', price: 2.2 },
+  { id: 'hi1', name: 'Standard Hinge 100kg', type: 'hinge', unit: 'pce', price: 5.0 },
 ];
 
 export const GLASS_TYPES: GlassType[] = [

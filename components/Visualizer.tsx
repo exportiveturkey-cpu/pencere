@@ -31,9 +31,6 @@ const Visualizer: React.FC<VisualizerProps> = ({
     const isVertical = node.direction === 'vertical';
     
     // We need to account for the mullion thickness in the split
-    // Visual logic: The mullion takes up 'frameWidth' space in the middle.
-    // The remaining space is divided by ratio.
-    
     const availableSpace = isVertical ? width - frameWidth : height - frameWidth;
     const firstSize = availableSpace * node.splitRatio[0];
     const secondSize = availableSpace * node.splitRatio[1];
@@ -80,7 +77,85 @@ const Visualizer: React.FC<VisualizerProps> = ({
   }
 
   // Handle Leaf (Glass/Sash) Nodes
-  // We draw the outer frame of this specific leaf sector first
+  const innerX = x + frameWidth;
+  const innerY = y + frameWidth;
+  const innerW = Math.max(0, width - frameWidth * 2);
+  const innerH = Math.max(0, height - frameWidth * 2);
+  const midX = innerX + innerW / 2;
+  const midY = innerY + innerH / 2;
+
+  // Calculate Text Y Position
+  // If sliding, move text up to avoid overlap with the arrow
+  const isSliding = node.openingType === 'sliding';
+  const textY = isSliding ? midY - (Math.min(innerW, innerH) * 0.15) : midY;
+
+  // Generate Path for Opening Symbols based on architectural standards
+  // Triangle tip points to the HANDLE.
+  // Triangle base is the HINGE.
+  const renderOpeningSymbol = () => {
+    if (node.openingType === 'fixed' || !node.openingType) return null;
+
+    const paths: React.ReactElement[] = [];
+    const strokeColor = "#334155"; // Dark Slate
+    const strokeWidth = 1.5;
+    const dashArray = "4,4"; // Used for tilt/vasistas lines
+
+    // Helper to draw triangle pointing to handle
+    // Direction: where the handle is.
+    const drawTurn = (direction: 'left' | 'right') => {
+        let d = "";
+        if (direction === 'left') {
+            // Handle Left, Hinge Right. Triangle Points Left (<).
+            d = `M ${innerX + innerW},${innerY} L ${innerX},${midY} L ${innerX + innerW},${innerY + innerH}`;
+        } else {
+            // Handle Right, Hinge Left. Triangle Points Right (>).
+            d = `M ${innerX},${innerY} L ${innerX + innerW},${midY} L ${innerX},${innerY + innerH}`;
+        }
+        return <path key={`turn-${direction}`} d={d} stroke={strokeColor} strokeWidth={strokeWidth} fill="none" vectorEffect="non-scaling-stroke" />;
+    };
+
+    const drawTilt = () => {
+        // Tilt (Vasistas): Hinge Bottom, Handle Top. Triangle Points Up (^).
+        // Usually drawn with dashed lines.
+        const d = `M ${innerX},${innerY + innerH} L ${midX},${innerY} L ${innerX + innerW},${innerY + innerH}`;
+        return <path key="tilt" d={d} stroke={strokeColor} strokeWidth={strokeWidth} fill="none" vectorEffect="non-scaling-stroke" strokeDasharray={dashArray} />;
+    };
+
+    switch (node.openingType) {
+        case 'turn-left':
+            // Sola Açılım (Left Hand): Hinges Left, Handle Right. Symbol: >
+            paths.push(drawTurn('right'));
+            break;
+        case 'turn-right':
+             // Sağa Açılım (Right Hand): Hinges Right, Handle Left. Symbol: <
+            paths.push(drawTurn('left'));
+            break;
+        case 'tilt':
+            // Vasistas
+            paths.push(drawTilt());
+            break;
+        case 'tilt-turn-left':
+            // Sola + Vasistas: Hinges Left (Handle Right) + Hinge Bottom
+            paths.push(drawTurn('right'));
+            paths.push(drawTilt());
+            break;
+        case 'tilt-turn-right':
+             // Sağa + Vasistas: Hinges Right (Handle Left) + Hinge Bottom
+            paths.push(drawTurn('left'));
+            paths.push(drawTilt());
+            break;
+        case 'sliding':
+             const arrowSize = Math.min(innerW, innerH) * 0.1;
+             const d = `M ${midX - arrowSize},${midY} L ${midX + arrowSize},${midY} M ${midX + arrowSize - 5},${midY - 5} L ${midX + arrowSize},${midY} L ${midX + arrowSize - 5},${midY + 5}`;
+             paths.push(
+                <path key="slide" d={d} stroke={strokeColor} strokeWidth={strokeWidth * 2} fill="none" vectorEffect="non-scaling-stroke" />
+            );
+            break;
+    }
+
+    return <g>{paths}</g>;
+  };
+
   return (
     <g 
       onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }}
@@ -100,10 +175,10 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
       {/* Glass Area (inset by frame width) */}
       <rect
-        x={x + frameWidth}
-        y={y + frameWidth}
-        width={Math.max(0, width - frameWidth * 2)}
-        height={Math.max(0, height - frameWidth * 2)}
+        x={innerX}
+        y={innerY}
+        width={innerW}
+        height={innerH}
         fill="#93c5fd" // Glass Blue
         fillOpacity={0.3}
         stroke="#60a5fa"
@@ -111,18 +186,23 @@ const Visualizer: React.FC<VisualizerProps> = ({
         vectorEffect="non-scaling-stroke"
       />
 
-      {/* Sash Indicator (if applicable) */}
+      {/* Sash Frame (Optional visual, if not fixed, draw a thicker inner border) */}
       {node.openingType !== 'fixed' && (
-        <path 
-          d={`M${x + frameWidth},${y + frameWidth} L${x + width/2},${y + height/2} L${x + frameWidth},${y + height - frameWidth}`}
-          stroke="#fff"
-          strokeWidth="2"
-          fill="none"
-          strokeDasharray="5,5"
-          className="pointer-events-none"
-          vectorEffect="non-scaling-stroke"
-        />
+         <rect
+            x={innerX}
+            y={innerY}
+            width={innerW}
+            height={innerH}
+            fill="none"
+            stroke="#1e293b"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+            opacity="0.5"
+         />
       )}
+
+      {/* Technical Drawing Symbols */}
+      {renderOpeningSymbol()}
       
       {/* Selection Highlight Overlay */}
       {isSelected && (
@@ -136,17 +216,17 @@ const Visualizer: React.FC<VisualizerProps> = ({
         />
       )}
       
-      {/* ID Label for Debug/Clarity - Hidden in print via CSS usually, but we keep it simply */}
+      {/* ID Label for Debug/Clarity */}
       {width > 200 && height > 200 && (
          <text 
-            x={x + width / 2} 
-            y={y + height / 2} 
+            x={midX} 
+            y={textY} 
             textAnchor="middle" 
             dominantBaseline="middle" 
             fill="white" 
             fontSize="48"
             fontWeight="bold"
-            opacity="0.5"
+            opacity="0.3"
             className="pointer-events-none select-none"
             style={{ textShadow: '0px 0px 4px rgba(0,0,0,0.5)' }}
         >

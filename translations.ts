@@ -13,7 +13,11 @@ type TranslationKey =
   | 'quantity' | 'edit' | 'update' | 'cancel' | 'systemUpdated' | 'printQuote' | 'unitPrice' | 'totalPrice'
   | 'area' | 'technicalDrawing' | 'details' | 'glassThickness' | 'avgUValue' | 'wMk' | 'signature' | 'date'
   | 'preparingPdf' | 'profileLength' | 'materialOptimization' | 'totalBars' | 'efficiency' | 'waste'
-  | 'totalCuts' | 'barLength' | 'optimizationReport' | 'bars' | 'cuttingList';
+  | 'totalCuts' | 'barLength' | 'optimizationReport' | 'bars' | 'cuttingList' | 'accessories' 
+  | 'manageAccessories' | 'addAccessory' | 'accessoryName' | 'type' | 'handle' | 'gasket' | 'hinge'
+  | 'selectAccessories' | 'accessoryCost' | 'accAdded' | 'accUpdated' | 'activeAccessories' | 'unitPce' | 'unitMeter'
+  | 'handlePosition' | 'left' | 'right' | 'bottom' | 'top' | 'fixed' | 'turn' | 'tiltTurn' | 'sliding'
+  | 'turnLeft' | 'turnRight' | 'tilt' | 'tiltTurnLeft' | 'tiltTurnRight';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -57,7 +61,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     sysName: 'System Name',
     frameWidth: 'Frame Width (mm)',
     uValue: 'U-Value',
-    price: 'Price ($/m)',
+    price: 'Price ($)',
     activeSystems: 'Active Profile Systems',
     draftPlaceholder: "Click 'Draft with Gemini' to generate a professional project description...",
     resetConfirm: "Reset entire unit design?",
@@ -98,7 +102,36 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     barLength: "Bar Length",
     optimizationReport: "Optimization Report",
     bars: "bars",
-    cuttingList: "Cutting List"
+    cuttingList: "Cutting List",
+    accessories: "Accessories",
+    manageAccessories: "Manage Handles, Gaskets, Hinges",
+    addAccessory: "Add Accessory",
+    accessoryName: "Accessory Name",
+    type: "Type",
+    handle: "Handle",
+    gasket: "Gasket/Seal",
+    hinge: "Hinge",
+    selectAccessories: "Select Accessories",
+    accessoryCost: "Accessories Cost",
+    accAdded: "Accessory added.",
+    accUpdated: "Accessory updated.",
+    activeAccessories: "Active Accessories",
+    unitPce: "pce",
+    unitMeter: "m",
+    handlePosition: "Handle Position",
+    left: "Left",
+    right: "Right",
+    bottom: "Bottom",
+    top: "Top",
+    fixed: "Fixed",
+    turn: "Turn",
+    tiltTurn: "Tilt & Turn",
+    sliding: "Sliding",
+    turnLeft: "Turn Left",
+    turnRight: "Turn Right",
+    tilt: "Tilt (Vasistas)",
+    tiltTurnLeft: "Tilt & Turn Left",
+    tiltTurnRight: "Tilt & Turn Right"
   },
   tr: {
     projects: 'Projeler',
@@ -141,7 +174,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     sysName: 'Sistem Adı',
     frameWidth: 'Kasa Genişliği (mm)',
     uValue: 'U-Değeri',
-    price: 'Fiyat ($/m)',
+    price: 'Fiyat ($)',
     activeSystems: 'Aktif Profil Sistemleri',
     draftPlaceholder: "Profesyonel bir proje açıklaması oluşturmak için 'Gemini ile Yaz' butonuna tıklayın...",
     resetConfirm: "Tüm ünite tasarımı sıfırlansın mı?",
@@ -182,7 +215,36 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     barLength: "Boy Uzunluğu",
     optimizationReport: "Optimizasyon Raporu",
     bars: "boy",
-    cuttingList: "Kesim Listesi"
+    cuttingList: "Kesim Listesi",
+    accessories: "Aksesuarlar",
+    manageAccessories: "Kapı Kolu, Fitil ve Menteşe Yönetimi",
+    addAccessory: "Aksesuar Ekle",
+    accessoryName: "Aksesuar Adı (Marka/Model)",
+    type: "Tip",
+    handle: "Kapı/Pencere Kolu",
+    gasket: "Fitil/Conta",
+    hinge: "Menteşe",
+    selectAccessories: "Aksesuar Seçimi",
+    accessoryCost: "Aksesuar Maliyeti",
+    accAdded: "Aksesuar eklendi.",
+    accUpdated: "Aksesuar güncellendi.",
+    activeAccessories: "Aktif Aksesuarlar",
+    unitPce: "adet",
+    unitMeter: "m",
+    handlePosition: "Kol Yönü",
+    left: "Sol",
+    right: "Sağ",
+    bottom: "Alt",
+    top: "Üst",
+    fixed: "Sabit",
+    turn: "Tek Açılım",
+    tiltTurn: "Çift Açılım",
+    sliding: "Sürme",
+    turnLeft: "Sola Açılım",
+    turnRight: "Sağa Açılım",
+    tilt: "Vasistas",
+    tiltTurnLeft: "Sola + Vasistas",
+    tiltTurnRight: "Sağa + Vasistas"
   }
 };
 

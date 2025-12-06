@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Unit, WindowNode, ProfileSystem, Language } from '../types';
+import { Unit, WindowNode, ProfileSystem, Language, Accessory } from '../types';
 import Visualizer from './Visualizer';
 import { GLASS_TYPES, INITIAL_ROOT_NODE } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,12 +10,13 @@ import { t } from '../translations';
 interface EditorProps {
   unit?: Unit;
   systems: ProfileSystem[];
+  accessories?: Accessory[];
   lang: Language;
   onSave: (unit: Unit) => void;
   onCancel: () => void;
 }
 
-const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSave, onCancel }) => {
+const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel }) => {
   const defaultSystemId = systems.length > 0 ? systems[0].id : '';
   
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
@@ -26,11 +27,22 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
   const [glassThickness, setGlassThickness] = useState(initialUnit?.glassThickness || 24);
   const [quantity, setQuantity] = useState(initialUnit?.quantity || 1);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
+  
+  // Accessory Selection State
+  const [selectedHandleId, setSelectedHandleId] = useState<string>(initialUnit?.selectedHandle || '');
+  const [selectedGasketId, setSelectedGasketId] = useState<string>(initialUnit?.selectedGasket || '');
+  const [selectedHingeId, setSelectedHingeId] = useState<string>(initialUnit?.selectedHinge || '');
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const currentSystem = systems.find(s => s.id === systemId) || systems[0];
+
+  // Filter accessories by type
+  const handles = accessories.filter(a => a.type === 'handle');
+  const gaskets = accessories.filter(a => a.type === 'gasket');
+  const hinges = accessories.filter(a => a.type === 'hinge');
 
   const updateNode = (id: string, updateFn: (node: WindowNode) => WindowNode) => {
     const traverse = (node: WindowNode): WindowNode => {
@@ -109,7 +121,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
       glassType: glassId,
       glassThickness,
       rootNode,
-      quantity: Math.max(1, quantity)
+      quantity: Math.max(1, quantity),
+      selectedHandle: selectedHandleId,
+      selectedGasket: selectedGasketId,
+      selectedHinge: selectedHingeId
     };
     onSave(unit);
   };
@@ -117,6 +132,16 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
   const selectedNode = selectedNodeId ? findNode(selectedNodeId, rootNode) : null;
 
   if (!currentSystem) return <div>{t(lang, 'loading')}</div>;
+
+  const openingTypes = [
+    'fixed', 
+    'turn-left', 
+    'turn-right', 
+    'tilt', 
+    'tilt-turn-left', 
+    'tilt-turn-right', 
+    'sliding'
+  ] as const;
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-slate-200">
@@ -216,20 +241,61 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
                             ))}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'glassThickness')}</label>
-                        <input 
-                            type="number" 
-                            value={glassThickness} 
-                            onChange={(e) => setGlassThickness(Number(e.target.value))}
+                </div>
+            </section>
+
+            <section className="border-t border-slate-700 pt-6">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'selectAccessories')}</h3>
+                <div className="space-y-4">
+                     {/* Handles */}
+                     <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'handle')}</label>
+                        <select 
+                            value={selectedHandleId}
+                            onChange={(e) => setSelectedHandleId(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        />
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {handles.map(h => (
+                                <option key={h.id} value={h.id}>{h.name} (${h.price})</option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    {/* Hinges */}
+                     <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'hinge')}</label>
+                        <select 
+                            value={selectedHingeId}
+                            onChange={(e) => setSelectedHingeId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {hinges.map(h => (
+                                <option key={h.id} value={h.id}>{h.name} (${h.price})</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Gaskets */}
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'gasket')}</label>
+                        <select 
+                            value={selectedGasketId}
+                            onChange={(e) => setSelectedGasketId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {gaskets.map(g => (
+                                <option key={g.id} value={g.id}>{g.name} (${g.price}/{t(lang, 'unitMeter')})</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
             </section>
 
             {selectedNode && selectedNode.type !== 'container' && (
-                <section className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 animate-in fade-in slide-in-from-left-4">
+                <section className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 animate-in fade-in slide-in-from-left-4 mt-6">
                     <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center justify-between">
                         <span>{t(lang, 'selectedPane')}</span>
                         <span className="text-[10px] bg-blue-900/50 px-2 py-0.5 rounded text-blue-300">ID: {selectedNode.id.slice(0,4)}</span>
@@ -239,14 +305,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
                         <label className="block text-xs text-slate-400">{t(lang, 'actions')}</label>
                         <div className="grid grid-cols-2 gap-2">
                             <button 
-                                onClick={() => handleSplit('vertical')}
+                                onClick={() => handleSplit('horizontal')}
                                 className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
                             >
                                 <SplitSquareVertical size={20} className="mb-1" />
                                 <span className="text-[10px]">{t(lang, 'splitVert')}</span>
                             </button>
                             <button 
-                                onClick={() => handleSplit('horizontal')}
+                                onClick={() => handleSplit('vertical')}
                                 className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
                             >
                                 <SplitSquareHorizontal size={20} className="mb-1" />
@@ -257,7 +323,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
                         <div className="pt-2 border-t border-slate-600">
                              <label className="block text-xs mb-2 text-slate-400">{t(lang, 'openingType')}</label>
                              <div className="grid grid-cols-2 gap-2">
-                                {['fixed', 'turn', 'tilt-turn', 'sliding'].map(type => (
+                                {openingTypes.map(type => (
                                     <button
                                         key={type}
                                         onClick={() => handleUpdateProp('openingType', type)}
@@ -267,7 +333,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
                                             : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'
                                         }`}
                                     >
-                                        {type}
+                                        {t(lang, type === 'tilt-turn-left' ? 'tiltTurnLeft' : type === 'tilt-turn-right' ? 'tiltTurnRight' : type === 'turn-left' ? 'turnLeft' : type === 'turn-right' ? 'turnRight' : type as any)}
                                     </button>
                                 ))}
                              </div>
@@ -286,7 +352,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, lang, onSav
             )}
 
             {!selectedNode && (
-                <div className="p-4 rounded border border-dashed border-slate-700 text-center text-slate-500 text-sm">
+                <div className="p-4 mt-6 rounded border border-dashed border-slate-700 text-center text-slate-500 text-sm">
                     {t(lang, 'selectPaneInfo')}
                 </div>
             )}

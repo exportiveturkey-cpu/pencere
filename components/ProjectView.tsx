@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
-import { Project, Unit, ProfileSystem, Language } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2 } from 'lucide-react';
+import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
+import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2, Package } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import { GLASS_TYPES } from '../constants';
+import Logo from './Logo';
 
 interface ProjectViewProps {
   project: Project;
   systems: ProfileSystem[];
+  accessories?: Accessory[];
   lang: Language;
   onBack: () => void;
   onAddUnit: () => void;
   onEditUnit: (unit: Unit) => void;
 }
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBack, onAddUnit, onEditUnit }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onAddUnit, onEditUnit }) => {
   const [quoteIntro, setQuoteIntro] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -27,12 +29,19 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
     const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
     
     // Fallbacks
-    if (!system) return { cost: 0, uw: 0, glassName: unit.glassType, totalAreaM2: 0 };
+    if (!system) return { cost: 0, uw: 0, glassName: unit.glassType, totalAreaM2: 0, accessoriesCost: 0, accessoryList: [] };
 
     const frameW = system.frameWidth;
     
+    let sashCount = 0;
+    
     // Recursive Area & Mullion Calc
-    const analyzeNode = (node: any, w: number, h: number): { glassArea: number, frameArea: number, mullionLength: number } => {
+    const analyzeNode = (node: any, w: number, h: number): { glassArea: number, frameArea: number, mullionLength: number, perimeter: number } => {
+         // Count sashes
+         if (node.openingType && node.openingType !== 'fixed') {
+             sashCount++;
+         }
+
          if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
             const isVert = node.direction === 'vertical';
             const mullionLen = isVert ? h : w;
@@ -48,7 +57,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
             return {
                 glassArea: r1.glassArea + r2.glassArea,
                 frameArea: r1.frameArea + r2.frameArea + mullionArea,
-                mullionLength: mullionLen + r1.mullionLength + r2.mullionLength
+                mullionLength: mullionLen + r1.mullionLength + r2.mullionLength,
+                perimeter: r1.perimeter + r2.perimeter // Recursive perimeter sum (roughly)
             };
          }
          
@@ -57,7 +67,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
          const gH = Math.max(0, h - 2 * frameW);
          const gArea = gW * gH;
          const total = w * h;
-         return { glassArea: gArea, frameArea: total - gArea, mullionLength: 0 };
+         const perim = (w + h) * 2;
+         return { glassArea: gArea, frameArea: total - gArea, mullionLength: 0, perimeter: perim };
     };
 
     const stats = analyzeNode(unit.rootNode, unit.width, unit.height);
@@ -65,10 +76,49 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
     const glassAreaM2 = stats.glassArea / 1000000;
     const frameAreaM2 = stats.frameArea / 1000000;
     
-    // Cost: Frame (approx based on perimeter + mullions) + Glass
+    // 1. Profile Cost
     const outerFrameLen = 2 * (unit.width + unit.height);
     const totalProfileM = (outerFrameLen + stats.mullionLength) / 1000;
-    const cost = (totalProfileM * system.pricePerMeter) + (glassAreaM2 * (glassObj?.pricePerSqm || 50));
+    const profileCost = totalProfileM * system.pricePerMeter;
+
+    // 2. Glass Cost
+    const glassCost = glassAreaM2 * (glassObj?.pricePerSqm || 50);
+
+    // 3. Accessory Cost Calculation
+    let accessoryCost = 0;
+    const accessoryList: { name: string, count: number, unit: string, price: number }[] = [];
+
+    // Handles
+    if (unit.selectedHandle && sashCount > 0) {
+        const handle = accessories.find(a => a.id === unit.selectedHandle);
+        if (handle) {
+            accessoryCost += handle.price * sashCount;
+            accessoryList.push({ name: handle.name, count: sashCount, unit: t(lang, 'unitPce'), price: handle.price * sashCount });
+        }
+    }
+
+    // Hinges (Approx: 2 per sash < 1200mm, 3 per sash > 1200mm, simple logic: 2 per sash)
+    if (unit.selectedHinge && sashCount > 0) {
+        const hinge = accessories.find(a => a.id === unit.selectedHinge);
+        if (hinge) {
+            const hingesPerSash = unit.height > 1200 ? 3 : 2;
+            const totalHinges = sashCount * hingesPerSash;
+            accessoryCost += hinge.price * totalHinges;
+            accessoryList.push({ name: `${hinge.name} (${hingesPerSash}/sash)`, count: totalHinges, unit: t(lang, 'unitPce'), price: hinge.price * totalHinges });
+        }
+    }
+
+    // Gaskets (Total Profile Length x 2 for Inner/Outer Seal)
+    if (unit.selectedGasket) {
+        const gasket = accessories.find(a => a.id === unit.selectedGasket);
+        if (gasket) {
+            const totalGasketM = totalProfileM * 2; 
+            accessoryCost += gasket.price * totalGasketM;
+            accessoryList.push({ name: gasket.name, count: parseFloat(totalGasketM.toFixed(1)), unit: t(lang, 'unitMeter'), price: gasket.price * totalGasketM });
+        }
+    }
+
+    const totalCost = profileCost + glassCost + accessoryCost;
     
     // Uw: Weighted Average
     const Ug = glassObj?.uValue || 2.8;
@@ -76,10 +126,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
     const uw = totalAreaM2 > 0 ? ((glassAreaM2 * Ug) + (frameAreaM2 * Uf)) / totalAreaM2 : 0;
 
     return {
-        cost,
+        cost: totalCost,
         uw,
         glassName: glassObj?.name || unit.glassType,
-        totalAreaM2
+        totalAreaM2,
+        accessoriesCost: accessoryCost,
+        accessoryList
     };
   };
 
@@ -107,13 +159,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
   };
 
   const handlePrint = () => {
-    // 1. Set Loading State
     setIsPrinting(true);
-    
-    // 2. Use timeout to allow React to render the loading spinner
     setTimeout(() => {
         window.print();
-        // 3. Reset state after a short delay (once the print dialog likely opened/closed)
         setTimeout(() => setIsPrinting(false), 500);
     }, 100);
   };
@@ -122,6 +170,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
 
   return (
     <>
+    {/* ... (Styles kept same) ... */}
     <style>{`
       /* Screen only */
       #print-view { display: none; }
@@ -132,10 +181,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
           margin: 10mm;
         }
 
-        /* 
-           Aggressive Reset for Parent Containers 
-           This is critical for React apps where root divs have styles 
-        */
         html, body {
           height: auto !important;
           overflow: visible !important;
@@ -151,7 +196,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
           min-height: 0 !important;
         }
 
-        /* Target the immediate child of root (App container) */
         #root > div {
             min-height: 0 !important;
             height: auto !important;
@@ -161,7 +205,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
             color: black !important;
         }
 
-        /* Hide Screen UI */
         #screen-view {
           display: none !important;
         }
@@ -170,7 +213,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
           display: none !important;
         }
 
-        /* Show Print View */
         #print-view {
           display: block !important;
           width: 100%;
@@ -179,14 +221,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
           font-family: 'Inter', sans-serif;
         }
 
-        /* Ensure drawing colors render by forcing exact colors */
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             box-shadow: none !important;
         }
 
-        /* Page Breaks */
         .avoid-break { 
             page-break-inside: avoid; 
             break-inside: avoid;
@@ -217,6 +257,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                     <p className="text-xs text-slate-400">{project.client} • {project.date}</p>
                 </div>
             </div>
+            
+            {/* Center Brand */}
+            <div className="hidden md:block opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+                <Logo className="w-8 h-8" showText={false} />
+            </div>
+
             <div className="flex items-center gap-3">
                 <div className="text-right mr-4">
                     <p className="text-xs text-slate-400">{t(lang, 'totalEst')}</p>
@@ -276,8 +322,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                                 <div className="text-xs text-slate-400 space-y-1">
                                     <p>{unit.width}mm x {unit.height}mm</p>
                                     <p>{systems.find(s => s.id === unit.system)?.name || 'Unknown System'}</p>
-                                    <p className="truncate">{stats.glassName}</p>
-                                    <p className="font-medium text-emerald-400 mt-2">${(stats.cost * (unit.quantity || 1)).toFixed(2)}</p>
+                                    <div className="flex justify-between items-center mt-2">
+                                         <p className="font-medium text-emerald-400">${(stats.cost * (unit.quantity || 1)).toFixed(2)}</p>
+                                         {stats.accessoriesCost > 0 && <span className="text-[10px] bg-slate-700 text-slate-300 px-1 rounded flex gap-1 items-center"><Package size={10}/> Acc</span>}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -290,6 +338,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
 
             {/* Quote Generation Section */}
             <div className="border-t border-slate-700 pt-8">
+                {/* ... (Kept existing quote generation section same) ... */}
                 <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <FileText size={20} className="text-blue-400" /> 
                     {t(lang, 'quoteGen')}
@@ -344,17 +393,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
       </div>
     </div>
 
-    {/* PRINT VIEW (Hidden by default, shown in print media) */}
+    {/* PRINT VIEW */}
     <div id="print-view">
         <div className="max-w-[210mm] mx-auto py-8 text-black">
-            <header className="border-b-2 border-slate-300 pb-6 mb-8 flex justify-between items-end">
-                <div>
-                    <h1 className="text-4xl font-bold uppercase tracking-wide text-slate-900">AluCraft</h1>
-                    <p className="text-slate-500 text-sm mt-1">Window & Door Engineering</p>
-                </div>
+            <header className="border-b-2 border-slate-300 pb-6 mb-8 flex justify-between items-start">
+                <Logo theme="light" className="w-16 h-16" />
                 <div className="text-right">
                     <h2 className="text-2xl font-light text-slate-700">{t(lang, 'printQuote')}</h2>
-                    <p className="text-slate-500 text-sm">{new Date().toLocaleDateString()}</p>
+                    <p className="text-slate-500 text-sm mt-1">{new Date().toLocaleDateString()}</p>
                 </div>
             </header>
 
@@ -441,6 +487,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                                             <div className="font-semibold text-slate-700">{stats.glassName}</div>
                                         </div>
                                     </div>
+                                    
+                                    {/* Accessory Breakdown */}
+                                    {stats.accessoryList.length > 0 && (
+                                        <div className="mt-4 bg-slate-50 p-3 rounded border border-slate-100">
+                                            <div className="text-xs font-bold text-slate-500 uppercase mb-2">{t(lang, 'accessories')}</div>
+                                            {stats.accessoryList.map((acc, i) => (
+                                                <div key={i} className="flex justify-between text-xs text-slate-600 mb-1">
+                                                    <span>{acc.name} (x{acc.count} {acc.unit})</span>
+                                                    <span>${acc.price.toFixed(2)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
                                 </div>
                                 
                                 <div className="pt-4 mt-4 border-t border-dashed border-slate-200 flex justify-between text-sm text-slate-600">
@@ -453,8 +513,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                 })}
             </div>
 
-            {/* Optimization Report (Print) */}
-            <div className="avoid-break mt-12 pt-8 border-t-2 border-slate-300">
+            <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
                <h2 className="text-2xl font-light text-slate-700 mb-6">{t(lang, 'optimizationReport')}</h2>
                <OptimizationReport units={project.units} systems={systems} lang={lang} />
             </div>
@@ -492,8 +551,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                      </div>
                 </div>
                 <div className="text-center text-xs text-slate-400">
-                    <p>Generated by AluCraft - Window & Door Engineering Software</p>
-                    <p>{new Date().getFullYear()} © AluCraft Inc.</p>
+                    <p>Generated by Alumetric - Window & Door Engineering Suite</p>
+                    <p>{new Date().getFullYear()} © Alumetric Inc.</p>
                 </div>
             </footer>
         </div>

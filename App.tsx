@@ -3,8 +3,8 @@ import Dashboard from './components/Dashboard';
 import Editor from './components/Editor';
 import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
-import { Project, Unit, ProfileSystem, Language } from './types';
-import { MOCK_PROJECTS, PROFILE_SYSTEMS } from './constants';
+import { Project, Unit, ProfileSystem, Language, Accessory } from './types';
+import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from './translations';
 
@@ -32,6 +32,15 @@ const App: React.FC = () => {
     }
   });
 
+  const [accessories, setAccessories] = useState<Accessory[]>(() => {
+    try {
+        const saved = localStorage.getItem('alucraft_accessories');
+        return saved ? JSON.parse(saved) : MOCK_ACCESSORIES;
+    } catch (e) {
+        return MOCK_ACCESSORIES;
+    }
+  });
+
   const [lang, setLang] = useState<Language>('tr');
   
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -45,6 +54,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('alucraft_systems', JSON.stringify(systems));
   }, [systems]);
+
+  useEffect(() => {
+    localStorage.setItem('alucraft_accessories', JSON.stringify(accessories));
+  }, [accessories]);
 
 
   const activeProject = projects.find(p => p.id === activeProjectId);
@@ -105,6 +118,14 @@ const App: React.FC = () => {
     setSystems(systems.map(s => s.id === updatedSystem.id ? updatedSystem : s));
   };
 
+  const handleAddAccessory = (acc: Accessory) => {
+    setAccessories([...accessories, acc]);
+  };
+
+  const handleUpdateAccessory = (updatedAcc: Accessory) => {
+    setAccessories(accessories.map(a => a.id === updatedAcc.id ? updatedAcc : a));
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-blue-500 selection:text-white">
       {view === 'DASHBOARD' && (
@@ -121,9 +142,12 @@ const App: React.FC = () => {
       {view === 'SETTINGS' && (
         <Settings 
           systems={systems}
+          accessories={accessories}
           lang={lang}
           onAddSystem={handleAddSystem}
           onUpdateSystem={handleUpdateSystem}
+          onAddAccessory={handleAddAccessory}
+          onUpdateAccessory={handleUpdateAccessory}
           onBack={() => setView('DASHBOARD')}
         />
       )}
@@ -132,6 +156,7 @@ const App: React.FC = () => {
         <ProjectView 
           project={activeProject}
           systems={systems}
+          accessories={accessories}
           lang={lang}
           onBack={() => setView('DASHBOARD')}
           onAddUnit={handleAddUnit}
@@ -144,6 +169,7 @@ const App: React.FC = () => {
             <Editor 
                 unit={activeUnit}
                 systems={systems}
+                accessories={accessories}
                 lang={lang}
                 onSave={handleSaveUnit}
                 onCancel={() => setView('PROJECT_VIEW')}
