@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language } from '../types';
-import { ArrowLeft, Plus, Settings as SettingsIcon, Check, Edit2, X, Save, Wrench, Layers } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';

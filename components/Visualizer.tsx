@@ -1,6 +1,5 @@
 import React from 'react';
 import { WindowNode, ProfileSystem } from '../types';
-import { clsx } from 'clsx';
 
 interface VisualizerProps {
   node: WindowNode;

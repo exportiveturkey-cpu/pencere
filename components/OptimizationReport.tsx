@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Unit, ProfileSystem, Language } from '../types';
 import { calculateProjectOptimization } from '../services/optimizationService';
 import { t } from '../translations';
-import { LayoutGrid, Percent, Box, Scissors } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 
 interface OptimizationReportProps {
   units: Unit[];

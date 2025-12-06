@@ -157,12 +157,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       
       const newRatios = [...(selectedNode.splitRatio || [0.5, 0.5])];
       
-      // Before updating state, check if we need to save history. 
-      // Since this is an onChange handler, it might spam history.
-      // For a better UX, we'd use onBlur, but for now we'll push history if the value is valid.
-      // Optimization: Only push history if this is the start of a change? 
-      // For simplicity in this request: push history.
-      // To avoid infinite loop or ref issues, we assume user knows undo goes back one step.
       addToHistory();
 
       if (index === 0) {
@@ -362,6 +356,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                         </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'glassThickness')}</label>
+                        <input 
+                            type="number" 
+                            value={glassThickness} 
+                            onChange={(e) => setGlassThickness(Number(e.target.value))}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        />
                     </div>
                 </div>
             </section>

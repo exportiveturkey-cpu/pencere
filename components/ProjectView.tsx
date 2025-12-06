@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2 } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
