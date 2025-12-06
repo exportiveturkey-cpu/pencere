@@ -17,7 +17,8 @@ type TranslationKey =
   | 'manageAccessories' | 'addAccessory' | 'accessoryName' | 'type' | 'handle' | 'gasket' | 'hinge'
   | 'selectAccessories' | 'accessoryCost' | 'accAdded' | 'accUpdated' | 'activeAccessories' | 'unitPce' | 'unitMeter'
   | 'handlePosition' | 'left' | 'right' | 'bottom' | 'top' | 'fixed' | 'turn' | 'tiltTurn' | 'sliding'
-  | 'turnLeft' | 'turnRight' | 'tilt' | 'tiltTurnLeft' | 'tiltTurnRight';
+  | 'turnLeft' | 'turnRight' | 'tilt' | 'tiltTurnLeft' | 'tiltTurnRight' | 'deleteUnit' | 'deleteConfirm'
+  | 'selectParent' | 'splitSizes' | 'pane1' | 'pane2' | 'containerInfo' | 'undo';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -131,7 +132,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     turnRight: "Turn Right",
     tilt: "Tilt (Vasistas)",
     tiltTurnLeft: "Tilt & Turn Left",
-    tiltTurnRight: "Tilt & Turn Right"
+    tiltTurnRight: "Tilt & Turn Right",
+    deleteUnit: "Delete Unit",
+    deleteConfirm: "Are you sure you want to delete this position?",
+    selectParent: "Select Split / Parent",
+    splitSizes: "Adjust Split Sizes",
+    pane1: "Pane 1 Size (mm)",
+    pane2: "Pane 2 Size (mm)",
+    containerInfo: "Split Container",
+    undo: "Undo"
   },
   tr: {
     projects: 'Projeler',
@@ -244,7 +253,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     turnRight: "Sağa Açılım",
     tilt: "Vasistas",
     tiltTurnLeft: "Sola + Vasistas",
-    tiltTurnRight: "Sağa + Vasistas"
+    tiltTurnRight: "Sağa + Vasistas",
+    deleteUnit: "Pozu Sil",
+    deleteConfirm: "Bu pozu silmek istediğinizden emin misiniz?",
+    selectParent: "Bölmeyi Düzenle / Üste Çık",
+    splitSizes: "Bölme Ölçüleri",
+    pane1: "1. Bölme (mm)",
+    pane2: "2. Bölme (mm)",
+    containerInfo: "Bölünmüş Alan",
+    undo: "Geri Al"
   }
 };
 

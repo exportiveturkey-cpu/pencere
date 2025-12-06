@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2, Package } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2, Package, Trash2 } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
@@ -16,9 +16,10 @@ interface ProjectViewProps {
   onBack: () => void;
   onAddUnit: () => void;
   onEditUnit: (unit: Unit) => void;
+  onDeleteUnit: (unitId: string) => void;
 }
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onAddUnit, onEditUnit }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onAddUnit, onEditUnit, onDeleteUnit }) => {
   const [quoteIntro, setQuoteIntro] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -304,7 +305,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </div>
                                 
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform"><Edit2 size={16}/></button>
+                                    <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={16}/></button>
+                                    <button onClick={(e) => { e.stopPropagation(); onDeleteUnit(unit.id); }} className="p-2 bg-red-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={16}/></button>
                                 </div>
                                 
                                 <div className="absolute top-2 left-2 bg-slate-800 px-2 py-1 rounded text-xs font-mono text-slate-300 border border-slate-700">

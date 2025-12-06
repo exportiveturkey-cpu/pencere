@@ -109,6 +109,19 @@ const App: React.FC = () => {
     
     setView('PROJECT_VIEW');
   };
+
+  const handleDeleteUnit = (unitId: string) => {
+    if (!activeProjectId) return;
+    
+    if (window.confirm(t(lang, 'deleteConfirm'))) {
+       setProjects(prevProjects => prevProjects.map(p => {
+        if (p.id === activeProjectId) {
+          return { ...p, units: p.units.filter(u => u.id !== unitId) };
+        }
+        return p;
+      }));
+    }
+  };
   
   const handleAddSystem = (newSystem: ProfileSystem) => {
     setSystems([...systems, newSystem]);
@@ -161,6 +174,7 @@ const App: React.FC = () => {
           onBack={() => setView('DASHBOARD')}
           onAddUnit={handleAddUnit}
           onEditUnit={handleEditUnit}
+          onDeleteUnit={handleDeleteUnit}
         />
       )}
 

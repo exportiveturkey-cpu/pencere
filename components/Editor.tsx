@@ -3,7 +3,7 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory } from '../types';
 import Visualizer from './Visualizer';
 import { GLASS_TYPES, INITIAL_ROOT_NODE } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo } from 'lucide-react';
 import { analyzeStructure } from '../services/geminiService';
 import { t } from '../translations';
 
@@ -28,6 +28,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [quantity, setQuantity] = useState(initialUnit?.quantity || 1);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
   
+  // Undo History
+  const [history, setHistory] = useState<WindowNode[]>([]);
+
   // Accessory Selection State
   const [selectedHandleId, setSelectedHandleId] = useState<string>(initialUnit?.selectedHandle || '');
   const [selectedGasketId, setSelectedGasketId] = useState<string>(initialUnit?.selectedGasket || '');
@@ -43,6 +46,21 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const handles = accessories.filter(a => a.type === 'handle');
   const gaskets = accessories.filter(a => a.type === 'gasket');
   const hinges = accessories.filter(a => a.type === 'hinge');
+
+  // History Helper
+  const addToHistory = () => {
+    // Deep copy current rootNode
+    const snapshot = JSON.parse(JSON.stringify(rootNode));
+    setHistory(prev => [...prev, snapshot]);
+  };
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const previousState = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+    setRootNode(previousState);
+    // Optionally clear selection if the node no longer exists, but keeping it usually works if id persists
+  };
 
   const updateNode = (id: string, updateFn: (node: WindowNode) => WindowNode) => {
     const traverse = (node: WindowNode): WindowNode => {
@@ -67,9 +85,43 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     }
     return null;
   };
+  
+  // Helper to find parent ID
+  const findParentId = (targetId: string, node: WindowNode, parentId: string | null = null): string | null => {
+      if (node.id === targetId) return parentId;
+      if (node.children) {
+          for (const child of node.children) {
+              const found = findParentId(targetId, child, node.id);
+              if (found) return found;
+          }
+      }
+      return null;
+  };
+
+  // Helper to get node context (dimensions)
+  const getNodeContext = (targetId: string, node: WindowNode, w: number, h: number): { width: number, height: number } | null => {
+      if (node.id === targetId) return { width: w, height: h };
+      
+      if (node.children && node.children.length === 2 && node.splitRatio) {
+          const frameW = currentSystem.frameWidth;
+          const isVert = node.direction === 'vertical';
+          
+          const availableSpace = isVert ? w - frameW : h - frameW;
+          const s1 = availableSpace * node.splitRatio[0];
+          const s2 = availableSpace * node.splitRatio[1];
+          
+          const r1 = getNodeContext(targetId, node.children[0], isVert ? s1 : w, isVert ? h : s1);
+          if (r1) return r1;
+          
+          const r2 = getNodeContext(targetId, node.children[1], isVert ? s2 : w, isVert ? h : s2);
+          if (r2) return r2;
+      }
+      return null;
+  };
 
   const handleSplit = (direction: 'vertical' | 'horizontal') => {
     if (!selectedNodeId) return;
+    addToHistory();
     updateNode(selectedNodeId, (node) => ({
       id: node.id, 
       type: 'container',
@@ -85,14 +137,57 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   const handleUpdateProp = (key: keyof WindowNode, value: any) => {
     if (!selectedNodeId) return;
+    addToHistory();
     updateNode(selectedNodeId, (node) => ({ ...node, [key]: value }));
+  };
+  
+  const handleRatioChange = (newSize: number, index: number) => {
+      if (!selectedNodeId || !selectedNode || selectedNode.type !== 'container') return;
+      
+      const ctx = getNodeContext(selectedNodeId, rootNode, width, height);
+      if (!ctx) return;
+      
+      const frameW = currentSystem.frameWidth;
+      const isVert = selectedNode.direction === 'vertical';
+      const totalAvailable = (isVert ? ctx.width : ctx.height) - frameW;
+      
+      if (totalAvailable <= 0) return;
+      
+      const ratio = Math.min(Math.max(newSize / totalAvailable, 0.1), 0.9);
+      
+      const newRatios = [...(selectedNode.splitRatio || [0.5, 0.5])];
+      
+      // Before updating state, check if we need to save history. 
+      // Since this is an onChange handler, it might spam history.
+      // For a better UX, we'd use onBlur, but for now we'll push history if the value is valid.
+      // Optimization: Only push history if this is the start of a change? 
+      // For simplicity in this request: push history.
+      // To avoid infinite loop or ref issues, we assume user knows undo goes back one step.
+      addToHistory();
+
+      if (index === 0) {
+          newRatios[0] = ratio;
+          newRatios[1] = 1 - ratio;
+      } else {
+          newRatios[1] = ratio;
+          newRatios[0] = 1 - ratio;
+      }
+      
+      updateNode(selectedNodeId, (node) => ({ ...node, splitRatio: newRatios }));
   };
 
   const handleDelete = () => {
     if(confirm(t(lang, 'resetConfirm'))) {
+        addToHistory();
         setRootNode({ ...INITIAL_ROOT_NODE, id: uuidv4() });
         setSelectedNodeId(null);
     }
+  };
+  
+  const handleSelectParent = () => {
+      if (!selectedNodeId) return;
+      const pid = findParentId(selectedNodeId, rootNode);
+      if (pid) setSelectedNodeId(pid);
   };
   
   const runAiCheck = async () => {
@@ -130,6 +225,23 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   };
 
   const selectedNode = selectedNodeId ? findNode(selectedNodeId, rootNode) : null;
+  const parentId = selectedNodeId ? findParentId(selectedNodeId, rootNode) : null;
+  
+  // Calculate context for container split sizes
+  let containerSizes = { s1: 0, s2: 0, total: 0 };
+  if (selectedNode && selectedNode.type === 'container') {
+      const ctx = getNodeContext(selectedNode.id, rootNode, width, height);
+      if (ctx) {
+          const frameW = currentSystem.frameWidth;
+          const isVert = selectedNode.direction === 'vertical';
+          const avail = (isVert ? ctx.width : ctx.height) - frameW;
+          containerSizes = {
+              total: avail,
+              s1: avail * (selectedNode.splitRatio?.[0] || 0.5),
+              s2: avail * (selectedNode.splitRatio?.[1] || 0.5)
+          };
+      }
+  }
 
   if (!currentSystem) return <div>{t(lang, 'loading')}</div>;
 
@@ -159,6 +271,16 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             />
         </div>
         <div className="flex space-x-2">
+            {history.length > 0 && (
+                <button 
+                    onClick={handleUndo}
+                    className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-medium transition-colors text-slate-200 mr-2"
+                    title={t(lang, 'undo')}
+                >
+                    <Undo size={16} /> 
+                    <span className="hidden sm:inline">{t(lang, 'undo')}</span>
+                </button>
+            )}
             <button 
                 onClick={runAiCheck}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors"
@@ -294,52 +416,96 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                 </div>
             </section>
 
-            {selectedNode && selectedNode.type !== 'container' && (
+            {selectedNode && (
                 <section className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 animate-in fade-in slide-in-from-left-4 mt-6">
-                    <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center justify-between">
-                        <span>{t(lang, 'selectedPane')}</span>
-                        <span className="text-[10px] bg-blue-900/50 px-2 py-0.5 rounded text-blue-300">ID: {selectedNode.id.slice(0,4)}</span>
-                    </h3>
+                    <div className="flex justify-between items-start mb-3">
+                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                            {selectedNode.type === 'container' ? t(lang, 'containerInfo') : t(lang, 'selectedPane')}
+                         </h3>
+                         {parentId && (
+                             <button onClick={handleSelectParent} className="text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                                 <ArrowUp size={10} /> {t(lang, 'selectParent')}
+                             </button>
+                         )}
+                    </div>
                     
-                    <div className="space-y-3">
-                        <label className="block text-xs text-slate-400">{t(lang, 'actions')}</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button 
-                                onClick={() => handleSplit('horizontal')}
-                                className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
-                            >
-                                <SplitSquareVertical size={20} className="mb-1" />
-                                <span className="text-[10px]">{t(lang, 'splitVert')}</span>
-                            </button>
-                            <button 
-                                onClick={() => handleSplit('vertical')}
-                                className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
-                            >
-                                <SplitSquareHorizontal size={20} className="mb-1" />
-                                <span className="text-[10px]">{t(lang, 'splitHorz')}</span>
-                            </button>
+                    {/* Leaf Actions (Split/Type) */}
+                    {selectedNode.type !== 'container' && (
+                        <div className="space-y-3">
+                            <label className="block text-xs text-slate-400">{t(lang, 'actions')}</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button 
+                                    onClick={() => handleSplit('horizontal')}
+                                    className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
+                                >
+                                    <SplitSquareVertical size={20} className="mb-1" />
+                                    <span className="text-[10px]">{t(lang, 'splitVert')}</span>
+                                </button>
+                                <button 
+                                    onClick={() => handleSplit('vertical')}
+                                    className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
+                                >
+                                    <SplitSquareHorizontal size={20} className="mb-1" />
+                                    <span className="text-[10px]">{t(lang, 'splitHorz')}</span>
+                                </button>
+                            </div>
+                            
+                            <div className="pt-2 border-t border-slate-600">
+                                 <label className="block text-xs mb-2 text-slate-400">{t(lang, 'openingType')}</label>
+                                 <div className="grid grid-cols-2 gap-2">
+                                    {openingTypes.map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => handleUpdateProp('openingType', type)}
+                                            className={`text-xs px-2 py-1.5 rounded border capitalize ${
+                                                selectedNode.openingType === type 
+                                                ? 'bg-blue-600 border-blue-500 text-white' 
+                                                : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'
+                                            }`}
+                                        >
+                                            {t(lang, type === 'tilt-turn-left' ? 'tiltTurnLeft' : type === 'tilt-turn-right' ? 'tiltTurnRight' : type === 'turn-left' ? 'turnLeft' : type === 'turn-right' ? 'turnRight' : type as any)}
+                                        </button>
+                                    ))}
+                                 </div>
+                            </div>
                         </div>
-                        
-                        <div className="pt-2 border-t border-slate-600">
-                             <label className="block text-xs mb-2 text-slate-400">{t(lang, 'openingType')}</label>
-                             <div className="grid grid-cols-2 gap-2">
-                                {openingTypes.map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => handleUpdateProp('openingType', type)}
-                                        className={`text-xs px-2 py-1.5 rounded border capitalize ${
-                                            selectedNode.openingType === type 
-                                            ? 'bg-blue-600 border-blue-500 text-white' 
-                                            : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'
-                                        }`}
-                                    >
-                                        {t(lang, type === 'tilt-turn-left' ? 'tiltTurnLeft' : type === 'tilt-turn-right' ? 'tiltTurnRight' : type === 'turn-left' ? 'turnLeft' : type === 'turn-right' ? 'turnRight' : type as any)}
-                                    </button>
-                                ))}
+                    )}
+
+                    {/* Container Actions (Resizing) */}
+                    {selectedNode.type === 'container' && (
+                        <div className="space-y-4">
+                             <div className="flex items-center gap-2 text-slate-300 text-sm border-b border-slate-600 pb-2">
+                                 <Ruler size={16} />
+                                 <span className="font-semibold">{t(lang, 'splitSizes')}</span>
+                             </div>
+                             <div className="space-y-3">
+                                 <div>
+                                     <label className="block text-xs mb-1 text-slate-400">{t(lang, 'pane1')}</label>
+                                     <input 
+                                        type="number"
+                                        value={Math.round(containerSizes.s1)}
+                                        onChange={(e) => handleRatioChange(Number(e.target.value), 0)}
+                                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm font-mono"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs mb-1 text-slate-400">{t(lang, 'pane2')}</label>
+                                     <input 
+                                        type="number"
+                                        value={Math.round(containerSizes.s2)}
+                                        onChange={(e) => handleRatioChange(Number(e.target.value), 1)}
+                                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm font-mono"
+                                     />
+                                 </div>
+                                 <p className="text-[10px] text-slate-500 italic text-center mt-2">
+                                     Total Avail: {Math.round(containerSizes.total)}mm
+                                 </p>
                              </div>
                         </div>
+                    )}
 
-                        <div className="pt-4">
+                    {selectedNodeId === rootNode.id && (
+                        <div className="pt-4 mt-4 border-t border-slate-600">
                             <button 
                                 onClick={handleDelete}
                                 className="w-full flex items-center justify-center gap-2 p-2 text-red-400 hover:bg-red-900/20 border border-transparent hover:border-red-900 rounded transition-colors text-xs"
@@ -347,7 +513,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 <Trash2 size={14} /> {t(lang, 'resetUnit')}
                             </button>
                         </div>
-                    </div>
+                    )}
                 </section>
             )}
 
