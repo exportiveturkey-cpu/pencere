@@ -60,7 +60,8 @@ const Visualizer: React.FC<VisualizerProps> = ({
           height={isVertical ? height : frameWidth}
           fill="#334155" // Slate 700 - Profile Color
           stroke="#0f172a"
-          strokeWidth="1"
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
 
         {/* Second Child */}
@@ -93,7 +94,8 @@ const Visualizer: React.FC<VisualizerProps> = ({
         height={height}
         fill="#334155" // Profile Color
         stroke={isSelected ? "#3b82f6" : "#0f172a"}
-        strokeWidth={isSelected ? 4 : 1}
+        strokeWidth={isSelected ? 4 : 2}
+        vectorEffect="non-scaling-stroke"
       />
 
       {/* Glass Area (inset by frame width) */}
@@ -106,6 +108,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
         fillOpacity={0.3}
         stroke="#60a5fa"
         strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
       />
 
       {/* Sash Indicator (if applicable) */}
@@ -113,10 +116,11 @@ const Visualizer: React.FC<VisualizerProps> = ({
         <path 
           d={`M${x + frameWidth},${y + frameWidth} L${x + width/2},${y + height/2} L${x + frameWidth},${y + height - frameWidth}`}
           stroke="#fff"
-          strokeWidth="1.5"
+          strokeWidth="2"
           fill="none"
           strokeDasharray="5,5"
           className="pointer-events-none"
+          vectorEffect="non-scaling-stroke"
         />
       )}
       
@@ -132,18 +136,23 @@ const Visualizer: React.FC<VisualizerProps> = ({
         />
       )}
       
-      {/* ID Label for Debug/Clarity */}
-      <text 
-        x={x + width / 2} 
-        y={y + height / 2} 
-        textAnchor="middle" 
-        dominantBaseline="middle" 
-        fill="white" 
-        fontSize="12"
-        className="pointer-events-none drop-shadow-md font-bold opacity-50"
-      >
-        {Math.round(width)}x{Math.round(height)}
-      </text>
+      {/* ID Label for Debug/Clarity - Hidden in print via CSS usually, but we keep it simply */}
+      {width > 200 && height > 200 && (
+         <text 
+            x={x + width / 2} 
+            y={y + height / 2} 
+            textAnchor="middle" 
+            dominantBaseline="middle" 
+            fill="white" 
+            fontSize="48"
+            fontWeight="bold"
+            opacity="0.5"
+            className="pointer-events-none select-none"
+            style={{ textShadow: '0px 0px 4px rgba(0,0,0,0.5)' }}
+        >
+            {Math.round(width)}x{Math.round(height)}
+        </text>
+      )}
     </g>
   );
 };

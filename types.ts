@@ -43,6 +43,7 @@ export interface ProfileSystem {
   uValue: number; // Thermal insulation
   frameWidth: number; // mm
   pricePerMeter: number;
+  profileLength: number; // meters per bar
 }
 
 export interface GlassType {

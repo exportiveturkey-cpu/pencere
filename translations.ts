@@ -11,7 +11,9 @@ type TranslationKey =
   | 'resetConfirm' | 'unknownClient' | 'newPosition' | 'loading' | 'active' | 'unit' | 'units'
   | 'statusDraft' | 'statusProd' | 'statusComp' | 'systemAdded' | 'fillAllFields'
   | 'quantity' | 'edit' | 'update' | 'cancel' | 'systemUpdated' | 'printQuote' | 'unitPrice' | 'totalPrice'
-  | 'area' | 'technicalDrawing' | 'details' | 'glassThickness' | 'avgUValue' | 'wMk' | 'signature' | 'date';
+  | 'area' | 'technicalDrawing' | 'details' | 'glassThickness' | 'avgUValue' | 'wMk' | 'signature' | 'date'
+  | 'preparingPdf' | 'profileLength' | 'materialOptimization' | 'totalBars' | 'efficiency' | 'waste'
+  | 'totalCuts' | 'barLength' | 'optimizationReport' | 'bars' | 'cuttingList';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -85,7 +87,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     avgUValue: "Avg. U-Value",
     wMk: "W/m²K",
     signature: "Signature",
-    date: "Date"
+    date: "Date",
+    preparingPdf: "Preparing PDF...",
+    profileLength: "Profile Length (m)",
+    materialOptimization: "Material Optimization",
+    totalBars: "Total Bars Required",
+    efficiency: "Efficiency",
+    waste: "Waste",
+    totalCuts: "Total Cuts",
+    barLength: "Bar Length",
+    optimizationReport: "Optimization Report",
+    bars: "bars",
+    cuttingList: "Cutting List"
   },
   tr: {
     projects: 'Projeler',
@@ -158,7 +171,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     avgUValue: "Ort. U-Değeri",
     wMk: "W/m²K",
     signature: "İmza",
-    date: "Tarih"
+    date: "Tarih",
+    preparingPdf: "PDF Hazırlanıyor...",
+    profileLength: "Profil Boyu (m)",
+    materialOptimization: "Malzeme Optimizasyonu",
+    totalBars: "Toplam Profil İhtiyacı",
+    efficiency: "Verimlilik",
+    waste: "Fire",
+    totalCuts: "Toplam Parça",
+    barLength: "Boy Uzunluğu",
+    optimizationReport: "Optimizasyon Raporu",
+    bars: "boy",
+    cuttingList: "Kesim Listesi"
   }
 };
 

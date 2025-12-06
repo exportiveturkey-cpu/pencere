@@ -18,12 +18,13 @@ const Settings: React.FC<SettingsProps> = ({ systems, lang, onAddSystem, onUpdat
     name: '',
     frameWidth: 65,
     uValue: 1.5,
-    pricePerMeter: 0
+    pricePerMeter: 0,
+    profileLength: 6.0
   });
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const resetForm = () => {
-    setFormState({ name: '', frameWidth: 65, uValue: 1.5, pricePerMeter: 0 });
+    setFormState({ name: '', frameWidth: 65, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0 });
     setEditingId(null);
   };
 
@@ -46,7 +47,8 @@ const Settings: React.FC<SettingsProps> = ({ systems, lang, onAddSystem, onUpdat
             name: formState.name || '',
             frameWidth: Number(formState.frameWidth),
             uValue: Number(formState.uValue),
-            pricePerMeter: Number(formState.pricePerMeter)
+            pricePerMeter: Number(formState.pricePerMeter),
+            profileLength: Number(formState.profileLength || 6.0)
         };
         onUpdateSystem(updatedSystem);
         setSuccessMsg(t(lang, 'systemUpdated'));
@@ -57,7 +59,8 @@ const Settings: React.FC<SettingsProps> = ({ systems, lang, onAddSystem, onUpdat
             name: formState.name || '',
             frameWidth: Number(formState.frameWidth),
             uValue: Number(formState.uValue),
-            pricePerMeter: Number(formState.pricePerMeter)
+            pricePerMeter: Number(formState.pricePerMeter),
+            profileLength: Number(formState.profileLength || 6.0)
         };
         onAddSystem(system);
         setSuccessMsg(t(lang, 'systemAdded'));
@@ -134,6 +137,16 @@ const Settings: React.FC<SettingsProps> = ({ systems, lang, onAddSystem, onUpdat
                     className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm focus:border-blue-500 outline-none"
                   />
                 </div>
+                 <div>
+                  <label className="block text-xs text-slate-400 mb-1">{t(lang, 'profileLength')}</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    value={formState.profileLength}
+                    onChange={e => setFormState({...formState, profileLength: Number(e.target.value)})}
+                    className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm focus:border-blue-500 outline-none"
+                  />
+                </div>
                 
                 {successMsg && (
                     <div className="bg-emerald-900/30 text-emerald-400 text-xs p-2 rounded border border-emerald-900/50 flex items-center gap-2">
@@ -167,10 +180,11 @@ const Settings: React.FC<SettingsProps> = ({ systems, lang, onAddSystem, onUpdat
               >
                 <div>
                   <h3 className="font-bold text-lg text-white">{sys.name}</h3>
-                  <div className="flex gap-4 text-sm text-slate-400 mt-1">
-                    <span>{t(lang, 'width')}: <span className="text-slate-200">{sys.frameWidth}</span></span>
+                  <div className="flex flex-wrap gap-4 text-sm text-slate-400 mt-1">
+                    <span>{t(lang, 'width')}: <span className="text-slate-200">{sys.frameWidth}mm</span></span>
                     <span>{t(lang, 'uValue')}: <span className="text-slate-200">{sys.uValue}</span></span>
-                    <span>{t(lang, 'price')}: <span className="text-emerald-400">{sys.pricePerMeter}</span></span>
+                    <span>{t(lang, 'profileLength')}: <span className="text-slate-200">{sys.profileLength || 6.0}m</span></span>
+                    <span>{t(lang, 'price')}: <span className="text-emerald-400">${sys.pricePerMeter}/m</span></span>
                   </div>
                 </div>
                 <div className="flex items-center">

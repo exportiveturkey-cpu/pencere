@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Download, Bot, Printer, Thermometer, Loader2 } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
+import OptimizationReport from './OptimizationReport';
 import { GLASS_TYPES } from '../constants';
 
 interface ProjectViewProps {
@@ -18,6 +19,7 @@ interface ProjectViewProps {
 const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBack, onAddUnit, onEditUnit }) => {
   const [quoteIntro, setQuoteIntro] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Advanced Calculation Logic
   const getUnitStats = (unit: Unit) => {
@@ -105,7 +107,15 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
   };
 
   const handlePrint = () => {
-    window.print();
+    // 1. Set Loading State
+    setIsPrinting(true);
+    
+    // 2. Use timeout to allow React to render the loading spinner
+    setTimeout(() => {
+        window.print();
+        // 3. Reset state after a short delay (once the print dialog likely opened/closed)
+        setTimeout(() => setIsPrinting(false), 500);
+    }, 100);
   };
 
   const projectAvgUw = calculateAvgUw(project.units);
@@ -113,17 +123,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
   return (
     <>
     <style>{`
-      /* Default: Hide print view */
+      /* Screen only */
       #print-view { display: none; }
       
       @media print {
         @page {
-          size: auto;
+          size: A4;
           margin: 10mm;
         }
 
-        /* Reset global constraints */
-        html, body, #root {
+        /* 
+           Aggressive Reset for Parent Containers 
+           This is critical for React apps where root divs have styles 
+        */
+        html, body {
           height: auto !important;
           overflow: visible !important;
           background-color: white !important;
@@ -131,30 +144,56 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
           padding: 0 !important;
         }
 
-        /* Hide the screen UI completely */
-        #screen-view, .no-print {
+        #root {
+          display: block !important;
+          background-color: white !important;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+
+        /* Target the immediate child of root (App container) */
+        #root > div {
+            min-height: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+            background-color: white !important;
+            color: black !important;
+        }
+
+        /* Hide Screen UI */
+        #screen-view {
+          display: none !important;
+        }
+        
+        .no-print {
           display: none !important;
         }
 
-        /* Show the print view */
+        /* Show Print View */
         #print-view {
           display: block !important;
-          position: relative;
           width: 100%;
           background: white;
           color: black;
           font-family: 'Inter', sans-serif;
         }
 
-        /* Ensure drawing colors render */
+        /* Ensure drawing colors render by forcing exact colors */
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            box-shadow: none !important;
         }
 
-        /* Styling for the print layout */
-        .page-break { page-break-before: always; }
-        .avoid-break { page-break-inside: avoid; }
+        /* Page Breaks */
+        .avoid-break { 
+            page-break-inside: avoid; 
+            break-inside: avoid;
+        }
+        .page-break { 
+            page-break-before: always; 
+        }
       }
     `}</style>
 
@@ -246,6 +285,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                 })}
             </div>
 
+            {/* Optimization Report (Screen) */}
+            <OptimizationReport units={project.units} systems={systems} lang={lang} />
+
             {/* Quote Generation Section */}
             <div className="border-t border-slate-700 pt-8">
                 <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -289,9 +331,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                         </div>
                         <button 
                             onClick={handlePrint}
-                            className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded flex items-center justify-center gap-2 transition-colors"
+                            disabled={isPrinting}
+                            className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-wait"
                         >
-                            <Printer size={16} /> {t(lang, 'exportPdf')}
+                            {isPrinting ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} 
+                            {isPrinting ? t(lang, 'preparingPdf') : t(lang, 'exportPdf')}
                         </button>
                     </div>
                 </div>
@@ -407,6 +451,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, lang, onBac
                         </div>
                     );
                 })}
+            </div>
+
+            {/* Optimization Report (Print) */}
+            <div className="avoid-break mt-12 pt-8 border-t-2 border-slate-300">
+               <h2 className="text-2xl font-light text-slate-700 mb-6">{t(lang, 'optimizationReport')}</h2>
+               <OptimizationReport units={project.units} systems={systems} lang={lang} />
             </div>
 
             <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
