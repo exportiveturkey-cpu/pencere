@@ -331,7 +331,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             
             <section>
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'dimensions')}</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'width')}</label>
                         <input 
@@ -350,6 +350,17 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
                         />
                     </div>
+                </div>
+                {/* Quantity Input */}
+                <div>
+                    <label className="block text-xs mb-1 text-slate-400">{t(lang, 'quantity')}</label>
+                    <input 
+                        type="number" 
+                        min="1"
+                        value={quantity} 
+                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                    />
                 </div>
             </section>
 

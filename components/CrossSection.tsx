@@ -37,16 +37,8 @@ const CrossSection: React.FC<CrossSectionProps> = ({ system, glassThickness, isO
   // Sash coordinates (if openable)
   // Sash overlaps frame by `sashOverlap`
   const sashX = frameX + frameW - (rules.sashOverlap || 6); 
-  const sashY = frameY + 20; // visual offset
-
-  // Glass coordinates
-  // Glass sits inside sash (or frame if fixed) with `glassClearance`
-  const glassContainerX = isOpenable ? sashX : frameX;
-  const glassContainerW = isOpenable ? sashW : frameW;
   
-  const glassX = glassContainerX + glassContainerW - 15; // deeply seated
-  const glassY = frameY + 40;
-  const glassH = 200; // arbitrary height for cut
+  // Removed unused variables (sashY, glassX, glassY, etc.) to fix TS6133
   
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
