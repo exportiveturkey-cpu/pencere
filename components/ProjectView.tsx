@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive, Download } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
+import { generateDXF } from '../services/dxfService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -26,7 +28,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // Advanced Calculation Logic
+  // Advanced Calculation Logic with Rules
   const getUnitStats = (unit: Unit) => {
     const system = systems.find(s => s.id === unit.system);
     const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
@@ -35,6 +37,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     if (!system) return { cost: 0, uw: 0, glassName: unit.glassType, totalAreaM2: 0, accessoriesCost: 0, accessoryList: [] };
 
     const frameW = system.frameWidth;
+    const sashW = 55; // Approx for calc
+    const config = system.correctionConfig || { sashOverlap: 6, glassClearance: 4 };
     
     let sashCount = 0;
     
@@ -61,14 +65,33 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 glassArea: r1.glassArea + r2.glassArea,
                 frameArea: r1.frameArea + r2.frameArea + mullionArea,
                 mullionLength: mullionLen + r1.mullionLength + r2.mullionLength,
-                perimeter: r1.perimeter + r2.perimeter // Recursive perimeter sum (roughly)
+                perimeter: r1.perimeter + r2.perimeter 
             };
          }
          
-         // Leaf
-         const gW = Math.max(0, w - 2 * frameW);
-         const gH = Math.max(0, h - 2 * frameW);
-         const gArea = gW * gH;
+         // Leaf Node - Calculate Real Glass Size
+         const daylightW = Math.max(0, w - 2 * frameW);
+         const daylightH = Math.max(0, h - 2 * frameW);
+         
+         let glassW = daylightW;
+         let glassH = daylightH;
+
+         if (node.openingType && node.openingType !== 'fixed') {
+             // Opening: Daylight -> Sash -> Glass
+             // Sash = Daylight + (2 * Overlap)
+             // Glass = Sash - (2 * SashProfile) - (2 * Clearance)
+             
+             // Simplification: Glass = Daylight + (2*Overlap) - (2*SashProfile) - (2*Clearance)
+             glassW = daylightW + (2 * config.sashOverlap) - (2 * sashW) - (2 * config.glassClearance);
+             glassH = daylightH + (2 * config.sashOverlap) - (2 * sashW) - (2 * config.glassClearance);
+         } else {
+             // Fixed: Daylight -> Glass (Direct Glazing)
+             // Glass = Daylight - (2 * Clearance) - (Some adapter profile usually, but let's assume direct)
+             glassW = daylightW - (2 * config.glassClearance);
+             glassH = daylightH - (2 * config.glassClearance);
+         }
+         
+         const gArea = Math.max(0, glassW * glassH);
          const total = w * h;
          const perim = (w + h) * 2;
          return { glassArea: gArea, frameArea: total - gArea, mullionLength: 0, perimeter: perim };
@@ -177,6 +200,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         window.print();
         setTimeout(() => setIsPrinting(false), 500);
     }, 100);
+  };
+
+  const handleDownloadDXF = (unit: Unit) => {
+      const system = systems.find(s => s.id === unit.system);
+      if (!system) return;
+      
+      const dxfContent = generateDXF(unit, system);
+      const blob = new Blob([dxfContent], { type: 'application/dxf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${unit.name.replace(/\s+/g, '_')}_${unit.width}x${unit.height}.dxf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
   };
 
   const handleStatusChange = (newStatus: Project['status']) => {
@@ -352,6 +391,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </div>
                                 
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleDownloadDXF(unit); }} 
+                                        className="p-2 bg-emerald-600 rounded text-white hover:scale-110 transition-transform" 
+                                        title={t(lang, 'downloadDxf')}
+                                    >
+                                        <Download size={16}/>
+                                    </button>
+                                    
                                     {project.status === 'Draft' ? (
                                         <>
                                             <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={16}/></button>

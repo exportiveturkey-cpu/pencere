@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Ruler } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
@@ -31,7 +32,17 @@ const Settings: React.FC<SettingsProps> = ({
   // System Form State
   const [editingSysId, setEditingSysId] = useState<string | null>(null);
   const [sysForm, setSysForm] = useState<Partial<ProfileSystem>>({
-    name: '', frameWidth: 65, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0
+    name: '', 
+    frameWidth: 65, 
+    uValue: 1.5, 
+    pricePerMeter: 0, 
+    profileLength: 6.0,
+    correctionConfig: {
+      sashOverlap: 6,
+      glassClearance: 4,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+    }
   });
 
   // Accessory Form State
@@ -44,13 +55,34 @@ const Settings: React.FC<SettingsProps> = ({
 
   // System Handlers
   const resetSysForm = () => {
-    setSysForm({ name: '', frameWidth: 65, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0 });
+    setSysForm({ 
+        name: '', 
+        frameWidth: 65, 
+        uValue: 1.5, 
+        pricePerMeter: 0, 
+        profileLength: 6.0,
+        correctionConfig: {
+            sashOverlap: 6,
+            glassClearance: 4,
+            mullionCorrection: 0,
+            frameCornerWelding: 0
+        }
+    });
     setEditingSysId(null);
   };
 
   const handleEditSys = (sys: ProfileSystem) => {
     setEditingSysId(sys.id);
-    setSysForm({ ...sys });
+    // Ensure nested object exists
+    setSysForm({ 
+        ...sys,
+        correctionConfig: sys.correctionConfig || {
+            sashOverlap: 6,
+            glassClearance: 4,
+            mullionCorrection: 0,
+            frameCornerWelding: 0
+        }
+    });
   };
 
   const handleSaveSys = () => {
@@ -62,7 +94,13 @@ const Settings: React.FC<SettingsProps> = ({
         frameWidth: Number(sysForm.frameWidth),
         uValue: Number(sysForm.uValue),
         pricePerMeter: Number(sysForm.pricePerMeter),
-        profileLength: Number(sysForm.profileLength || 6.0)
+        profileLength: Number(sysForm.profileLength || 6.0),
+        correctionConfig: {
+            sashOverlap: Number(sysForm.correctionConfig?.sashOverlap || 0),
+            glassClearance: Number(sysForm.correctionConfig?.glassClearance || 0),
+            mullionCorrection: Number(sysForm.correctionConfig?.mullionCorrection || 0),
+            frameCornerWelding: Number(sysForm.correctionConfig?.frameCornerWelding || 0)
+        }
     };
 
     if (editingSysId) onUpdateSystem(sysData);
@@ -109,7 +147,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
                 <button onClick={onBack} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
@@ -140,42 +178,104 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
 
         {activeTab === 'systems' ? (
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* System Form */}
-                <div className="md:col-span-1">
+                <div className="lg:col-span-5">
                     <div className={`p-6 rounded-xl border sticky top-8 transition-colors ${editingSysId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-slate-800 border-slate-700'}`}>
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-semibold text-white">{editingSysId ? t(lang, 'edit') : t(lang, 'addSystem')}</h2>
                             {editingSysId && <button onClick={resetSysForm} className="text-xs text-slate-400"><X size={12}/> {t(lang, 'cancel')}</button>}
                         </div>
-                        <div className="space-y-4">
-                             <input type="text" placeholder={t(lang, 'sysName')} value={sysForm.name} onChange={e => setSysForm({...sysForm, name: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
-                             <input type="number" placeholder={t(lang, 'frameWidth')} value={sysForm.frameWidth} onChange={e => setSysForm({...sysForm, frameWidth: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
-                             <input type="number" step="0.1" placeholder={`${t(lang, 'uValue')}`} value={sysForm.uValue} onChange={e => setSysForm({...sysForm, uValue: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
-                             <input type="number" placeholder={t(lang, 'price')} value={sysForm.pricePerMeter} onChange={e => setSysForm({...sysForm, pricePerMeter: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
-                             <input type="number" step="0.1" placeholder={t(lang, 'profileLength')} value={sysForm.profileLength} onChange={e => setSysForm({...sysForm, profileLength: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                        
+                        <div className="space-y-6">
+                             <div className="space-y-3">
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700 pb-1">Basic Info</h3>
+                                
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-400">{t(lang, 'sysName')}</label>
+                                    <input type="text" value={sysForm.name} onChange={e => setSysForm({...sysForm, name: e.target.value})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400">{t(lang, 'frameWidth')}</label>
+                                        <input type="number" value={sysForm.frameWidth} onChange={e => setSysForm({...sysForm, frameWidth: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400">{t(lang, 'uValue')}</label>
+                                        <input type="number" step="0.1" value={sysForm.uValue} onChange={e => setSysForm({...sysForm, uValue: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400">{t(lang, 'price')}</label>
+                                        <input type="number" value={sysForm.pricePerMeter} onChange={e => setSysForm({...sysForm, pricePerMeter: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400">{t(lang, 'profileLength')}</label>
+                                        <input type="number" step="0.1" value={sysForm.profileLength} onChange={e => setSysForm({...sysForm, profileLength: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                    </div>
+                                </div>
+                             </div>
+
+                             {/* System Rules Engine UI */}
+                             <div className="space-y-3 bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
+                                <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wider border-b border-slate-700 pb-1 flex items-center gap-2">
+                                    <Ruler size={14} />
+                                    {t(lang, 'cuttingRules')}
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 mb-1">{t(lang, 'sashOverlap')} (+mm)</label>
+                                        <input type="number" value={sysForm.correctionConfig?.sashOverlap} onChange={e => setSysForm({...sysForm, correctionConfig: { ...sysForm.correctionConfig!, sashOverlap: Number(e.target.value)}})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm font-mono text-center text-blue-300" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 mb-1">{t(lang, 'glassClearance')} (-mm)</label>
+                                        <input type="number" value={sysForm.correctionConfig?.glassClearance} onChange={e => setSysForm({...sysForm, correctionConfig: { ...sysForm.correctionConfig!, glassClearance: Number(e.target.value)}})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm font-mono text-center text-red-300" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 mb-1">{t(lang, 'mullionCorrection')} (mm)</label>
+                                        <input type="number" value={sysForm.correctionConfig?.mullionCorrection} onChange={e => setSysForm({...sysForm, correctionConfig: { ...sysForm.correctionConfig!, mullionCorrection: Number(e.target.value)}})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm font-mono text-center" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 mb-1">{t(lang, 'weldingAllowance')} (+mm)</label>
+                                        <input type="number" value={sysForm.correctionConfig?.frameCornerWelding} onChange={e => setSysForm({...sysForm, correctionConfig: { ...sysForm.correctionConfig!, frameCornerWelding: Number(e.target.value)}})} className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm font-mono text-center" />
+                                    </div>
+                                </div>
+                             </div>
                              
                              {successMsg && <div className="text-emerald-400 text-xs flex items-center gap-2"><Check size={12} /> {successMsg}</div>}
-                             <button onClick={handleSaveSys} disabled={!sysForm.name} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded mt-2">{editingSysId ? t(lang, 'update') : t(lang, 'addSystem')}</button>
+                             <button onClick={handleSaveSys} disabled={!sysForm.name} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded mt-2 font-medium shadow-lg shadow-blue-900/20">{editingSysId ? t(lang, 'update') : t(lang, 'addSystem')}</button>
                         </div>
                     </div>
                 </div>
                 {/* System List */}
-                <div className="md:col-span-2 space-y-4">
+                <div className="lg:col-span-7 space-y-4">
                     {systems.map((sys) => (
-                        <div key={sys.id} className="p-4 rounded-lg bg-slate-800 border border-slate-700 flex justify-between items-center">
+                        <div key={sys.id} className="p-4 rounded-lg bg-slate-800 border border-slate-700 flex justify-between items-start group hover:border-blue-500 transition-colors">
                             <div>
-                                <h3 className="font-bold text-lg text-white">{sys.name}</h3>
-                                <div className="text-sm text-slate-400">{sys.frameWidth}mm | {sys.uValue} W/m²K | ${sys.pricePerMeter}/m</div>
+                                <h3 className="font-bold text-lg text-white mb-1">{sys.name}</h3>
+                                <div className="text-xs text-slate-400 space-y-1">
+                                    <div className="flex gap-3">
+                                        <span>Frame: {sys.frameWidth}mm</span>
+                                        <span>Uf: {sys.uValue}</span>
+                                        <span>${sys.pricePerMeter}/m</span>
+                                    </div>
+                                    <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700 text-slate-500">
+                                        <span className="bg-slate-900 px-2 py-0.5 rounded">Bini: {sys.correctionConfig?.sashOverlap || 6}mm</span>
+                                        <span className="bg-slate-900 px-2 py-0.5 rounded">Cam Payı: {sys.correctionConfig?.glassClearance || 4}mm</span>
+                                    </div>
+                                </div>
                             </div>
-                            <button onClick={() => handleEditSys(sys)} className="p-2 rounded-full bg-slate-700 text-slate-300 hover:text-white"><Edit2 size={16} /></button>
+                            <button onClick={() => handleEditSys(sys)} className="p-2 rounded-full bg-slate-700 text-slate-300 hover:text-white group-hover:bg-blue-600 group-hover:text-white transition-colors"><Edit2 size={16} /></button>
                         </div>
                     ))}
                 </div>
              </div>
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Accessory Form */}
+                {/* Accessory Form (Kept Same) */}
                 <div className="md:col-span-1">
                     <div className={`p-6 rounded-xl border sticky top-8 transition-colors ${editingAccId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-slate-800 border-slate-700'}`}>
                         <div className="flex justify-between items-center mb-4">

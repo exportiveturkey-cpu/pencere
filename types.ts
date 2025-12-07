@@ -1,3 +1,4 @@
+
 export type Language = 'en' | 'tr';
 
 export interface Project {
@@ -48,7 +49,15 @@ export interface WindowNode {
   // Leaf properties
   // Updated Opening Types
   openingType?: 'fixed' | 'turn-left' | 'turn-right' | 'tilt' | 'tilt-turn-left' | 'tilt-turn-right' | 'sliding';
-  handlePosition?: 'left' | 'right' | 'bottom'; // Kept for legacy compatibility or sliding, but mostly derived from openingType now
+  handlePosition?: 'left' | 'right' | 'bottom'; 
+}
+
+// NEW: Advanced Cutting Rules
+export interface CuttingCorrectionConfig {
+  sashOverlap: number; // "Bini Payı": How much sash overlaps frame (e.g., 6mm)
+  glassClearance: number; // "Cam Boşluğu": Gap between frame/sash and glass (e.g., 5mm)
+  mullionCorrection: number; // "Orta Kayıt Bağlantı": Adjustment for mechanical joints (e.g., 0 or -1mm)
+  frameCornerWelding: number; // "Kaynak Payı": Added length for welding (usually 0 for Aluminium crimping, 6mm for PVC)
 }
 
 export interface ProfileSystem {
@@ -58,6 +67,7 @@ export interface ProfileSystem {
   frameWidth: number; // mm
   pricePerMeter: number;
   profileLength: number; // meters per bar
+  correctionConfig: CuttingCorrectionConfig; // NEW Field
 }
 
 export interface GlassType {

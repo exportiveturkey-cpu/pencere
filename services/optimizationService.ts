@@ -1,3 +1,4 @@
+
 import { Unit, ProfileSystem, WindowNode } from '../types';
 
 export interface OptimizedBar {
@@ -27,24 +28,55 @@ export interface CutItem {
 const SAW_BLADE_THICKNESS = 5; // mm waste per cut
 
 // Helper to extract all cut lengths with labels from a unit
+// Now uses System Correction Rules!
 const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label: string }[] => {
   const cuts: { length: number, label: string }[] = [];
+  
+  // Default fallbacks if config is missing (backward compatibility)
+  const config = system.correctionConfig || {
+      sashOverlap: 6,
+      glassClearance: 4,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+  };
+
   const frameWidth = system.frameWidth;
 
   // 1. Outer Frame (2 Widths, 2 Heights)
-  cuts.push({ length: unit.width, label: 'Frame Width' });
-  cuts.push({ length: unit.width, label: 'Frame Width' });
-  cuts.push({ length: unit.height, label: 'Frame Height' });
-  cuts.push({ length: unit.height, label: 'Frame Height' });
+  // Logic: Nominal Dimension + Welding Allowance (if PVC/Welded)
+  const frameW = unit.width + (2 * config.frameCornerWelding);
+  const frameH = unit.height + (2 * config.frameCornerWelding);
+
+  cuts.push({ length: frameW, label: 'Frame Width' });
+  cuts.push({ length: frameW, label: 'Frame Width' });
+  cuts.push({ length: frameH, label: 'Frame Height' });
+  cuts.push({ length: frameH, label: 'Frame Height' });
 
   // 2. Recursive traversal for Mullions and Sashes
   const traverse = (node: WindowNode, w: number, h: number) => {
+    // w and h here are the "Daylight Opening" allocated to this node, INCLUDING frame thickness if it's the root.
+    // Actually, let's look at how visualizer passes dimensions. It passes the bounding box.
+    // So for the root node, w = unit.width, h = unit.height.
+    
     if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
       const isVert = node.direction === 'vertical';
       
-      // Add Mullion Cut
+      // MULLION CALCULATION
+      // Mullion sits *inside* the frame or container.
+      // Logic: Inner Dimension + Connection Correction
+      // Inner Dimension = Container Dim - (2 * FrameWidth) if it spans the whole frame.
+      // NOTE: This simple recursion assumes mullion spans the entire passed width/height minus frame thickness.
+      
+      const mullionRawLen = isVert ? h : w;
+      // We subtract 2x FrameWidth because mullion is typically mounted between the frames.
+      // If this container is nested inside another mullion, this logic gets complex. 
+      // Simplified: Assume Mullion connects to outer frame.
+      const mullionCutLen = (mullionRawLen - (2 * frameWidth)) + config.mullionCorrection;
+      
       const label = isVert ? 'Mullion (Vertical)' : 'Transom (Horizontal)';
-      cuts.push({ length: isVert ? h : w, label });
+      if (mullionCutLen > 0) {
+          cuts.push({ length: mullionCutLen, label });
+      }
 
       const avail = isVert ? w - frameWidth : h - frameWidth;
       const s1 = avail * node.splitRatio[0];
@@ -55,12 +87,22 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
     } else {
       // Leaf Node - Check for Opening Sash
       if (node.openingType && node.openingType !== 'fixed') {
-        // Sash Frame (2 Widths + 2 Heights)
-        // Approx: We use the passed w/h as the sash outer dimension for estimation.
-        cuts.push({ length: w, label: 'Sash Width' });
-        cuts.push({ length: w, label: 'Sash Width' });
-        cuts.push({ length: h, label: 'Sash Height' });
-        cuts.push({ length: h, label: 'Sash Height' });
+        // SASH CALCULATION
+        // Sash Size = Hole Size + (2 * Overlap)
+        // Hole Size = Node Bounding Box - (2 * FrameWidth)
+        
+        const holeW = w - (2 * frameWidth);
+        const holeH = h - (2 * frameWidth);
+        
+        const sashW = holeW + (2 * config.sashOverlap) + (2 * config.frameCornerWelding);
+        const sashH = holeH + (2 * config.sashOverlap) + (2 * config.frameCornerWelding);
+        
+        if (sashW > 0 && sashH > 0) {
+            cuts.push({ length: sashW, label: 'Sash Width' });
+            cuts.push({ length: sashW, label: 'Sash Width' });
+            cuts.push({ length: sashH, label: 'Sash Height' });
+            cuts.push({ length: sashH, label: 'Sash Height' });
+        }
       }
     }
   };
@@ -133,8 +175,6 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
     const system = systems.find(s => s.id === systemId);
     if (!system) continue;
 
-    // Collect all cuts for all units in this system (multiply by quantity)
-    // We only need raw numbers for optimization
     let allCutLengths: number[] = [];
     
     systemUnits.forEach(u => {
@@ -148,7 +188,6 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
     const barLengthMm = (system.profileLength || 6.0) * 1000;
     const optimizedBars = optimizeCutsForSystem(allCutLengths, barLengthMm);
 
-    // Calculate stats
     const totalUsedLength = optimizedBars.reduce((acc, bar) => acc + (barLengthMm - bar.remaining), 0);
     const totalCapacity = optimizedBars.length * barLengthMm;
     const efficiency = totalCapacity > 0 ? (totalUsedLength / totalCapacity) * 100 : 0;
@@ -168,7 +207,6 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
   return result;
 };
 
-// Generate aggregated cutting list for table view
 export const getAggregatedCuttingList = (units: Unit[], systems: ProfileSystem[]): Record<string, CutItem[]> => {
     const listBySystem: Record<string, CutItem[]> = {};
 
@@ -182,10 +220,8 @@ export const getAggregatedCuttingList = (units: Unit[], systems: ProfileSystem[]
             listBySystem[system.name] = [];
         }
 
-        // Add cuts multiplied by unit quantity
         for (let i = 0; i < (u.quantity || 1); i++) {
             rawCuts.forEach(cut => {
-                // Check if this specific cut (length + label) already exists in the list to aggregate
                 const existing = listBySystem[system.name].find(
                     item => Math.abs(item.length - cut.length) < 0.1 && item.label === cut.label
                 );
@@ -194,7 +230,7 @@ export const getAggregatedCuttingList = (units: Unit[], systems: ProfileSystem[]
                     existing.quantity += 1;
                 } else {
                     listBySystem[system.name].push({
-                        length: Math.round(cut.length), // Round for display
+                        length: Math.round(cut.length), 
                         label: cut.label,
                         quantity: 1,
                         systemName: system.name
@@ -204,7 +240,6 @@ export const getAggregatedCuttingList = (units: Unit[], systems: ProfileSystem[]
         }
     });
 
-    // Sort each list by length descending
     Object.keys(listBySystem).forEach(sys => {
         listBySystem[sys].sort((a, b) => b.length - a.length);
     });

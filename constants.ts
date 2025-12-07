@@ -1,10 +1,64 @@
+
 import { ProfileSystem, GlassType, Project, Accessory } from './types';
 
+// Updated with Correction Configs
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
-  { id: 'eco50', name: 'EcoLine 50 (Cold)', uValue: 2.1, frameWidth: 50, pricePerMeter: 45, profileLength: 6.0 },
-  { id: 'std65', name: 'Standard 65 (Thermal)', uValue: 1.6, frameWidth: 65, pricePerMeter: 85, profileLength: 6.0 },
-  { id: 'prem75', name: 'Premium 75 (High Insulation)', uValue: 1.1, frameWidth: 75, pricePerMeter: 120, profileLength: 6.0 },
-  { id: 'slide120', name: 'SlideMaster 120', uValue: 1.8, frameWidth: 120, pricePerMeter: 150, profileLength: 6.0 },
+  { 
+    id: 'eco50', 
+    name: 'EcoLine 50 (Cold)', 
+    uValue: 2.1, 
+    frameWidth: 50, 
+    pricePerMeter: 45, 
+    profileLength: 6.0,
+    correctionConfig: {
+      sashOverlap: 6,        // Standard Alu Bini
+      glassClearance: 4,     // Standard Glazing Block gap
+      mullionCorrection: 0,  // Precise mechanical cut
+      frameCornerWelding: 0  // Crimping (Press corner)
+    }
+  },
+  { 
+    id: 'std65', 
+    name: 'Standard 65 (Thermal)', 
+    uValue: 1.6, 
+    frameWidth: 65, 
+    pricePerMeter: 85, 
+    profileLength: 6.0,
+    correctionConfig: {
+      sashOverlap: 8,        // Larger overlap for thermal systems
+      glassClearance: 5,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+    }
+  },
+  { 
+    id: 'prem75', 
+    name: 'Premium 75 (High Insulation)', 
+    uValue: 1.1, 
+    frameWidth: 75, 
+    pricePerMeter: 120, 
+    profileLength: 6.0,
+    correctionConfig: {
+      sashOverlap: 8,
+      glassClearance: 5,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+    }
+  },
+  { 
+    id: 'slide120', 
+    name: 'SlideMaster 120', 
+    uValue: 1.8, 
+    frameWidth: 120, 
+    pricePerMeter: 150, 
+    profileLength: 6.0,
+    correctionConfig: {
+      sashOverlap: 10,       // Sliding usually has deeper overlap
+      glassClearance: 6,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+    }
+  },
 ];
 
 export const MOCK_ACCESSORIES: Accessory[] = [

@@ -1,3 +1,4 @@
+
 import { Language } from './types';
 
 type TranslationKey = 
@@ -22,7 +23,8 @@ type TranslationKey =
   | 'profileType' | 'length' | 'totalLength' | 'Frame Width' | 'Frame Height' | 'Sash Width' | 'Sash Height' 
   | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly'
   | 'maxLoad' | 'capacity' | 'sashWeight' | 'tooHeavy' | 'maxWeightKg'
-  | 'lock' | 'corner' | 'automation' | 'other';
+  | 'lock' | 'corner' | 'automation' | 'other' | 'downloadDxf'
+  | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -167,7 +169,13 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     lock: "Lock Mechanism",
     corner: "Corner Cleat",
     automation: "Automation",
-    other: "Other"
+    other: "Other",
+    downloadDxf: "Download DXF (CAD)",
+    cuttingRules: "Cutting Allowance Rules",
+    sashOverlap: "Sash Overlap (Rebate)",
+    glassClearance: "Glass Clearance",
+    mullionCorrection: "Mullion Correction",
+    weldingAllowance: "Welding Allowance"
   },
   tr: {
     projects: 'Projeler',
@@ -311,7 +319,13 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     lock: "İspanyolet / Kilit",
     corner: "Köşe Takozu",
     automation: "Otomasyon",
-    other: "Diğer"
+    other: "Diğer",
+    downloadDxf: "DXF İndir (CAD)",
+    cuttingRules: "Kesim ve İmalat Kuralları",
+    sashOverlap: "Bini Payı (Kanat Taşkını)",
+    glassClearance: "Cam Boşluğu (Takoz Payı)",
+    mullionCorrection: "Orta Kayıt Düzeltmesi",
+    weldingAllowance: "Kaynak Payı (PVC)"
   }
 };
 
