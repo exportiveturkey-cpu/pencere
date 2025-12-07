@@ -3,7 +3,7 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory } from '../types';
 import Visualizer from './Visualizer';
 import { GLASS_TYPES, INITIAL_ROOT_NODE } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo, Scale } from 'lucide-react';
 import { analyzeStructure } from '../services/geminiService';
 import { t } from '../translations';
 
@@ -35,6 +35,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedHandleId, setSelectedHandleId] = useState<string>(initialUnit?.selectedHandle || '');
   const [selectedGasketId, setSelectedGasketId] = useState<string>(initialUnit?.selectedGasket || '');
   const [selectedHingeId, setSelectedHingeId] = useState<string>(initialUnit?.selectedHinge || '');
+  const [selectedCornerId, setSelectedCornerId] = useState<string>(initialUnit?.selectedCorner || '');
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -46,6 +47,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const handles = accessories.filter(a => a.type === 'handle');
   const gaskets = accessories.filter(a => a.type === 'gasket');
   const hinges = accessories.filter(a => a.type === 'hinge');
+  const corners = accessories.filter(a => a.type === 'corner');
 
   // History Helper
   const addToHistory = () => {
@@ -199,7 +201,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         glassThickness,
         color: '', rootNode, quantity,
         selectedHandle: handleName,
-        selectedHinge: hingeName
+        selectedHinge: hingeName,
+        selectedCorner: accessories.find(a => a.id === selectedCornerId)?.name
     };
     const result = await analyzeStructure(mockUnit, currentSystem, lang);
     setAiAnalysis(result);
@@ -220,9 +223,39 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       quantity: Math.max(1, quantity),
       selectedHandle: selectedHandleId,
       selectedGasket: selectedGasketId,
-      selectedHinge: selectedHingeId
+      selectedHinge: selectedHingeId,
+      selectedCorner: selectedCornerId
     };
     onSave(unit);
+  };
+
+  // Helper to calculate heaviest sash
+  const calculateHeaviestSashWeight = (node: WindowNode, w: number, h: number): number => {
+      // 2.5 kg per m2 per mm thickness
+      const glassDensity = 2.5; 
+      
+      if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
+          const frameW = currentSystem.frameWidth;
+          const isVert = node.direction === 'vertical';
+          
+          const availableSpace = isVert ? w - frameW : h - frameW;
+          const s1 = availableSpace * node.splitRatio[0];
+          const s2 = availableSpace * node.splitRatio[1];
+          
+          return Math.max(
+              calculateHeaviestSashWeight(node.children[0], isVert ? s1 : w, isVert ? h : s1),
+              calculateHeaviestSashWeight(node.children[1], isVert ? s2 : w, isVert ? h : s2)
+          );
+      }
+
+      // If it's a leaf node that opens (is a sash)
+      if (node.openingType && node.openingType !== 'fixed') {
+           // Calculate weight
+           const areaM2 = (w * h) / 1000000;
+           return areaM2 * glassThickness * glassDensity;
+      }
+
+      return 0; // Fixed pane (weight supported by frame, not hinge directly) or 0
   };
 
   const selectedNode = selectedNodeId ? findNode(selectedNodeId, rootNode) : null;
@@ -245,6 +278,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   }
 
   if (!currentSystem) return <div>{t(lang, 'loading')}</div>;
+
+  const maxSashWeight = calculateHeaviestSashWeight(rootNode, width, height);
 
   const openingTypes = [
     'fixed', 
@@ -394,7 +429,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         </select>
                     </div>
                     
-                    {/* Hinges */}
+                    {/* Hinges with Load Capacity Logic */}
                      <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'hinge')}</label>
                         <select 
@@ -403,8 +438,45 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
                         >
                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {hinges.map(h => (
-                                <option key={h.id} value={h.id}>{h.name} (${h.price})</option>
+                            {hinges.map(h => {
+                                const capacity = h.maxWeightKg || 999;
+                                const isTooWeak = maxSashWeight > capacity;
+                                return (
+                                    <option 
+                                        key={h.id} 
+                                        value={h.id} 
+                                        disabled={isTooWeak}
+                                        className={isTooWeak ? 'text-slate-500 bg-slate-800' : ''}
+                                    >
+                                        {h.name} (${h.price}) 
+                                        {h.maxWeightKg ? ` [Max: ${h.maxWeightKg}kg]` : ''}
+                                        {isTooWeak ? ` - ${t(lang, 'tooHeavy')}` : ''}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                        {maxSashWeight > 0 && (
+                            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+                                <Scale size={10} className={maxSashWeight > 80 ? "text-orange-400" : "text-blue-400"} />
+                                <span>{t(lang, 'sashWeight')}: </span>
+                                <span className={`font-mono font-bold ${maxSashWeight > 80 ? "text-orange-400" : "text-slate-200"}`}>
+                                    {maxSashWeight.toFixed(1)} kg
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Corner Cleats */}
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'corner')}</label>
+                        <select 
+                            value={selectedCornerId}
+                            onChange={(e) => setSelectedCornerId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {corners.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
                             ))}
                         </select>
                     </div>

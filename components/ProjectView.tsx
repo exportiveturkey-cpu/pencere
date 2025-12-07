@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, CheckCircle, Factory, Archive } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
@@ -108,6 +108,16 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             const totalHinges = sashCount * hingesPerSash;
             accessoryCost += hinge.price * totalHinges;
             accessoryList.push({ name: `${hinge.name} (${hingesPerSash}/sash)`, count: totalHinges, unit: t(lang, 'unitPce'), price: hinge.price * totalHinges });
+        }
+    }
+
+    // Corner Cleats (4 for Outer Frame + 4 per Sash)
+    if (unit.selectedCorner) {
+        const corner = accessories.find(a => a.id === unit.selectedCorner);
+        if (corner) {
+            const totalCorners = 4 + (sashCount * 4);
+            accessoryCost += corner.price * totalCorners;
+            accessoryList.push({ name: corner.name, count: totalCorners, unit: t(lang, 'unitPce'), price: corner.price * totalCorners });
         }
     }
 

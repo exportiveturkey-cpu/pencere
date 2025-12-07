@@ -24,6 +24,13 @@ const Visualizer: React.FC<VisualizerProps> = ({
 }) => {
   const isSelected = node.id === selectedNodeId;
   const frameWidth = system.frameWidth;
+  // Visual approximation for sash profile width (standard aluminium sash is ~50-60mm)
+  const sashWidth = 55; 
+
+  // Dynamic stroke width based on overall size to keep drawings legible at different scales
+  // Clamp between 1.5 and 4
+  const scaleFactor = Math.min(width, height);
+  const strokeBase = Math.max(1.5, Math.min(scaleFactor / 300, 4));
 
   // Handle Container (Split) Nodes
   if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
@@ -54,9 +61,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
           y={isVertical ? y : y + firstSize}
           width={isVertical ? frameWidth : width}
           height={isVertical ? height : frameWidth}
-          fill="#334155" // Slate 700 - Profile Color
+          fill="#334155" // Slate 700
           stroke="#0f172a"
-          strokeWidth="2"
+          strokeWidth={strokeBase}
           vectorEffect="non-scaling-stroke"
         />
 
@@ -75,159 +82,181 @@ const Visualizer: React.FC<VisualizerProps> = ({
     );
   }
 
-  // Handle Leaf (Glass/Sash) Nodes
-  const innerX = x + frameWidth;
-  const innerY = y + frameWidth;
-  const innerW = Math.max(0, width - frameWidth * 2);
-  const innerH = Math.max(0, height - frameWidth * 2);
-  const midX = innerX + innerW / 2;
-  const midY = innerY + innerH / 2;
+  // --- Leaf Node Logic ---
 
-  // Calculate Text Y Position
-  // If sliding, move text up to avoid overlap with the arrow
+  const isOpening = node.openingType && node.openingType !== 'fixed';
+  
+  // 1. Outer Frame (The hole boundaries allocated to this node)
+  // This is the background "Frame"
+  
+  // 2. Inner Frame Coordinates (where the frame material ends)
+  const frameInnerX = x + frameWidth;
+  const frameInnerY = y + frameWidth;
+  const frameInnerW = Math.max(0, width - frameWidth * 2);
+  const frameInnerH = Math.max(0, height - frameWidth * 2);
+
+  // 3. Sash Logic
+  // If opening, we have a Sash Profile inside the Frame
+  // If fixed, glass usually starts at frame (or adapter), we assume direct glaze at frameInner
+  
+  const glassX = isOpening ? frameInnerX + sashWidth : frameInnerX;
+  const glassY = isOpening ? frameInnerY + sashWidth : frameInnerY;
+  const glassW = isOpening ? Math.max(0, frameInnerW - sashWidth * 2) : frameInnerW;
+  const glassH = isOpening ? Math.max(0, frameInnerH - sashWidth * 2) : frameInnerH;
+
+  const centerX = glassX + glassW / 2;
+  const centerY = glassY + glassH / 2;
+
+  // Text Position
   const isSliding = node.openingType === 'sliding';
-  const textY = isSliding ? midY - (Math.min(innerW, innerH) * 0.15) : midY;
+  const textY = isSliding ? centerY - (Math.min(glassW, glassH) * 0.15) : centerY;
 
-  // Generate Path for Opening Symbols based on architectural standards
-  // Triangle tip points to the HANDLE.
-  // Triangle base is the HINGE.
   const renderOpeningSymbol = () => {
-    if (node.openingType === 'fixed' || !node.openingType) return null;
+    if (!isOpening) return null;
 
     const paths: React.ReactElement[] = [];
-    const strokeColor = "#334155"; // Dark Slate
-    const strokeWidth = 1.5;
-    const dashArray = "4,4"; // Used for tilt/vasistas lines
+    const symbolColor = "#1e293b"; // Slate 800 - Contrast on glass
+    const dashArray = `${strokeBase * 3},${strokeBase * 2}`;
 
-    // Helper to draw triangle pointing to handle
-    // Direction: where the handle is.
-    const drawTurn = (direction: 'left' | 'right') => {
-        let d = "";
-        if (direction === 'left') {
-            // Handle Left, Hinge Right. Triangle Points Left (<).
-            d = `M ${innerX + innerW},${innerY} L ${innerX},${midY} L ${innerX + innerW},${innerY + innerH}`;
-        } else {
-            // Handle Right, Hinge Left. Triangle Points Right (>).
-            d = `M ${innerX},${innerY} L ${innerX + innerW},${midY} L ${innerX},${innerY + innerH}`;
-        }
-        return <path key={`turn-${direction}`} d={d} stroke={strokeColor} strokeWidth={strokeWidth} fill="none" vectorEffect="non-scaling-stroke" />;
-    };
+    // Dimensions for symbol drawing (relative to the visible glass area)
+    const symX = glassX;
+    const symY = glassY;
+    const symW = glassW;
+    const symH = glassH;
+    
+    // Midpoints
+    const midX = symX + symW / 2;
+    const midY = symY + symH / 2;
 
-    const drawTilt = () => {
-        // Tilt (Vasistas): Hinge Bottom, Handle Top. Triangle Points Up (^).
-        // Usually drawn with dashed lines.
-        const d = `M ${innerX},${innerY + innerH} L ${midX},${innerY} L ${innerX + innerW},${innerY + innerH}`;
-        return <path key="tilt" d={d} stroke={strokeColor} strokeWidth={strokeWidth} fill="none" vectorEffect="non-scaling-stroke" strokeDasharray={dashArray} />;
-    };
+    const drawLine = (x1: number, y1: number, x2: number, y2: number, key: string, dashed = false) => (
+      <line 
+        key={key} 
+        x1={x1} y1={y1} 
+        x2={x2} y2={y2} 
+        stroke={symbolColor} 
+        strokeWidth={strokeBase} 
+        strokeDasharray={dashed ? dashArray : undefined}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    );
 
+    // DIN Standards: Triangles point TO the handle (operating side).
+    // Dashed lines for Tilt (Hinge bottom).
     switch (node.openingType) {
-        case 'turn-left':
-            // Sola Açılım (Left Hand): Hinges Left, Handle Right. Symbol: >
-            paths.push(drawTurn('right'));
+        case 'turn-left': // Hinges Left, Handle Right -> Lines converge Right
+            paths.push(drawLine(symX, symY, symX + symW, midY, 'tl1'));
+            paths.push(drawLine(symX, symY + symH, symX + symW, midY, 'tl2'));
             break;
-        case 'turn-right':
-             // Sağa Açılım (Right Hand): Hinges Right, Handle Left. Symbol: <
-            paths.push(drawTurn('left'));
+        case 'turn-right': // Hinges Right, Handle Left -> Lines converge Left
+            paths.push(drawLine(symX + symW, symY, symX, midY, 'tr1'));
+            paths.push(drawLine(symX + symW, symY + symH, symX, midY, 'tr2'));
             break;
-        case 'tilt':
-            // Vasistas
-            paths.push(drawTilt());
+        case 'tilt': // Hinges Bottom, Handle Top -> Lines converge Top (Dashed)
+            paths.push(drawLine(symX, symY + symH, midX, symY, 't1', true));
+            paths.push(drawLine(symX + symW, symY + symH, midX, symY, 't2', true));
             break;
-        case 'tilt-turn-left':
-            // Sola + Vasistas: Hinges Left (Handle Right) + Hinge Bottom
-            paths.push(drawTurn('right'));
-            paths.push(drawTilt());
+        case 'tilt-turn-left': 
+            // Turn Left (Solid)
+            paths.push(drawLine(symX, symY, symX + symW, midY, 'ttl1'));
+            paths.push(drawLine(symX, symY + symH, symX + symW, midY, 'ttl2'));
+            // Tilt (Dashed)
+            paths.push(drawLine(symX, symY + symH, midX, symY, 'ttl3', true)); 
+            paths.push(drawLine(symX + symW, symY + symH, midX, symY, 'ttl4', true));
             break;
-        case 'tilt-turn-right':
-             // Sağa + Vasistas: Hinges Right (Handle Left) + Hinge Bottom
-            paths.push(drawTurn('left'));
-            paths.push(drawTilt());
+        case 'tilt-turn-right': 
+            // Turn Right (Solid)
+            paths.push(drawLine(symX + symW, symY, symX, midY, 'ttr1'));
+            paths.push(drawLine(symX + symW, symY + symH, symX, midY, 'ttr2'));
+            // Tilt (Dashed)
+            paths.push(drawLine(symX, symY + symH, midX, symY, 'ttr3', true)); 
+            paths.push(drawLine(symX + symW, symY + symH, midX, symY, 'ttr4', true));
             break;
         case 'sliding':
-             const arrowSize = Math.min(innerW, innerH) * 0.1;
-             const d = `M ${midX - arrowSize},${midY} L ${midX + arrowSize},${midY} M ${midX + arrowSize - 5},${midY - 5} L ${midX + arrowSize},${midY} L ${midX + arrowSize - 5},${midY + 5}`;
-             paths.push(
-                <path key="slide" d={d} stroke={strokeColor} strokeWidth={strokeWidth * 2} fill="none" vectorEffect="non-scaling-stroke" />
-            );
+            const arrowLen = Math.min(symW, symH) * 0.25;
+            const arrowHead = arrowLen * 0.3;
+            // Draw horizontal arrow
+            paths.push(drawLine(midX - arrowLen/2, midY, midX + arrowLen/2, midY, 's-line'));
+            // Arrow head (Right pointing)
+            const ahPath = `M ${midX + arrowLen/2} ${midY} L ${midX + arrowLen/2 - arrowHead} ${midY - arrowHead} M ${midX + arrowLen/2} ${midY} L ${midX + arrowLen/2 - arrowHead} ${midY + arrowHead}`;
+            paths.push(<path key="s-head" d={ahPath} stroke={symbolColor} strokeWidth={strokeBase} fill="none" vectorEffect="non-scaling-stroke" strokeLinecap="round" />);
             break;
     }
-
     return <g>{paths}</g>;
   };
 
   return (
     <g 
       onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }}
-      className="cursor-pointer hover:opacity-90 transition-opacity"
+      className="cursor-pointer hover:opacity-95 transition-opacity"
     >
-      {/* Outer Frame for this section */}
+      {/* 1. Outer Profile (Frame) */}
       <rect
         x={x}
         y={y}
         width={width}
         height={height}
-        fill="#334155" // Profile Color
+        fill="#334155" // Slate 700
         stroke={isSelected ? "#3b82f6" : "#0f172a"}
-        strokeWidth={isSelected ? 4 : 2}
+        strokeWidth={isSelected ? strokeBase * 2 : strokeBase}
         vectorEffect="non-scaling-stroke"
       />
 
-      {/* Glass Area (inset by frame width) */}
-      <rect
-        x={innerX}
-        y={innerY}
-        width={innerW}
-        height={innerH}
-        fill="#93c5fd" // Glass Blue
-        fillOpacity={0.3}
-        stroke="#60a5fa"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-
-      {/* Sash Frame (Optional visual, if not fixed, draw a thicker inner border) */}
-      {node.openingType !== 'fixed' && (
+      {/* 2. Sash Profile (if opening) */}
+      {isOpening && (
          <rect
-            x={innerX}
-            y={innerY}
-            width={innerW}
-            height={innerH}
-            fill="none"
-            stroke="#1e293b"
-            strokeWidth="2"
+            x={frameInnerX}
+            y={frameInnerY}
+            width={frameInnerW}
+            height={frameInnerH}
+            fill="#475569" // Slate 600 - Slightly lighter than frame to distinguish
+            stroke="#1e293b" // Slate 800 - Border
+            strokeWidth={strokeBase}
             vectorEffect="non-scaling-stroke"
-            opacity="0.5"
          />
       )}
 
-      {/* Technical Drawing Symbols */}
+      {/* 3. Glass Area */}
+      <rect
+        x={glassX}
+        y={glassY}
+        width={glassW}
+        height={glassH}
+        fill="#93c5fd" // Blue 300
+        fillOpacity={0.25}
+        stroke="#60a5fa" // Blue 400
+        strokeWidth={strokeBase * 0.5}
+        vectorEffect="non-scaling-stroke"
+      />
+
+      {/* 4. Opening Symbols */}
       {renderOpeningSymbol()}
       
-      {/* Selection Highlight Overlay */}
+      {/* 5. Selection Overlay */}
       {isSelected && (
         <rect
           x={x}
           y={y}
           width={width}
           height={height}
-          fill="rgba(59, 130, 246, 0.2)"
+          fill="rgba(59, 130, 246, 0.15)"
           className="pointer-events-none"
         />
       )}
       
-      {/* ID Label for Debug/Clarity */}
-      {width > 200 && height > 200 && (
+      {/* 6. Dimensions Label (Only if large enough) */}
+      {width > 250 && height > 250 && (
          <text 
-            x={midX} 
+            x={centerX} 
             y={textY} 
             textAnchor="middle" 
             dominantBaseline="middle" 
             fill="white" 
-            fontSize="48"
-            fontWeight="bold"
-            opacity="0.3"
-            className="pointer-events-none select-none"
-            style={{ textShadow: '0px 0px 4px rgba(0,0,0,0.5)' }}
+            fontSize={Math.max(12, Math.min(width, height) / 10)}
+            fontWeight="600"
+            opacity="0.5"
+            className="pointer-events-none select-none drop-shadow-md font-mono"
+            style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.8)' }}
         >
             {Math.round(width)}x{Math.round(height)}
         </text>

@@ -12,9 +12,10 @@ export interface Project {
 export interface Accessory {
   id: string;
   name: string; // Brand/Model e.g., "Roto Swing Secustik"
-  type: 'handle' | 'gasket' | 'hinge' | 'other';
+  type: 'handle' | 'gasket' | 'hinge' | 'lock' | 'corner' | 'automation' | 'other';
   unit: 'pce' | 'meter'; // Piece or Meter
   price: number;
+  maxWeightKg?: number; // Load capacity for hinges
 }
 
 export interface Unit {
@@ -31,6 +32,7 @@ export interface Unit {
   selectedHandle?: string; // ID of selected handle accessory
   selectedGasket?: string; // ID of selected gasket accessory
   selectedHinge?: string; // ID of selected hinge accessory
+  selectedCorner?: string; // ID of selected corner cleat accessory
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';

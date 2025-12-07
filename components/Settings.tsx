@@ -37,7 +37,7 @@ const Settings: React.FC<SettingsProps> = ({
   // Accessory Form State
   const [editingAccId, setEditingAccId] = useState<string | null>(null);
   const [accForm, setAccForm] = useState<Partial<Accessory>>({
-    name: '', type: 'handle', unit: 'pce', price: 0
+    name: '', type: 'handle', unit: 'pce', price: 0, maxWeightKg: 0
   });
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -74,7 +74,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   // Accessory Handlers
   const resetAccForm = () => {
-    setAccForm({ name: '', type: 'handle', unit: 'pce', price: 0 });
+    setAccForm({ name: '', type: 'handle', unit: 'pce', price: 0, maxWeightKg: 0 });
     setEditingAccId(null);
   };
 
@@ -91,7 +91,8 @@ const Settings: React.FC<SettingsProps> = ({
         name: accForm.name || '',
         type: accForm.type as any,
         unit: accForm.unit as any,
-        price: Number(accForm.price)
+        price: Number(accForm.price),
+        maxWeightKg: accForm.type === 'hinge' ? Number(accForm.maxWeightKg) : undefined
     };
 
     if (editingAccId) onUpdateAccessory(accData);
@@ -192,6 +193,10 @@ const Settings: React.FC<SettingsProps> = ({
                                     <option value="handle">{t(lang, 'handle')}</option>
                                     <option value="gasket">{t(lang, 'gasket')}</option>
                                     <option value="hinge">{t(lang, 'hinge')}</option>
+                                    <option value="lock">{t(lang, 'lock')}</option>
+                                    <option value="corner">{t(lang, 'corner')}</option>
+                                    <option value="automation">{t(lang, 'automation')}</option>
+                                    <option value="other">{t(lang, 'other')}</option>
                                 </select>
                              </div>
                              <div className="space-y-1">
@@ -201,6 +206,12 @@ const Settings: React.FC<SettingsProps> = ({
                                     <option value="meter">{t(lang, 'unitMeter')}</option>
                                 </select>
                              </div>
+                             {accForm.type === 'hinge' && (
+                                 <div className="space-y-1">
+                                    <label className="text-xs text-slate-400">{t(lang, 'maxWeightKg')}</label>
+                                    <input type="number" value={accForm.maxWeightKg || 0} onChange={e => setAccForm({...accForm, maxWeightKg: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
+                                 </div>
+                             )}
                              <div className="space-y-1">
                                 <label className="text-xs text-slate-400">{t(lang, 'price')}</label>
                                 <input type="number" value={accForm.price} onChange={e => setAccForm({...accForm, price: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm" />
@@ -220,6 +231,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 <div className="flex gap-3 text-sm text-slate-400">
                                     <span className="capitalize px-2 py-0.5 rounded bg-slate-700 text-xs text-slate-300">{t(lang, acc.type as any)}</span>
                                     <span>${acc.price} / {acc.unit === 'pce' ? t(lang, 'unitPce') : t(lang, 'unitMeter')}</span>
+                                    {acc.maxWeightKg && <span className="text-emerald-400">Max: {acc.maxWeightKg}kg</span>}
                                 </div>
                             </div>
                             <button onClick={() => handleEditAcc(acc)} className="p-2 rounded-full bg-slate-700 text-slate-300 hover:text-white"><Edit2 size={16} /></button>

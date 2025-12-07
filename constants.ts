@@ -12,7 +12,12 @@ export const MOCK_ACCESSORIES: Accessory[] = [
   { id: 'h2', name: 'Hoppe Secustik Silver', type: 'handle', unit: 'pce', price: 18.0 },
   { id: 'g1', name: 'EPDM Black Seal (Std)', type: 'gasket', unit: 'meter', price: 1.5 },
   { id: 'g2', name: 'EPDM Gray Seal (Prem)', type: 'gasket', unit: 'meter', price: 2.2 },
-  { id: 'hi1', name: 'Standard Hinge 100kg', type: 'hinge', unit: 'pce', price: 5.0 },
+  { id: 'hi1', name: 'Standard Hinge 80kg', type: 'hinge', unit: 'pce', price: 5.0, maxWeightKg: 80 },
+  { id: 'hi2', name: 'Heavy Duty Hinge 130kg', type: 'hinge', unit: 'pce', price: 12.5, maxWeightKg: 130 },
+  { id: 'hi3', name: 'Concealed Hinge 100kg', type: 'hinge', unit: 'pce', price: 18.0, maxWeightKg: 100 },
+  { id: 'l1', name: 'Security Multi-Point Lock', type: 'lock', unit: 'pce', price: 45.0 },
+  { id: 'c1', name: 'Aluminium Corner Cleat', type: 'corner', unit: 'pce', price: 3.5 },
+  { id: 'a1', name: 'Smart Motor Drive', type: 'automation', unit: 'pce', price: 200.0 },
 ];
 
 export const GLASS_TYPES: GlassType[] = [

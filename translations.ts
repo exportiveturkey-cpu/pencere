@@ -20,7 +20,9 @@ type TranslationKey =
   | 'turnLeft' | 'turnRight' | 'tilt' | 'tiltTurnLeft' | 'tiltTurnRight' | 'deleteUnit' | 'deleteConfirm'
   | 'selectParent' | 'splitSizes' | 'pane1' | 'pane2' | 'containerInfo' | 'undo' 
   | 'profileType' | 'length' | 'totalLength' | 'Frame Width' | 'Frame Height' | 'Sash Width' | 'Sash Height' 
-  | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly';
+  | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly'
+  | 'maxLoad' | 'capacity' | 'sashWeight' | 'tooHeavy' | 'maxWeightKg'
+  | 'lock' | 'corner' | 'automation' | 'other';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -156,7 +158,16 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     approveProduction: "Approve for Production",
     complete: "Complete",
     markAsCompleted: "Mark as Completed",
-    readOnly: "Read Only"
+    readOnly: "Read Only",
+    maxLoad: "Max Load",
+    capacity: "Capacity",
+    sashWeight: "Max Sash Weight",
+    tooHeavy: "Too Heavy",
+    maxWeightKg: "Max Load (kg)",
+    lock: "Lock Mechanism",
+    corner: "Corner Cleat",
+    automation: "Automation",
+    other: "Other"
   },
   tr: {
     projects: 'Projeler',
@@ -291,7 +302,16 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     approveProduction: "Üretime Gönder / Onayla",
     complete: "Tamamla",
     markAsCompleted: "Tamamlandı Olarak İşaretle",
-    readOnly: "Sadece Görüntülenebilir"
+    readOnly: "Sadece Görüntülenebilir",
+    maxLoad: "Maks. Yük",
+    capacity: "Kapasite",
+    sashWeight: "Maks. Kanat Ağırlığı",
+    tooHeavy: "Çok Ağır",
+    maxWeightKg: "Yük Kapasitesi (kg)",
+    lock: "İspanyolet / Kilit",
+    corner: "Köşe Takozu",
+    automation: "Otomasyon",
+    other: "Diğer"
   }
 };
 
