@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { Unit, WindowNode, ProfileSystem, Language, Accessory } from '../types';
 import Visualizer from './Visualizer';
+import CrossSection from './CrossSection';
 import { GLASS_TYPES, INITIAL_ROOT_NODE } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo, Scale } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo, ScanLine } from 'lucide-react';
 import { analyzeStructure } from '../services/geminiService';
 import { t } from '../translations';
 
@@ -40,6 +42,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showSection, setShowSection] = useState(false);
 
   const currentSystem = systems.find(s => s.id === systemId) || systems[0];
 
@@ -51,7 +54,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   // History Helper
   const addToHistory = () => {
-    // Deep copy current rootNode
     const snapshot = JSON.parse(JSON.stringify(rootNode));
     setHistory(prev => [...prev, snapshot]);
   };
@@ -61,7 +63,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     const previousState = history[history.length - 1];
     setHistory(prev => prev.slice(0, -1));
     setRootNode(previousState);
-    // Optionally clear selection if the node no longer exists, but keeping it usually works if id persists
   };
 
   const updateNode = (id: string, updateFn: (node: WindowNode) => WindowNode) => {
@@ -88,7 +89,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     return null;
   };
   
-  // Helper to find parent ID
   const findParentId = (targetId: string, node: WindowNode, parentId: string | null = null): string | null => {
       if (node.id === targetId) return parentId;
       if (node.children) {
@@ -100,7 +100,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       return null;
   };
 
-  // Helper to get node context (dimensions)
   const getNodeContext = (targetId: string, node: WindowNode, w: number, h: number): { width: number, height: number } | null => {
       if (node.id === targetId) return { width: w, height: h };
       
@@ -190,11 +189,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     if (!currentSystem) return;
     setIsAnalyzing(true);
     setAiAnalysis(null);
-
-    // Resolve accessory names for AI context
     const handleName = accessories.find(a => a.id === selectedHandleId)?.name;
     const hingeName = accessories.find(a => a.id === selectedHingeId)?.name;
-
     const mockUnit: Unit = { 
         id: 'temp', name, width, height, system: currentSystem.name, 
         glassType: GLASS_TYPES.find(g => g.id === glassId)?.name || '', 
@@ -216,7 +212,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       width,
       height,
       system: systemId,
-      color: 'Anthracite Grey',
+      color: 'Standard',
       glassType: glassId,
       glassThickness,
       rootNode,
@@ -229,39 +225,29 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     onSave(unit);
   };
 
-  // Helper to calculate heaviest sash
   const calculateHeaviestSashWeight = (node: WindowNode, w: number, h: number): number => {
-      // 2.5 kg per m2 per mm thickness
       const glassDensity = 2.5; 
-      
       if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
           const frameW = currentSystem.frameWidth;
           const isVert = node.direction === 'vertical';
-          
           const availableSpace = isVert ? w - frameW : h - frameW;
           const s1 = availableSpace * node.splitRatio[0];
           const s2 = availableSpace * node.splitRatio[1];
-          
           return Math.max(
               calculateHeaviestSashWeight(node.children[0], isVert ? s1 : w, isVert ? h : s1),
               calculateHeaviestSashWeight(node.children[1], isVert ? s2 : w, isVert ? h : s2)
           );
       }
-
-      // If it's a leaf node that opens (is a sash)
       if (node.openingType && node.openingType !== 'fixed') {
-           // Calculate weight
            const areaM2 = (w * h) / 1000000;
            return areaM2 * glassThickness * glassDensity;
       }
-
-      return 0; // Fixed pane (weight supported by frame, not hinge directly) or 0
+      return 0;
   };
 
   const selectedNode = selectedNodeId ? findNode(selectedNodeId, rootNode) : null;
   const parentId = selectedNodeId ? findParentId(selectedNodeId, rootNode) : null;
   
-  // Calculate context for container split sizes
   let containerSizes = { s1: 0, s2: 0, total: 0 };
   if (selectedNode && selectedNode.type === 'container') {
       const ctx = getNodeContext(selectedNode.id, rootNode, width, height);
@@ -282,17 +268,23 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const maxSashWeight = calculateHeaviestSashWeight(rootNode, width, height);
 
   const openingTypes = [
-    'fixed', 
-    'turn-left', 
-    'turn-right', 
-    'tilt', 
-    'tilt-turn-left', 
-    'tilt-turn-right', 
-    'sliding'
+    'fixed', 'turn-left', 'turn-right', 'tilt', 
+    'tilt-turn-left', 'tilt-turn-right', 'sliding'
   ] as const;
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-slate-200">
+      {/* Modal: Section Viewer */}
+      {showSection && (
+          <CrossSection 
+            system={currentSystem}
+            glassThickness={glassThickness}
+            isOpenable={selectedNode ? selectedNode.openingType !== 'fixed' : true}
+            lang={lang}
+            onClose={() => setShowSection(false)}
+          />
+      )}
+
       {/* Toolbar */}
       <div className="h-14 border-b border-slate-700 flex items-center justify-between px-4 bg-slate-800">
         <div className="flex items-center space-x-4">
@@ -311,7 +303,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                 <button 
                     onClick={handleUndo}
                     className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-medium transition-colors text-slate-200 mr-2"
-                    title={t(lang, 'undo')}
                 >
                     <Undo size={16} /> 
                     <span className="hidden sm:inline">{t(lang, 'undo')}</span>
@@ -360,16 +351,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         />
                     </div>
                 </div>
-                <div className="mt-4">
-                    <label className="block text-xs mb-1 text-slate-400">{t(lang, 'quantity')}</label>
-                    <input 
-                        type="number" 
-                        min="1"
-                        value={quantity} 
-                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                    />
-                </div>
             </section>
 
             <section>
@@ -387,6 +368,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             ))}
                         </select>
                     </div>
+
                     <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'glazing')}</label>
                         <select 
@@ -414,7 +396,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             <section className="border-t border-slate-700 pt-6">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'selectAccessories')}</h3>
                 <div className="space-y-4">
-                     {/* Handles */}
                      <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'handle')}</label>
                         <select 
@@ -429,7 +410,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         </select>
                     </div>
                     
-                    {/* Hinges with Load Capacity Logic */}
                      <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'hinge')}</label>
                         <select 
@@ -455,33 +435,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 );
                             })}
                         </select>
-                        {maxSashWeight > 0 && (
-                            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
-                                <Scale size={10} className={maxSashWeight > 80 ? "text-orange-400" : "text-blue-400"} />
-                                <span>{t(lang, 'sashWeight')}: </span>
-                                <span className={`font-mono font-bold ${maxSashWeight > 80 ? "text-orange-400" : "text-slate-200"}`}>
-                                    {maxSashWeight.toFixed(1)} kg
-                                </span>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Corner Cleats */}
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'corner')}</label>
-                        <select 
-                            value={selectedCornerId}
-                            onChange={(e) => setSelectedCornerId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {corners.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Gaskets */}
                     <div>
                         <label className="block text-xs mb-1 text-slate-400">{t(lang, 'gasket')}</label>
                         <select 
@@ -489,9 +444,23 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             onChange={(e) => setSelectedGasketId(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
                         >
-                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
                             {gaskets.map(g => (
-                                <option key={g.id} value={g.id}>{g.name} (${g.price}/{t(lang, 'unitMeter')})</option>
+                                <option key={g.id} value={g.id}>{g.name} (${g.price}/{g.unit === 'meter' ? 'm' : 'pce'})</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'corner')}</label>
+                        <select 
+                            value={selectedCornerId}
+                            onChange={(e) => setSelectedCornerId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {corners.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
                             ))}
                         </select>
                     </div>
@@ -579,9 +548,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                         className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm font-mono"
                                      />
                                  </div>
-                                 <p className="text-[10px] text-slate-500 italic text-center mt-2">
-                                     Total Avail: {Math.round(containerSizes.total)}mm
-                                 </p>
                              </div>
                         </div>
                     )}
@@ -598,12 +564,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                     )}
                 </section>
             )}
-
-            {!selectedNode && (
-                <div className="p-4 mt-6 rounded border border-dashed border-slate-700 text-center text-slate-500 text-sm">
-                    {t(lang, 'selectPaneInfo')}
-                </div>
-            )}
         </div>
 
         {/* Center: Workspace */}
@@ -617,6 +577,17 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             />
             
             <div className="relative shadow-2xl shadow-black">
+                 {/* Visualizer Tools */}
+                 <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                     <button 
+                        onClick={() => setShowSection(true)}
+                        className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 p-2 rounded-lg text-white transition-all shadow-lg"
+                        title={t(lang, 'sectionDetail')}
+                     >
+                         <ScanLine size={20} />
+                     </button>
+                 </div>
+
                 {/* Measurements Outside */}
                 <div className="absolute -top-8 left-0 w-full text-center text-xs text-slate-400 font-mono border-b border-slate-700 pb-1">
                     {width} mm
@@ -625,7 +596,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                     <span className="transform -rotate-90">{height} mm</span>
                 </div>
 
-                {/* The SVG Visualizer */}
                 <svg width={width/2} height={height/2} viewBox={`0 0 ${width} ${height}`} className="bg-white/5 backdrop-blur-sm">
                     <Visualizer 
                         node={rootNode} 

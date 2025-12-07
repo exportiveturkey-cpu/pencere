@@ -25,7 +25,7 @@ export interface Unit {
   width: number; // mm
   height: number; // mm
   system: string; // e.g., 'EcoLine 50', 'ThermoPro 75'
-  color: string;
+  color: string; // Legacy string, kept for compatibility
   glassType: string;
   glassThickness: number;
   rootNode: WindowNode;

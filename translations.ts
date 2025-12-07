@@ -26,7 +26,8 @@ type TranslationKey =
   | 'lock' | 'corner' | 'automation' | 'other' | 'downloadDxf'
   | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance'
   | 'dataManagement' | 'exportBackup' | 'importBackup' | 'exportDesc' | 'importDesc' | 'downloadBackup' | 'selectFile'
-  | 'overwriteWarning' | 'importConfirm' | 'importSuccess';
+  | 'overwriteWarning' | 'importConfirm' | 'importSuccess'
+  | 'sectionDetail' | 'schematic';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -187,7 +188,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     selectFile: "Select Backup File",
     overwriteWarning: "Warning: Importing will overwrite all current data!",
     importConfirm: "This will replace all your current projects and settings. Are you sure?",
-    importSuccess: "Data imported successfully!"
+    importSuccess: "Data imported successfully!",
+    sectionDetail: "Cross Section Detail",
+    schematic: "Schematic Representation"
   },
   tr: {
     projects: 'Projeler',
@@ -347,7 +350,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     selectFile: "Yedek Dosyası Seç (.json)",
     overwriteWarning: "Dikkat: Geri yükleme işlemi mevcut tüm verilerinizi silip üzerine yazacaktır!",
     importConfirm: "Bu işlem mevcut tüm projelerinizi ve ayarlarınızı seçilen dosya ile değiştirecektir. Emin misiniz?",
-    importSuccess: "Veriler başarıyla geri yüklendi!"
+    importSuccess: "Veriler başarıyla geri yüklendi!",
+    sectionDetail: "Sistem Kesit Detayı",
+    schematic: "Şematik Gösterim"
   }
 };
 
