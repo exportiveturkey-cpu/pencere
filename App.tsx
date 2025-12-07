@@ -81,6 +81,12 @@ const App: React.FC = () => {
     setView('PROJECT_VIEW');
   };
 
+  const handleUpdateProject = (updatedProject: Project) => {
+    setProjects(prevProjects => prevProjects.map(p => 
+      p.id === updatedProject.id ? updatedProject : p
+    ));
+  };
+
   const handleAddUnit = () => {
     setActiveUnit(undefined); // New unit
     setView('EDITOR');
@@ -172,6 +178,7 @@ const App: React.FC = () => {
           accessories={accessories}
           lang={lang}
           onBack={() => setView('DASHBOARD')}
+          onUpdateProject={handleUpdateProject}
           onAddUnit={handleAddUnit}
           onEditUnit={handleEditUnit}
           onDeleteUnit={handleDeleteUnit}

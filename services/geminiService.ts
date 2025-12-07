@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { Unit, ProfileSystem, Language } from '../types';
+import { Unit, ProfileSystem, Language, WindowNode } from '../types';
 
 const getAiClient = () => {
   const apiKey = process.env.API_KEY;
@@ -7,26 +7,65 @@ const getAiClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+const describeNode = (node: WindowNode): string => {
+  if (node.type === 'container' && node.children) {
+    const childrenDesc = node.children.map(describeNode).join(', ');
+    return `Split ${node.direction} (Ratios: ${node.splitRatio?.join(':')}) containing [${childrenDesc}]`;
+  }
+  return `Leaf panel (Opening: ${node.openingType || 'fixed'})`;
+};
+
 export const analyzeStructure = async (unit: Unit, system: ProfileSystem, lang: Language): Promise<string> => {
   try {
     const ai = getAiClient();
+    
+    const structureDescription = describeNode(unit.rootNode);
+    const areaM2 = (unit.width * unit.height / 1000000).toFixed(2);
+    
     const prompt = `
-      As a structural engineer for aluminium fenestration, analyze this window unit.
+      As a senior façade engineer and aluminium joinery expert, perform a detailed structural and functional analysis of this window/door unit.
+
+      --- TECHNICAL SPECIFICATIONS ---
+      Dimensions: ${unit.width}mm Width x ${unit.height}mm Height (Total Area: ${areaM2} m²)
+      Quantity: ${unit.quantity} units
       
-      Input Data:
-      - Dimensions: ${unit.width}mm x ${unit.height}mm.
-      - System: ${system.name} (Frame Width: ${system.frameWidth}mm).
-      - Glass: ${unit.glassType}.
-      - Configuration: Recursive splits / sash openings.
+      Profile System: ${system.name}
+      - Frame Depth/Width: ${system.frameWidth}mm
+      - Thermal Insulation (Uf): ${system.uValue} W/m²K
       
-      Task:
-      1. Calculate approximate wind load surface area.
-      2. Check if the ${system.name} is generally suitable for these dimensions.
-      3. Recommend reinforcement if necessary.
-      4. Provide a brief technical safety summary.
+      Glazing:
+      - Type: ${unit.glassType}
+      - Thickness: ${unit.glassThickness}mm
       
-      IMPORTANT: Provide the response in ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}.
-      Keep it professional, concise, and technical.
+      Configuration Structure:
+      ${structureDescription}
+      
+      Accessories Selected:
+      - Handle: ${unit.selectedHandle || 'Standard'}
+      - Hinges: ${unit.selectedHinge || 'Standard'}
+      
+      --- ANALYSIS TASKS ---
+      1. **Static & Structural Integrity**: 
+         - Evaluate if the ${system.frameWidth}mm profile is structurally sufficient for these dimensions under standard wind loads.
+         - Check height-to-width ratios for opening sashes. Are they within safe limits (usually max 1:2 or 2:1)?
+      
+      2. **Glazing Safety Check**:
+         - Verify if ${unit.glassThickness}mm glass thickness is adequate for the pane sizes involved.
+         - Recommend safety glass (tempered/laminated) if appropriate (e.g. large areas or floor-level).
+
+      3. **Functional Feasibility**:
+         - assess if the operating sashes are too heavy or large for standard hardware.
+         - Identify potential operation clashes in the recursive split configuration.
+
+      4. **Engineering Recommendations**:
+         - Suggest specific reinforcement (Ix values in cm⁴) if the statics appear weak.
+         - Suggest heavy-duty hinges or additional locking points if needed.
+
+      --- OUTPUT FORMAT ---
+      Provide the response in ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}.
+      Use professional engineering terminology.
+      Format with clear **Bold Headings** and bullet points.
+      Do not output generic marketing text; focus on engineering validation.
     `;
 
     const response = await ai.models.generateContent({

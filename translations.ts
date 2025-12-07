@@ -18,7 +18,9 @@ type TranslationKey =
   | 'selectAccessories' | 'accessoryCost' | 'accAdded' | 'accUpdated' | 'activeAccessories' | 'unitPce' | 'unitMeter'
   | 'handlePosition' | 'left' | 'right' | 'bottom' | 'top' | 'fixed' | 'turn' | 'tiltTurn' | 'sliding'
   | 'turnLeft' | 'turnRight' | 'tilt' | 'tiltTurnLeft' | 'tiltTurnRight' | 'deleteUnit' | 'deleteConfirm'
-  | 'selectParent' | 'splitSizes' | 'pane1' | 'pane2' | 'containerInfo' | 'undo';
+  | 'selectParent' | 'splitSizes' | 'pane1' | 'pane2' | 'containerInfo' | 'undo' 
+  | 'profileType' | 'length' | 'totalLength' | 'Frame Width' | 'Frame Height' | 'Sash Width' | 'Sash Height' 
+  | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -140,7 +142,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     pane1: "Pane 1 Size (mm)",
     pane2: "Pane 2 Size (mm)",
     containerInfo: "Split Container",
-    undo: "Undo"
+    undo: "Undo",
+    profileType: "Profile Type",
+    length: "Length",
+    totalLength: "Total Length",
+    "Frame Width": "Frame Width",
+    "Frame Height": "Frame Height",
+    "Sash Width": "Sash Width",
+    "Sash Height": "Sash Height",
+    "Mullion (Vertical)": "Mullion (Vertical)",
+    "Transom (Horizontal)": "Transom (Horizontal)",
+    approve: "Approve",
+    approveProduction: "Approve for Production",
+    complete: "Complete",
+    markAsCompleted: "Mark as Completed",
+    readOnly: "Read Only"
   },
   tr: {
     projects: 'Projeler',
@@ -261,7 +277,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     pane1: "1. Bölme (mm)",
     pane2: "2. Bölme (mm)",
     containerInfo: "Bölünmüş Alan",
-    undo: "Geri Al"
+    undo: "Geri Al",
+    profileType: "Profil Tipi",
+    length: "Kesim Boyu",
+    totalLength: "Toplam Metraj",
+    "Frame Width": "Kasa Genişliği",
+    "Frame Height": "Kasa Yüksekliği",
+    "Sash Width": "Kanat Genişliği",
+    "Sash Height": "Kanat Yüksekliği",
+    "Mullion (Vertical)": "Dikey Kayıt (Orta)",
+    "Transom (Horizontal)": "Yatay Kayıt",
+    approve: "Onayla",
+    approveProduction: "Üretime Gönder / Onayla",
+    complete: "Tamamla",
+    markAsCompleted: "Tamamlandı Olarak İşaretle",
+    readOnly: "Sadece Görüntülenebilir"
   }
 };
 

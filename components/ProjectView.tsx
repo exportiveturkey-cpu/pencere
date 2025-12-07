@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, CheckCircle, Factory, Archive } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
+import CuttingList from './CuttingList';
 import { GLASS_TYPES } from '../constants';
 import Logo from './Logo';
 
@@ -14,12 +15,13 @@ interface ProjectViewProps {
   accessories?: Accessory[];
   lang: Language;
   onBack: () => void;
+  onUpdateProject: (project: Project) => void;
   onAddUnit: () => void;
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: string) => void;
 }
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onAddUnit, onEditUnit, onDeleteUnit }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit }) => {
   const [quoteIntro, setQuoteIntro] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -167,6 +169,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     }, 100);
   };
 
+  const handleStatusChange = (newStatus: Project['status']) => {
+    onUpdateProject({ ...project, status: newStatus });
+  };
+
   const projectAvgUw = calculateAvgUw(project.units);
 
   return (
@@ -250,7 +256,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div>
                     <h1 className="text-xl font-bold text-white flex items-center gap-3">
                         {project.name}
-                        <span className="text-xs font-normal px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600">
+                        <span className={`text-xs font-normal px-2 py-0.5 rounded border ${
+                            project.status === 'Draft' ? 'bg-yellow-900/30 border-yellow-700 text-yellow-500' :
+                            project.status === 'Production' ? 'bg-emerald-900/30 border-emerald-700 text-emerald-500' :
+                            'bg-slate-700 border-slate-600 text-slate-400'
+                        }`}>
                              {project.status === 'Draft' ? t(lang, 'statusDraft') : 
                              project.status === 'Production' ? t(lang, 'statusProd') : t(lang, 'statusComp')}
                         </span>
@@ -265,13 +275,40 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             </div>
 
             <div className="flex items-center gap-3">
-                <div className="text-right mr-4">
+                 {/* Status Action Buttons */}
+                {project.status === 'Draft' && (
+                    <button 
+                        onClick={() => handleStatusChange('Production')}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors mr-2"
+                        title={t(lang, 'approveProduction')}
+                    >
+                        <Factory size={16} /> 
+                        <span className="hidden lg:inline">{t(lang, 'approve')}</span>
+                    </button>
+                )}
+                {project.status === 'Production' && (
+                    <button 
+                        onClick={() => handleStatusChange('Completed')}
+                        className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors mr-2"
+                        title={t(lang, 'markAsCompleted')}
+                    >
+                        <Archive size={16} />
+                        <span className="hidden lg:inline">{t(lang, 'complete')}</span>
+                    </button>
+                )}
+
+                <div className="text-right mr-4 border-l border-slate-700 pl-4">
                     <p className="text-xs text-slate-400">{t(lang, 'totalEst')}</p>
                     <p className="text-lg font-mono font-bold text-emerald-400">${calculateTotal(project.units).toFixed(2)}</p>
                 </div>
                 <button 
                     onClick={onAddUnit}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors"
+                    disabled={project.status !== 'Draft'}
+                    className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors ${
+                        project.status === 'Draft' 
+                        ? 'bg-blue-600 hover:bg-blue-500 text-white' 
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
                 >
                     <Plus size={16} /> {t(lang, 'addPosition')}
                 </button>
@@ -305,8 +342,16 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </div>
                                 
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={16}/></button>
-                                    <button onClick={(e) => { e.stopPropagation(); onDeleteUnit(unit.id); }} className="p-2 bg-red-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={16}/></button>
+                                    {project.status === 'Draft' ? (
+                                        <>
+                                            <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={16}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); onDeleteUnit(unit.id); }} className="p-2 bg-red-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={16}/></button>
+                                        </>
+                                    ) : (
+                                        <div className="bg-slate-900 px-3 py-1 rounded text-xs border border-slate-600 text-slate-300">
+                                            {t(lang, 'readOnly')}
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 <div className="absolute top-2 left-2 bg-slate-800 px-2 py-1 rounded text-xs font-mono text-slate-300 border border-slate-700">
@@ -334,6 +379,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     );
                 })}
             </div>
+
+            {/* Cutting List (Screen) */}
+            <CuttingList units={project.units} systems={systems} lang={lang} />
 
             {/* Optimization Report (Screen) */}
             <OptimizationReport units={project.units} systems={systems} lang={lang} />
@@ -513,6 +561,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         </div>
                     );
                 })}
+            </div>
+            
+            <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
+               <h2 className="text-2xl font-light text-slate-700 mb-6">{t(lang, 'cuttingList')}</h2>
+               <CuttingList units={project.units} systems={systems} lang={lang} />
             </div>
 
             <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">

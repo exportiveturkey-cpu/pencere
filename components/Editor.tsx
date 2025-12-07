@@ -188,11 +188,18 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     if (!currentSystem) return;
     setIsAnalyzing(true);
     setAiAnalysis(null);
+
+    // Resolve accessory names for AI context
+    const handleName = accessories.find(a => a.id === selectedHandleId)?.name;
+    const hingeName = accessories.find(a => a.id === selectedHingeId)?.name;
+
     const mockUnit: Unit = { 
         id: 'temp', name, width, height, system: currentSystem.name, 
         glassType: GLASS_TYPES.find(g => g.id === glassId)?.name || '', 
         glassThickness,
-        color: '', rootNode, quantity 
+        color: '', rootNode, quantity,
+        selectedHandle: handleName,
+        selectedHinge: hingeName
     };
     const result = await analyzeStructure(mockUnit, currentSystem, lang);
     setAiAnalysis(result);

@@ -17,19 +17,25 @@ export interface SystemOptimization {
   totalCutCount: number;
 }
 
+export interface CutItem {
+  length: number;
+  label: string; // e.g. "Frame Width", "Sash Height"
+  quantity: number;
+  systemName: string;
+}
+
 const SAW_BLADE_THICKNESS = 5; // mm waste per cut
 
-// Helper to extract all cut lengths from a unit
-const extractCuts = (unit: Unit, system: ProfileSystem): number[] => {
-  const cuts: number[] = [];
+// Helper to extract all cut lengths with labels from a unit
+const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label: string }[] => {
+  const cuts: { length: number, label: string }[] = [];
   const frameWidth = system.frameWidth;
 
   // 1. Outer Frame (2 Widths, 2 Heights)
-  // Simplified: Assuming 45 degree miter cuts, we usually calculate outer dimension
-  cuts.push(unit.width);
-  cuts.push(unit.width);
-  cuts.push(unit.height);
-  cuts.push(unit.height);
+  cuts.push({ length: unit.width, label: 'Frame Width' });
+  cuts.push({ length: unit.width, label: 'Frame Width' });
+  cuts.push({ length: unit.height, label: 'Frame Height' });
+  cuts.push({ length: unit.height, label: 'Frame Height' });
 
   // 2. Recursive traversal for Mullions and Sashes
   const traverse = (node: WindowNode, w: number, h: number) => {
@@ -37,13 +43,8 @@ const extractCuts = (unit: Unit, system: ProfileSystem): number[] => {
       const isVert = node.direction === 'vertical';
       
       // Add Mullion Cut
-      // Vertical split means a vertical mullion of height 'h'
-      // Horizontal split means a horizontal transom of width 'w'
-      // Note: Real logic might subtract frame widths depending on joinery type (butt vs miter)
-      // For estimation, we take full length minus frame inset if applicable, 
-      // but here we use inner dimension for simplicity or full dimension.
-      // Let's use logic: Mullion length is the full span of the split area.
-      cuts.push(isVert ? h : w);
+      const label = isVert ? 'Mullion (Vertical)' : 'Transom (Horizontal)';
+      cuts.push({ length: isVert ? h : w, label });
 
       const avail = isVert ? w - frameWidth : h - frameWidth;
       const s1 = avail * node.splitRatio[0];
@@ -55,13 +56,11 @@ const extractCuts = (unit: Unit, system: ProfileSystem): number[] => {
       // Leaf Node - Check for Opening Sash
       if (node.openingType && node.openingType !== 'fixed') {
         // Sash Frame (2 Widths + 2 Heights)
-        // Sash is usually smaller than the opening. 
-        // Approx: Opening Size - (Frame Overlap or Clearance)
-        // We'll treat the passed w/h as the sash outer dimension for estimation.
-        cuts.push(w);
-        cuts.push(w);
-        cuts.push(h);
-        cuts.push(h);
+        // Approx: We use the passed w/h as the sash outer dimension for estimation.
+        cuts.push({ length: w, label: 'Sash Width' });
+        cuts.push({ length: w, label: 'Sash Width' });
+        cuts.push({ length: h, label: 'Sash Height' });
+        cuts.push({ length: h, label: 'Sash Height' });
       }
     }
   };
@@ -100,12 +99,10 @@ const optimizeCutsForSystem = (cuts: number[], barLengthMm: number): OptimizedBa
     } else {
       // Create new bar
       if (cutWithKerf > barLengthMm) {
-        // Warning: Cut too long for bar, but we add it effectively requiring a special bar or splice
-        // For logic sake, we just add a new bar that is theoretically negative or just consume a full bar
         bars.push({
           barLength: barLengthMm,
           cuts: [cut],
-          remaining: 0 // consumed fully/overflow
+          remaining: 0 
         });
       } else {
         bars.push({
@@ -137,16 +134,19 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
     if (!system) continue;
 
     // Collect all cuts for all units in this system (multiply by quantity)
-    let allCuts: number[] = [];
+    // We only need raw numbers for optimization
+    let allCutLengths: number[] = [];
+    
     systemUnits.forEach(u => {
       const unitCuts = extractCuts(u, system);
+      const lengths = unitCuts.map(c => c.length);
       for (let i = 0; i < (u.quantity || 1); i++) {
-        allCuts = [...allCuts, ...unitCuts];
+        allCutLengths = [...allCutLengths, ...lengths];
       }
     });
 
     const barLengthMm = (system.profileLength || 6.0) * 1000;
-    const optimizedBars = optimizeCutsForSystem(allCuts, barLengthMm);
+    const optimizedBars = optimizeCutsForSystem(allCutLengths, barLengthMm);
 
     // Calculate stats
     const totalUsedLength = optimizedBars.reduce((acc, bar) => acc + (barLengthMm - bar.remaining), 0);
@@ -161,9 +161,53 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
       bars: optimizedBars,
       totalEfficiency: efficiency,
       totalWaste: 100 - efficiency,
-      totalCutCount: allCuts.length
+      totalCutCount: allCutLengths.length
     });
   }
 
   return result;
+};
+
+// Generate aggregated cutting list for table view
+export const getAggregatedCuttingList = (units: Unit[], systems: ProfileSystem[]): Record<string, CutItem[]> => {
+    const listBySystem: Record<string, CutItem[]> = {};
+
+    units.forEach(u => {
+        const system = systems.find(s => s.id === u.system);
+        if (!system) return;
+
+        const rawCuts = extractCuts(u, system);
+
+        if (!listBySystem[system.name]) {
+            listBySystem[system.name] = [];
+        }
+
+        // Add cuts multiplied by unit quantity
+        for (let i = 0; i < (u.quantity || 1); i++) {
+            rawCuts.forEach(cut => {
+                // Check if this specific cut (length + label) already exists in the list to aggregate
+                const existing = listBySystem[system.name].find(
+                    item => Math.abs(item.length - cut.length) < 0.1 && item.label === cut.label
+                );
+
+                if (existing) {
+                    existing.quantity += 1;
+                } else {
+                    listBySystem[system.name].push({
+                        length: Math.round(cut.length), // Round for display
+                        label: cut.label,
+                        quantity: 1,
+                        systemName: system.name
+                    });
+                }
+            });
+        }
+    });
+
+    // Sort each list by length descending
+    Object.keys(listBySystem).forEach(sys => {
+        listBySystem[sys].sort((a, b) => b.length - a.length);
+    });
+
+    return listBySystem;
 };
