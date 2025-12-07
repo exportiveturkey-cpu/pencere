@@ -27,7 +27,8 @@ type TranslationKey =
   | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance'
   | 'dataManagement' | 'exportBackup' | 'importBackup' | 'exportDesc' | 'importDesc' | 'downloadBackup' | 'selectFile'
   | 'overwriteWarning' | 'importConfirm' | 'importSuccess'
-  | 'sectionDetail' | 'schematic';
+  | 'sectionDetail' | 'schematic'
+  | 'welcomeTitle' | 'welcomeSubtitle' | 'passwordLabel' | 'loginBtn' | 'wrongPassword';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -190,7 +191,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     importConfirm: "This will replace all your current projects and settings. Are you sure?",
     importSuccess: "Data imported successfully!",
     sectionDetail: "Cross Section Detail",
-    schematic: "Schematic Representation"
+    schematic: "Schematic Representation",
+    welcomeTitle: "Professional Access",
+    welcomeSubtitle: "Enter your secure access key to continue",
+    passwordLabel: "Access Key",
+    loginBtn: "Access Suite",
+    wrongPassword: "Invalid access key. Please try again."
   },
   tr: {
     projects: 'Projeler',
@@ -352,7 +358,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     importConfirm: "Bu işlem mevcut tüm projelerinizi ve ayarlarınızı seçilen dosya ile değiştirecektir. Emin misiniz?",
     importSuccess: "Veriler başarıyla geri yüklendi!",
     sectionDetail: "Sistem Kesit Detayı",
-    schematic: "Şematik Gösterim"
+    schematic: "Şematik Gösterim",
+    welcomeTitle: "Profesyonel Erişim",
+    welcomeSubtitle: "Devam etmek için erişim anahtarınızı girin",
+    passwordLabel: "Erişim Anahtarı (Şifre)",
+    loginBtn: "Sisteme Giriş Yap",
+    wrongPassword: "Geçersiz anahtar. Lütfen tekrar deneyin."
   }
 };
 

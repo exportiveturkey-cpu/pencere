@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import Editor from './components/Editor';
 import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
+import Login from './components/Login';
 import { Project, Unit, ProfileSystem, Language, Accessory, AppData } from './types';
 import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,7 +12,16 @@ import { t } from './translations';
 
 type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS';
 
+// HARDCODED PASSWORD - Change this to whatever you want
+const ACCESS_PASSWORD = "alumetric2024";
+
 const App: React.FC = () => {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+      // Check session storage to keep user logged in during refresh, but logout on tab close
+      return sessionStorage.getItem('alumetric_auth') === 'true';
+  });
+
   const [view, setView] = useState<ViewState>('DASHBOARD');
   
   // Initialize state from LocalStorage if available
@@ -62,6 +72,16 @@ const App: React.FC = () => {
 
 
   const activeProject = projects.find(p => p.id === activeProjectId);
+
+  // Auth Handler
+  const handleLogin = (password: string): boolean => {
+      if (password === ACCESS_PASSWORD) {
+          setIsAuthenticated(true);
+          sessionStorage.setItem('alumetric_auth', 'true');
+          return true;
+      }
+      return false;
+  };
 
   const handleCreateProject = () => {
     const newProject: Project = {
@@ -175,6 +195,10 @@ const App: React.FC = () => {
       setView('DASHBOARD');
       setActiveProjectId(null);
   };
+
+  if (!isAuthenticated) {
+      return <Login lang={lang} onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-blue-500 selection:text-white">
