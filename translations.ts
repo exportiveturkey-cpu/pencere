@@ -24,7 +24,9 @@ type TranslationKey =
   | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly'
   | 'maxLoad' | 'capacity' | 'sashWeight' | 'tooHeavy' | 'maxWeightKg'
   | 'lock' | 'corner' | 'automation' | 'other' | 'downloadDxf'
-  | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance';
+  | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance'
+  | 'dataManagement' | 'exportBackup' | 'importBackup' | 'exportDesc' | 'importDesc' | 'downloadBackup' | 'selectFile'
+  | 'overwriteWarning' | 'importConfirm' | 'importSuccess';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -175,7 +177,17 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     sashOverlap: "Sash Overlap (Rebate)",
     glassClearance: "Glass Clearance",
     mullionCorrection: "Mullion Correction",
-    weldingAllowance: "Welding Allowance"
+    weldingAllowance: "Welding Allowance",
+    dataManagement: "Data & Backup",
+    exportBackup: "Export Data Backup",
+    importBackup: "Import Data Backup",
+    exportDesc: "Download all your projects, systems, and settings as a file to keep them safe.",
+    importDesc: "Restore your data from a previously downloaded backup file.",
+    downloadBackup: "Download Backup",
+    selectFile: "Select Backup File",
+    overwriteWarning: "Warning: Importing will overwrite all current data!",
+    importConfirm: "This will replace all your current projects and settings. Are you sure?",
+    importSuccess: "Data imported successfully!"
   },
   tr: {
     projects: 'Projeler',
@@ -325,7 +337,17 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     sashOverlap: "Bini Payı (Kanat Taşkını)",
     glassClearance: "Cam Boşluğu (Takoz Payı)",
     mullionCorrection: "Orta Kayıt Düzeltmesi",
-    weldingAllowance: "Kaynak Payı (PVC)"
+    weldingAllowance: "Kaynak Payı (PVC)",
+    dataManagement: "Veri Yönetimi & Yedekleme",
+    exportBackup: "Yedek Al (Dışa Aktar)",
+    importBackup: "Yedeği Geri Yükle (İçe Aktar)",
+    exportDesc: "Tüm projelerinizi ve ayarlarınızı güvenli bir dosya olarak indirin.",
+    importDesc: "Daha önce indirdiğiniz bir yedek dosyasını seçerek verilerinizi geri yükleyin.",
+    downloadBackup: "Yedeği İndir",
+    selectFile: "Yedek Dosyası Seç (.json)",
+    overwriteWarning: "Dikkat: Geri yükleme işlemi mevcut tüm verilerinizi silip üzerine yazacaktır!",
+    importConfirm: "Bu işlem mevcut tüm projelerinizi ve ayarlarınızı seçilen dosya ile değiştirecektir. Emin misiniz?",
+    importSuccess: "Veriler başarıyla geri yüklendi!"
   }
 };
 

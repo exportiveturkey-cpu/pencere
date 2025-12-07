@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Editor from './components/Editor';
 import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
-import { Project, Unit, ProfileSystem, Language, Accessory } from './types';
+import { Project, Unit, ProfileSystem, Language, Accessory, AppData } from './types';
 import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from './translations';
@@ -145,6 +146,36 @@ const App: React.FC = () => {
     setAccessories(accessories.map(a => a.id === updatedAcc.id ? updatedAcc : a));
   };
 
+  // --- Import / Export Handlers ---
+  const handleExportData = () => {
+    const data: AppData = {
+        projects,
+        systems,
+        accessories,
+        version: '1.0.0',
+        date: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `alumetric_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (data: AppData) => {
+      if (data.projects) setProjects(data.projects);
+      if (data.systems) setSystems(data.systems);
+      if (data.accessories) setAccessories(data.accessories);
+      // Reset view to dashboard to avoid conflicts with deleted/changed projects
+      setView('DASHBOARD');
+      setActiveProjectId(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-blue-500 selection:text-white">
       {view === 'DASHBOARD' && (
@@ -168,6 +199,8 @@ const App: React.FC = () => {
           onAddAccessory={handleAddAccessory}
           onUpdateAccessory={handleUpdateAccessory}
           onBack={() => setView('DASHBOARD')}
+          onExportData={handleExportData}
+          onImportData={handleImportData}
         />
       )}
       

@@ -77,3 +77,12 @@ export interface GlassType {
   thickness: number;
   pricePerSqm: number;
 }
+
+// Backup Data Structure
+export interface AppData {
+  projects: Project[];
+  systems: ProfileSystem[];
+  accessories: Accessory[];
+  version: string;
+  date: string;
+}

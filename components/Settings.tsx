@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { ProfileSystem, Accessory, Language } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Ruler } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ProfileSystem, Accessory, Language, AppData } from '../types';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Ruler, Database, Download, Upload, AlertTriangle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
@@ -15,6 +15,8 @@ interface SettingsProps {
   onAddAccessory?: (acc: Accessory) => void;
   onUpdateAccessory?: (acc: Accessory) => void;
   onBack: () => void;
+  onExportData: () => void;
+  onImportData: (data: AppData) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -25,9 +27,11 @@ const Settings: React.FC<SettingsProps> = ({
     onUpdateSystem, 
     onAddAccessory,
     onUpdateAccessory,
-    onBack 
+    onBack,
+    onExportData,
+    onImportData
 }) => {
-  const [activeTab, setActiveTab] = useState<'systems' | 'accessories'>('systems');
+  const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'data'>('systems');
   
   // System Form State
   const [editingSysId, setEditingSysId] = useState<string | null>(null);
@@ -52,6 +56,7 @@ const Settings: React.FC<SettingsProps> = ({
   });
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // System Handlers
   const resetSysForm = () => {
@@ -140,6 +145,35 @@ const Settings: React.FC<SettingsProps> = ({
     resetAccForm();
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const content = e.target?.result as string;
+            const data = JSON.parse(content) as AppData;
+            
+            // Basic validation
+            if (Array.isArray(data.projects) && Array.isArray(data.systems) && Array.isArray(data.accessories)) {
+                if (window.confirm(t(lang, 'importConfirm'))) {
+                    onImportData(data);
+                    showSuccess(t(lang, 'importSuccess'));
+                }
+            } else {
+                alert("Invalid file format");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error reading file");
+        }
+    };
+    reader.readAsText(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const showSuccess = (msg: string) => {
       setSuccessMsg(msg);
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -175,9 +209,15 @@ const Settings: React.FC<SettingsProps> = ({
             >
                 <Wrench size={18} /> {t(lang, 'accessories')}
             </button>
+            <button 
+                onClick={() => setActiveTab('data')}
+                className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${activeTab === 'data' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-white'}`}
+            >
+                <Database size={18} /> {t(lang, 'dataManagement')}
+            </button>
         </div>
 
-        {activeTab === 'systems' ? (
+        {activeTab === 'systems' && (
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* System Form */}
                 <div className="lg:col-span-5">
@@ -273,7 +313,9 @@ const Settings: React.FC<SettingsProps> = ({
                     ))}
                 </div>
              </div>
-        ) : (
+        )}
+        
+        {activeTab === 'accessories' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Accessory Form (Kept Same) */}
                 <div className="md:col-span-1">
@@ -338,6 +380,61 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
                     ))}
                 </div>
+            </div>
+        )}
+
+        {/* Data Management Tab */}
+        {activeTab === 'data' && (
+            <div className="max-w-2xl mx-auto space-y-8">
+                <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
+                     <div className="w-16 h-16 bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Download size={32} className="text-blue-400" />
+                     </div>
+                     <h3 className="text-xl font-bold text-white mb-2">{t(lang, 'exportBackup')}</h3>
+                     <p className="text-slate-400 text-sm mb-6">{t(lang, 'exportDesc')}</p>
+                     <button 
+                        onClick={onExportData}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded font-medium shadow-lg transition-colors flex items-center gap-2 mx-auto"
+                     >
+                        <Download size={18} /> {t(lang, 'downloadBackup')}
+                     </button>
+                </div>
+
+                <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center relative">
+                     <div className="w-16 h-16 bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Upload size={32} className="text-emerald-400" />
+                     </div>
+                     <h3 className="text-xl font-bold text-white mb-2">{t(lang, 'importBackup')}</h3>
+                     <p className="text-slate-400 text-sm mb-6">{t(lang, 'importDesc')}</p>
+                     
+                     <div className="flex flex-col items-center gap-4">
+                         <input 
+                            type="file" 
+                            accept=".json" 
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            className="hidden"
+                            id="file-upload"
+                         />
+                         <label 
+                            htmlFor="file-upload"
+                            className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded font-medium shadow-lg transition-colors flex items-center gap-2"
+                         >
+                            <Upload size={18} /> {t(lang, 'selectFile')}
+                         </label>
+                         
+                         <div className="flex items-center gap-2 text-yellow-500 text-xs bg-yellow-900/20 px-4 py-2 rounded border border-yellow-900/30">
+                            <AlertTriangle size={14} />
+                            {t(lang, 'overwriteWarning')}
+                         </div>
+                     </div>
+                </div>
+                
+                {successMsg && (
+                    <div className="fixed bottom-8 right-8 bg-emerald-600 text-white px-6 py-4 rounded shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4">
+                        <Check size={24} /> {successMsg}
+                    </div>
+                )}
             </div>
         )}
       </div>
