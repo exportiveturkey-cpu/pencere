@@ -13,7 +13,7 @@ import { t } from './translations';
 type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS';
 
 // HARDCODED PASSWORD - Change this to whatever you want
-const ACCESS_PASSWORD = "alumetric2024";
+const ACCESS_PASSWORD = "alumetric2025";
 
 const App: React.FC = () => {
   // Auth State

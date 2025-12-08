@@ -68,6 +68,7 @@ export interface ProfileSystem {
   pricePerMeter: number;
   profileLength: number; // meters per bar
   correctionConfig: CuttingCorrectionConfig; // NEW Field
+  defaultCornerCleat?: string; // ID of default corner accessory
 }
 
 export interface GlassType {

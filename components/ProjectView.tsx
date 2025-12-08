@@ -45,8 +45,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     if (!system) return { cost: 0, uw: 0, glassName: unit.glassType, totalAreaM2: 0, accessoriesCost: 0, accessoryList: [] };
 
     const frameW = system.frameWidth;
-    const sashW = 55; // Approx for calc
-    const config = system.correctionConfig || { sashOverlap: 6, glassClearance: 4 };
+    const sashProfileW = 55; // Approximate width of the sash profile itself
+    const config = system.correctionConfig || { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 };
     
     let sashCount = 0;
     
@@ -85,16 +85,19 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
          let glassH = daylightH;
 
          if (node.openingType && node.openingType !== 'fixed') {
-             // Opening: Daylight -> Sash -> Glass
-             // Sash = Daylight + (2 * Overlap)
-             // Glass = Sash - (2 * SashProfile) - (2 * Clearance)
+             // OPENING SASH LOGIC
+             // 1. Sash Outer = Daylight + (2 * Overlap)
+             // 2. Glass Size = Sash Outer - (2 * SashProfileWidth) - (2 * Clearance)
              
-             // Simplification: Glass = Daylight + (2*Overlap) - (2*SashProfile) - (2*Clearance)
-             glassW = daylightW + (2 * config.sashOverlap) - (2 * sashW) - (2 * config.glassClearance);
-             glassH = daylightH + (2 * config.sashOverlap) - (2 * sashW) - (2 * config.glassClearance);
+             const sashOuterW = daylightW + (2 * config.sashOverlap);
+             const sashOuterH = daylightH + (2 * config.sashOverlap);
+             
+             // Glass sits inside the sash
+             glassW = sashOuterW - (2 * sashProfileW) - (2 * config.glassClearance);
+             glassH = sashOuterH - (2 * sashProfileW) - (2 * config.glassClearance);
          } else {
-             // Fixed: Daylight -> Glass (Direct Glazing)
-             // Glass = Daylight - (2 * Clearance) - (Some adapter profile usually, but let's assume direct)
+             // FIXED LOGIC
+             // Glass Size = Daylight - (2 * Clearance)
              glassW = daylightW - (2 * config.glassClearance);
              glassH = daylightH - (2 * config.glassClearance);
          }

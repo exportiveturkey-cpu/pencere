@@ -1,3 +1,4 @@
+
 import { Unit, ProfileSystem, WindowNode } from '../types';
 
 /**
@@ -6,6 +7,14 @@ import { Unit, ProfileSystem, WindowNode } from '../types';
  */
 export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
   let dxf = "";
+  
+  // Get Correction Rules or Defaults
+  const config = system.correctionConfig || {
+      sashOverlap: 6,
+      glassClearance: 4,
+      mullionCorrection: 0,
+      frameCornerWelding: 0
+  };
   
   // --- HEADER & TABLES ---
   dxf += `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1024\n0\nENDSEC\n`;
@@ -81,67 +90,88 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
 
     } else {
        // Leaf Node
+       // The x,y,w,h passed here represents the Allocated "Bounding Box" for this leaf.
+       // This INCLUDES the frame width if it is at the edge.
+       
        const isOpening = node.openingType && node.openingType !== 'fixed';
-       const sashW = 55; // Sash profile width approximation
+       const sashProfileW = 55; // Sash profile width approximation
        
-       // Inner frame hole (Glass or Sash sits here)
-       // The parent traversal logic essentially moves x,y to the inner edge of the mullions, 
-       // but for the outer frame boundaries we need to offset by frameWidth.
-       // Note: This coordinate logic is simplified for visualization.
-       
-       // Correction: The x,y,w,h passed here represents the "Daylight opening + Frame" space allocated.
-       // We draw the "Inner Frame" lines here if not already drawn by container. 
-       // But simpler approach: Visualizer draws outer frame once. 
-       // We will draw sash/glass inside the passed bounding box, assuming outer frame is handled globally or by container.
-       
-       // Inner Daylight Coordinates (Inside the fixed frame)
-       const fX = x + frameW;
-       const fY = y + frameW;
-       const fW = Math.max(0, w - 2*frameW);
-       const fH = Math.max(0, h - 2*frameW);
+       // Calculate Daylight Opening (Hole) inside the allocated space
+       const daylightX = x + frameW;
+       const daylightY = y + frameW;
+       const daylightW = Math.max(0, w - 2*frameW);
+       const daylightH = Math.max(0, h - 2*frameW);
 
        if (isOpening) {
-          // 1. Sash Outer Frame
-          dxf += drawRect(fX, fY, fW, fH, 'SASH');
-          // 2. Sash Inner Frame (Glass Bead)
-          dxf += drawRect(fX + sashW, fY + sashW, fW - 2*sashW, fH - 2*sashW, 'SASH');
+          // OPENING SASH
+          // The Sash overlaps the frame. 
+          // Sash Outer = Daylight + 2 * Overlap
+          // Position relative to daylight: X - Overlap, Y - Overlap
+          
+          const sashOuterX = daylightX - config.sashOverlap;
+          const sashOuterY = daylightY - config.sashOverlap;
+          const sashOuterW = daylightW + (2 * config.sashOverlap);
+          const sashOuterH = daylightH + (2 * config.sashOverlap);
+          
+          // 1. Sash Outer Frame (The moving part)
+          dxf += drawRect(sashOuterX, sashOuterY, sashOuterW, sashOuterH, 'SASH');
+
+          // 2. Sash Inner Frame (Glass Bead Line)
+          // Inner Frame = Outer Frame - 2 * SashProfileWidth
+          const sashInnerX = sashOuterX + sashProfileW;
+          const sashInnerY = sashOuterY + sashProfileW;
+          const sashInnerW = sashOuterW - (2 * sashProfileW);
+          const sashInnerH = sashOuterH - (2 * sashProfileW);
+          
+          dxf += drawRect(sashInnerX, sashInnerY, sashInnerW, sashInnerH, 'SASH');
           
           // 3. Glass
-          dxf += drawRect(fX + sashW + 4, fY + sashW + 4, fW - 2*sashW - 8, fH - 2*sashW - 8, 'GLASS');
+          // Glass sits inside sash with clearance
+          const glassX = sashInnerX + config.glassClearance;
+          const glassY = sashInnerY + config.glassClearance;
+          const glassW = sashInnerW - (2 * config.glassClearance);
+          const glassH = sashInnerH - (2 * config.glassClearance);
+
+          dxf += drawRect(glassX, glassY, glassW, glassH, 'GLASS');
           
           // 4. Opening Symbols (Lines)
-          const midX = fX + fW/2;
-          const midY = fY + fH/2;
+          const midX = sashOuterX + sashOuterW/2;
+          const midY = sashOuterY + sashOuterH/2;
           
-          // Helper for opening lines
+          // Helper for opening lines - drawn on the sash inner frame for visibility
+          const symX = sashInnerX;
+          const symY = sashInnerY;
+          const symW = sashInnerW;
+          const symH = sashInnerH;
+
           const dl = (x1: number, y1: number, x2: number, y2: number) => drawLine(x1, y1, x2, y2, 'OPENING');
           
           switch (node.openingType) {
               case 'turn-left':
-                  dxf += dl(fX, fY, fX + fW, midY);
-                  dxf += dl(fX, fY + fH, fX + fW, midY);
+                  dxf += dl(symX, symY, symX + symW, midY);
+                  dxf += dl(symX, symY + symH, symX + symW, midY);
                   break;
               case 'turn-right':
-                  dxf += dl(fX + fW, fY, fX, midY);
-                  dxf += dl(fX + fW, fY + fH, fX, midY);
+                  dxf += dl(symX + symW, symY, symX, midY);
+                  dxf += dl(symX + symW, symY + symH, symX, midY);
                   break;
               case 'tilt':
-                  dxf += dl(fX, fY + fH, midX, fY);
-                  dxf += dl(fX + fW, fY + fH, midX, fY);
+                  dxf += dl(symX, symY + symH, midX, symY);
+                  dxf += dl(symX + symW, symY + symH, midX, symY);
                   break;
               case 'tilt-turn-left':
                    // Turn
-                  dxf += dl(fX, fY, fX + fW, midY);
-                  dxf += dl(fX, fY + fH, fX + fW, midY);
-                  // Tilt (simple rep)
-                  dxf += dl(fX, fY + fH, midX, fY);
-                  dxf += dl(fX + fW, fY + fH, midX, fY);
+                  dxf += dl(symX, symY, symX + symW, midY);
+                  dxf += dl(symX, symY + symH, symX + symW, midY);
+                  // Tilt
+                  dxf += dl(symX, symY + symH, midX, symY);
+                  dxf += dl(symX + symW, symY + symH, midX, symY);
                   break;
               case 'tilt-turn-right':
-                  dxf += dl(fX + fW, fY, fX, midY);
-                  dxf += dl(fX + fW, fY + fH, fX, midY);
-                  dxf += dl(fX, fY + fH, midX, fY);
-                  dxf += dl(fX + fW, fY + fH, midX, fY);
+                  dxf += dl(symX + symW, symY, symX, midY);
+                  dxf += dl(symX + symW, symY + symH, symX, midY);
+                  dxf += dl(symX, symY + symH, midX, symY);
+                  dxf += dl(symX + symW, symY + symH, midX, symY);
                   break;
                case 'sliding':
                   // Arrow
@@ -152,8 +182,14 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
                   break;
           }
        } else {
-          // Fixed Glass
-          dxf += drawRect(fX, fY, fW, fH, 'GLASS');
+          // FIXED GLASS
+          // Sits directly in frame (Allocated Space - FrameWidth)
+          const glassX = daylightX + config.glassClearance;
+          const glassY = daylightY + config.glassClearance;
+          const glassW = daylightW - (2 * config.glassClearance);
+          const glassH = daylightH - (2 * config.glassClearance);
+
+          dxf += drawRect(glassX, glassY, glassW, glassH, 'GLASS');
        }
     }
   };
@@ -168,8 +204,6 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
   const dimTextH = Math.min(unit.width, unit.height) / 25;
   dxf += drawText(unit.width / 2, -100, `${unit.width} mm`, dimTextH, 'DIM'); // Width
   
-  // Height dimension rotated 90 deg is harder in basic DXF text entities without advanced group codes, 
-  // so we just place it to the side for now.
   dxf += drawText(-100, unit.height / 2, `${unit.height} mm`, dimTextH, 'DIM'); // Height
 
   // Label

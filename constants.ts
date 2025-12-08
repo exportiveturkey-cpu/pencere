@@ -15,7 +15,8 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
       glassClearance: 4,     // Standard Glazing Block gap
       mullionCorrection: 0,  // Precise mechanical cut
       frameCornerWelding: 0  // Crimping (Press corner)
-    }
+    },
+    defaultCornerCleat: 'c1'
   },
   { 
     id: 'std65', 
@@ -29,7 +30,8 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
       glassClearance: 5,
       mullionCorrection: 0,
       frameCornerWelding: 0
-    }
+    },
+    defaultCornerCleat: 'c1'
   },
   { 
     id: 'prem75', 
@@ -43,7 +45,8 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
       glassClearance: 5,
       mullionCorrection: 0,
       frameCornerWelding: 0
-    }
+    },
+    defaultCornerCleat: 'c1'
   },
   { 
     id: 'slide120', 
@@ -57,7 +60,8 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
       glassClearance: 6,
       mullionCorrection: 0,
       frameCornerWelding: 0
-    }
+    },
+    defaultCornerCleat: 'c1'
   },
 ];
 

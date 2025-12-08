@@ -44,6 +44,7 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
 
   // 1. Outer Frame (2 Widths, 2 Heights)
   // Logic: Nominal Dimension + Welding Allowance (if PVC/Welded)
+  // For Aluminium (Welding = 0), Cut Length = External Dimension.
   const frameW = unit.width + (2 * config.frameCornerWelding);
   const frameH = unit.height + (2 * config.frameCornerWelding);
 
@@ -54,24 +55,21 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
 
   // 2. Recursive traversal for Mullions and Sashes
   const traverse = (node: WindowNode, w: number, h: number) => {
-    // w and h here are the "Daylight Opening" allocated to this node, INCLUDING frame thickness if it's the root.
-    // Actually, let's look at how visualizer passes dimensions. It passes the bounding box.
-    // So for the root node, w = unit.width, h = unit.height.
+    // w and h here are the "Allocated Space" (Bounding Box) for this node.
+    // For the root, this includes the frame.
     
     if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
       const isVert = node.direction === 'vertical';
       
       // MULLION CALCULATION
-      // Mullion sits *inside* the frame or container.
-      // Logic: Inner Dimension + Connection Correction
-      // Inner Dimension = Container Dim - (2 * FrameWidth) if it spans the whole frame.
-      // NOTE: This simple recursion assumes mullion spans the entire passed width/height minus frame thickness.
+      // Mullion Cut Length = Daylight Dimension (Axis) + MullionCorrection
+      // Daylight Dimension = BoundingBox - (2 * FrameWidth)
       
-      const mullionRawLen = isVert ? h : w;
-      // We subtract 2x FrameWidth because mullion is typically mounted between the frames.
-      // If this container is nested inside another mullion, this logic gets complex. 
-      // Simplified: Assume Mullion connects to outer frame.
-      const mullionCutLen = (mullionRawLen - (2 * frameWidth)) + config.mullionCorrection;
+      // Note: This logic assumes the mullion spans the entire daylight opening of its parent container.
+      const rawLength = isVert ? h : w;
+      const daylightLen = rawLength - (2 * frameWidth);
+      
+      const mullionCutLen = daylightLen + config.mullionCorrection;
       
       const label = isVert ? 'Mullion (Vertical)' : 'Transom (Horizontal)';
       if (mullionCutLen > 0) {
@@ -88,20 +86,26 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
       // Leaf Node - Check for Opening Sash
       if (node.openingType && node.openingType !== 'fixed') {
         // SASH CALCULATION
-        // Sash Size = Hole Size + (2 * Overlap)
-        // Hole Size = Node Bounding Box - (2 * FrameWidth)
+        // 1. Calculate Daylight Opening (Hole)
+        // Hole = Allocated Space - (2 * FrameWidth)
+        const daylightW = w - (2 * frameWidth);
+        const daylightH = h - (2 * frameWidth);
         
-        const holeW = w - (2 * frameWidth);
-        const holeH = h - (2 * frameWidth);
+        // 2. Calculate Sash Outer Dimension
+        // SashOuter = Hole + (2 * Sash Overlap)
+        const sashOuterW = daylightW + (2 * config.sashOverlap);
+        const sashOuterH = daylightH + (2 * config.sashOverlap);
+
+        // 3. Calculate Cutting Length
+        // Cut = SashOuter + (2 * Welding Allowance)
+        const sashCutW = sashOuterW + (2 * config.frameCornerWelding);
+        const sashCutH = sashOuterH + (2 * config.frameCornerWelding);
         
-        const sashW = holeW + (2 * config.sashOverlap) + (2 * config.frameCornerWelding);
-        const sashH = holeH + (2 * config.sashOverlap) + (2 * config.frameCornerWelding);
-        
-        if (sashW > 0 && sashH > 0) {
-            cuts.push({ length: sashW, label: 'Sash Width' });
-            cuts.push({ length: sashW, label: 'Sash Width' });
-            cuts.push({ length: sashH, label: 'Sash Height' });
-            cuts.push({ length: sashH, label: 'Sash Height' });
+        if (sashCutW > 0 && sashCutH > 0) {
+            cuts.push({ length: sashCutW, label: 'Sash Width' });
+            cuts.push({ length: sashCutW, label: 'Sash Width' });
+            cuts.push({ length: sashCutH, label: 'Sash Height' });
+            cuts.push({ length: sashCutH, label: 'Sash Height' });
         }
       }
     }
