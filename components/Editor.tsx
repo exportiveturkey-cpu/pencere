@@ -38,6 +38,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedGasketId, setSelectedGasketId] = useState<string>(initialUnit?.selectedGasket || '');
   const [selectedHingeId, setSelectedHingeId] = useState<string>(initialUnit?.selectedHinge || '');
   const [selectedCornerId, setSelectedCornerId] = useState<string>(initialUnit?.selectedCorner || '');
+  const [selectedLockStrikerId, setSelectedLockStrikerId] = useState<string>(initialUnit?.selectedLockStriker || '');
+  const [selectedDoorCloserId, setSelectedDoorCloserId] = useState<string>(initialUnit?.selectedDoorCloser || '');
+  const [selectedKickplateId, setSelectedKickplateId] = useState<string>(initialUnit?.selectedKickplate || '');
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -51,6 +54,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const gaskets = accessories.filter(a => a.type === 'gasket');
   const hinges = accessories.filter(a => a.type === 'hinge');
   const corners = accessories.filter(a => a.type === 'corner');
+  const lockStrikers = accessories.filter(a => a.type === 'lockStriker');
+  const doorClosers = accessories.filter(a => a.type === 'doorCloser');
+  const kickplates = accessories.filter(a => a.type === 'kickplate');
 
   // History Helper
   const addToHistory = () => {
@@ -220,7 +226,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedHandle: selectedHandleId,
       selectedGasket: selectedGasketId,
       selectedHinge: selectedHingeId,
-      selectedCorner: selectedCornerId
+      selectedCorner: selectedCornerId,
+      selectedLockStriker: selectedLockStrikerId,
+      selectedDoorCloser: selectedDoorCloserId,
+      selectedKickplate: selectedKickplateId
     };
     onSave(unit);
   };
@@ -471,6 +480,48 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         >
                             <option value="">-- {t(lang, 'selectAccessories')} --</option>
                             {corners.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'lockStriker')}</label>
+                        <select 
+                            value={selectedLockStrikerId}
+                            onChange={(e) => setSelectedLockStrikerId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {lockStrikers.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'doorCloser')}</label>
+                        <select 
+                            value={selectedDoorCloserId}
+                            onChange={(e) => setSelectedDoorCloserId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {doorClosers.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'kickplate')}</label>
+                        <select 
+                            value={selectedKickplateId}
+                            onChange={(e) => setSelectedKickplateId(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
+                        >
+                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
+                            {kickplates.map(c => (
                                 <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
                             ))}
                         </select>

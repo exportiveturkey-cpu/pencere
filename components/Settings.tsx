@@ -337,6 +337,9 @@ const Settings: React.FC<SettingsProps> = ({
                                     <option value="hinge">{t(lang, 'hinge')}</option>
                                     <option value="lock">{t(lang, 'lock')}</option>
                                     <option value="corner">{t(lang, 'corner')}</option>
+                                    <option value="kickplate">{t(lang, 'kickplate')}</option>
+                                    <option value="doorCloser">{t(lang, 'doorCloser')}</option>
+                                    <option value="lockStriker">{t(lang, 'lockStriker')}</option>
                                     <option value="automation">{t(lang, 'automation')}</option>
                                     <option value="other">{t(lang, 'other')}</option>
                                 </select>

@@ -165,6 +165,51 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         }
     }
 
+    // Lock Striker (Approx: 1 per opening sash)
+    if (unit.selectedLockStriker && sashCount > 0) {
+        const acc = accessories.find(a => a.id === unit.selectedLockStriker);
+        if (acc) {
+            const count = sashCount;
+            accessoryCost += acc.price * count;
+            accessoryList.push({ name: acc.name, count, unit: t(lang, 'unitPce'), price: acc.price * count });
+        }
+    }
+
+    // Door Closer (Approx: 1 per opening sash)
+    if (unit.selectedDoorCloser && sashCount > 0) {
+        const acc = accessories.find(a => a.id === unit.selectedDoorCloser);
+        if (acc) {
+            const count = sashCount;
+            accessoryCost += acc.price * count;
+            accessoryList.push({ name: acc.name, count, unit: t(lang, 'unitPce'), price: acc.price * count });
+        }
+    }
+
+    // Kickplate
+    if (unit.selectedKickplate && sashCount > 0) {
+        const acc = accessories.find(a => a.id === unit.selectedKickplate);
+        if (acc) {
+            let quantity = 0;
+            if (acc.unit === 'meter') {
+                // Approximate estimation: Unit Width * Sash Count (conservative)
+                // A better approach would be calculating exact sash widths, but this is sufficient for estimation
+                const approxSashWidthM = (unit.width - (system.frameWidth * 2)) / 1000;
+                // If single sash, use that width. If double, assume half width * 2 = full width anyway.
+                // Using unit width is safer to ensure coverage in estimates.
+                quantity = parseFloat(((unit.width / 1000) * sashCount).toFixed(2));
+                // Clamp to reasonable max (e.g., width of unit * 1.5 if multiple sashes overlap)
+                if (quantity > (unit.width / 1000) * 1.2 && sashCount <= 2) {
+                     quantity = parseFloat((unit.width / 1000).toFixed(2));
+                }
+            } else {
+                quantity = sashCount;
+            }
+            const cost = acc.price * quantity;
+            accessoryCost += cost;
+            accessoryList.push({ name: acc.name, count: quantity, unit: acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce'), price: cost });
+        }
+    }
+
     const totalCost = profileCost + glassCost + accessoryCost;
     
     // Uw: Weighted Average

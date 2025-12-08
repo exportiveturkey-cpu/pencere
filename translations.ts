@@ -24,6 +24,7 @@ type TranslationKey =
   | 'Mullion (Vertical)' | 'Transom (Horizontal)' | 'approve' | 'approveProduction' | 'complete' | 'markAsCompleted' | 'readOnly'
   | 'maxLoad' | 'capacity' | 'sashWeight' | 'tooHeavy' | 'maxWeightKg'
   | 'lock' | 'corner' | 'automation' | 'other' | 'downloadDxf'
+  | 'kickplate' | 'doorCloser' | 'lockStriker'
   | 'cuttingRules' | 'sashOverlap' | 'glassClearance' | 'mullionCorrection' | 'weldingAllowance'
   | 'dataManagement' | 'exportBackup' | 'importBackup' | 'exportDesc' | 'importDesc' | 'downloadBackup' | 'selectFile'
   | 'overwriteWarning' | 'importConfirm' | 'importSuccess'
@@ -175,6 +176,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     corner: "Corner Cleat",
     automation: "Automation",
     other: "Other",
+    kickplate: "Door Kick Plate",
+    doorCloser: "Door Closer",
+    lockStriker: "Lock Striker/Receiver",
     downloadDxf: "Download DXF (CAD)",
     cuttingRules: "Cutting Allowance Rules",
     sashOverlap: "Sash Overlap (Rebate)",
@@ -347,6 +351,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     corner: "Köşe Takozu",
     automation: "Otomasyon",
     other: "Diğer",
+    kickplate: "Kapı Etek Profili",
+    doorCloser: "Kapı Pompası (Hidrolik)",
+    lockStriker: "Kilit Karşılığı",
     downloadDxf: "DXF İndir (CAD)",
     cuttingRules: "Kesim ve İmalat Kuralları",
     sashOverlap: "Bini Payı (Kanat Taşkını)",
