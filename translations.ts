@@ -28,7 +28,8 @@ type TranslationKey =
   | 'dataManagement' | 'exportBackup' | 'importBackup' | 'exportDesc' | 'importDesc' | 'downloadBackup' | 'selectFile'
   | 'overwriteWarning' | 'importConfirm' | 'importSuccess'
   | 'sectionDetail' | 'schematic'
-  | 'welcomeTitle' | 'welcomeSubtitle' | 'passwordLabel' | 'loginBtn' | 'wrongPassword';
+  | 'welcomeTitle' | 'welcomeSubtitle' | 'passwordLabel' | 'loginBtn' | 'wrongPassword'
+  | 'editProjectInfo' | 'projectName' | 'clientName' | 'projectDate' | 'saveChanges';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -196,7 +197,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     welcomeSubtitle: "Enter your secure access key to continue",
     passwordLabel: "Access Key",
     loginBtn: "Access Suite",
-    wrongPassword: "Invalid access key. Please try again."
+    wrongPassword: "Invalid access key. Please try again.",
+    editProjectInfo: "Edit Project Details",
+    projectName: "Project Name",
+    clientName: "Client / Contact Name",
+    projectDate: "Project Date",
+    saveChanges: "Save Changes"
   },
   tr: {
     projects: 'Projeler',
@@ -363,7 +369,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     welcomeSubtitle: "Devam etmek için erişim anahtarınızı girin",
     passwordLabel: "Erişim Anahtarı (Şifre)",
     loginBtn: "Sisteme Giriş Yap",
-    wrongPassword: "Geçersiz anahtar. Lütfen tekrar deneyin."
+    wrongPassword: "Geçersiz anahtar. Lütfen tekrar deneyin.",
+    editProjectInfo: "Proje Bilgilerini Düzenle",
+    projectName: "Proje Adı",
+    clientName: "Müşteri / Kontak Adı",
+    projectDate: "Proje Tarihi",
+    saveChanges: "Değişiklikleri Kaydet"
   }
 };
 

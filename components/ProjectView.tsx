@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive, Download } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive, Download, X, Save } from 'lucide-react';
 import { generateSalesPitch } from '../services/geminiService';
 import { generateDXF } from '../services/dxfService';
 import { t } from '../translations';
@@ -27,6 +27,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [quoteIntro, setQuoteIntro] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  
+  // Edit Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+      name: project.name,
+      client: project.client,
+      date: project.date
+  });
 
   // Advanced Calculation Logic with Rules
   const getUnitStats = (unit: Unit) => {
@@ -221,6 +229,25 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const handleStatusChange = (newStatus: Project['status']) => {
     onUpdateProject({ ...project, status: newStatus });
   };
+  
+  const handleEditClick = () => {
+      setEditForm({
+          name: project.name,
+          client: project.client,
+          date: project.date
+      });
+      setShowEditModal(true);
+  };
+
+  const handleSaveDetails = () => {
+      onUpdateProject({
+          ...project,
+          name: editForm.name,
+          client: editForm.client,
+          date: editForm.date
+      });
+      setShowEditModal(false);
+  };
 
   const projectAvgUw = calculateAvgUw(project.units);
 
@@ -292,6 +319,63 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         }
       }
     `}</style>
+    
+    {/* Edit Project Details Modal */}
+    {showEditModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-md p-6 shadow-2xl relative">
+                <button 
+                    onClick={() => setShowEditModal(false)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+                >
+                    <X size={20} />
+                </button>
+                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Edit2 size={20} className="text-blue-500" />
+                    {t(lang, 'editProjectInfo')}
+                </h3>
+                
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'projectName')}</label>
+                        <input 
+                            type="text" 
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'clientName')}</label>
+                        <input 
+                            type="text" 
+                            value={editForm.client}
+                            onChange={(e) => setEditForm({...editForm, client: e.target.value})}
+                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'projectDate')}</label>
+                        <input 
+                            type="date" 
+                            value={editForm.date}
+                            onChange={(e) => setEditForm({...editForm, date: e.target.value})}
+                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
+                        />
+                    </div>
+                    
+                    <button 
+                        onClick={handleSaveDetails}
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded mt-4 flex items-center justify-center gap-2 font-medium"
+                    >
+                        <Save size={18} />
+                        {t(lang, 'saveChanges')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )}
 
     {/* SCREEN VIEW */}
     <div id="screen-view" className="flex h-full bg-slate-900">
@@ -305,6 +389,15 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div>
                     <h1 className="text-xl font-bold text-white flex items-center gap-3">
                         {project.name}
+                        {project.status === 'Draft' && (
+                            <button 
+                                onClick={handleEditClick}
+                                className="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded hover:bg-slate-700"
+                                title={t(lang, 'edit')}
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                        )}
                         <span className={`text-xs font-normal px-2 py-0.5 rounded border ${
                             project.status === 'Draft' ? 'bg-yellow-900/30 border-yellow-700 text-yellow-500' :
                             project.status === 'Production' ? 'bg-emerald-900/30 border-emerald-700 text-emerald-500' :
