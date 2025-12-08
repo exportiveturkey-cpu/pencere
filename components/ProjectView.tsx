@@ -193,7 +193,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             if (acc.unit === 'meter') {
                 // Approximate estimation: Unit Width * Sash Count (conservative)
                 // A better approach would be calculating exact sash widths, but this is sufficient for estimation
-                const approxSashWidthM = (unit.width - (system.frameWidth * 2)) / 1000;
                 // If single sash, use that width. If double, assume half width * 2 = full width anyway.
                 // Using unit width is safer to ensure coverage in estimates.
                 quantity = parseFloat(((unit.width / 1000) * sashCount).toFixed(2));
