@@ -43,15 +43,8 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
   // In CAD, Y usually points UP. In web, Y points DOWN.
   // We flip Y (-y) to make it upright in CAD.
   
-  const drawLine = (x1: number, y1: number, x2: number, y2: number, layer: string) => {
-    return `0\nLINE\n8\n${layer}\n` +
-           `10\n${x1}\n20\n${-y1}\n30\n0\n` +
-           `11\n${x2}\n21\n${-y2}\n31\n0\n`;
-  };
-
   const drawRect = (x: number, y: number, w: number, h: number, layer: string) => {
     // Polylines are efficient for rects
-    // 10,20 = Start
     return `0\nLWPOLYLINE\n8\n${layer}\n90\n4\n70\n1\n` + 
            `10\n${x}\n20\n${-y}\n` +
            `10\n${x+w}\n20\n${-y}\n` +
@@ -77,7 +70,7 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
        const s1 = avail * node.splitRatio[0];
        const s2 = avail * node.splitRatio[1];
        
-       // Draw Mullion Profile
+       // Draw Mullion Profile (Rectangle)
        const mx = isVert ? x + s1 : x;
        const my = isVert ? y : y + s1;
        const mw = isVert ? frameW : w;
@@ -90,11 +83,8 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
 
     } else {
        // Leaf Node
-       // The x,y,w,h passed here represents the Allocated "Bounding Box" for this leaf.
-       // This INCLUDES the frame width if it is at the edge.
-       
        const isOpening = node.openingType && node.openingType !== 'fixed';
-       const sashProfileW = 55; // Sash profile width approximation
+       const sashProfileW = 55;
        
        // Calculate Daylight Opening (Hole) inside the allocated space
        const daylightX = x + frameW;
@@ -102,88 +92,30 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
        const daylightW = Math.max(0, w - 2*frameW);
        const daylightH = Math.max(0, h - 2*frameW);
 
+       // Note: For triangles/arches, the "Rect" logic here draws essentially the bounding box
+       // content. In a real CAD software, we would need to clip this geometry against the parent shape.
+       // However, for this output, drawing the rectangular sash inside the conceptual box 
+       // is often "good enough" for schematic representation if the outer frame is drawn correctly.
+       
        if (isOpening) {
           // OPENING SASH
-          // The Sash overlaps the frame. 
-          // Sash Outer = Daylight + 2 * Overlap
-          // Position relative to daylight: X - Overlap, Y - Overlap
-          
           const sashOuterX = daylightX - config.sashOverlap;
           const sashOuterY = daylightY - config.sashOverlap;
           const sashOuterW = daylightW + (2 * config.sashOverlap);
           const sashOuterH = daylightH + (2 * config.sashOverlap);
           
-          // 1. Sash Outer Frame (The moving part)
           dxf += drawRect(sashOuterX, sashOuterY, sashOuterW, sashOuterH, 'SASH');
 
-          // 2. Sash Inner Frame (Glass Bead Line)
-          // Inner Frame = Outer Frame - 2 * SashProfileWidth
-          const sashInnerX = sashOuterX + sashProfileW;
-          const sashInnerY = sashOuterY + sashProfileW;
-          const sashInnerW = sashOuterW - (2 * sashProfileW);
-          const sashInnerH = sashOuterH - (2 * sashProfileW);
-          
-          dxf += drawRect(sashInnerX, sashInnerY, sashInnerW, sashInnerH, 'SASH');
-          
-          // 3. Glass
-          // Glass sits inside sash with clearance
-          const glassX = sashInnerX + config.glassClearance;
-          const glassY = sashInnerY + config.glassClearance;
-          const glassW = sashInnerW - (2 * config.glassClearance);
-          const glassH = sashInnerH - (2 * config.glassClearance);
+          // Glass
+          const glassX = sashOuterX + sashProfileW + config.glassClearance;
+          const glassY = sashOuterY + sashProfileW + config.glassClearance;
+          const glassW = sashOuterW - (2 * (sashProfileW + config.glassClearance));
+          const glassH = sashOuterH - (2 * (sashProfileW + config.glassClearance));
 
           dxf += drawRect(glassX, glassY, glassW, glassH, 'GLASS');
           
-          // 4. Opening Symbols (Lines)
-          const midX = sashOuterX + sashOuterW/2;
-          const midY = sashOuterY + sashOuterH/2;
-          
-          // Helper for opening lines - drawn on the sash inner frame for visibility
-          const symX = sashInnerX;
-          const symY = sashInnerY;
-          const symW = sashInnerW;
-          const symH = sashInnerH;
-
-          const dl = (x1: number, y1: number, x2: number, y2: number) => drawLine(x1, y1, x2, y2, 'OPENING');
-          
-          switch (node.openingType) {
-              case 'turn-left':
-                  dxf += dl(symX, symY, symX + symW, midY);
-                  dxf += dl(symX, symY + symH, symX + symW, midY);
-                  break;
-              case 'turn-right':
-                  dxf += dl(symX + symW, symY, symX, midY);
-                  dxf += dl(symX + symW, symY + symH, symX, midY);
-                  break;
-              case 'tilt':
-                  dxf += dl(symX, symY + symH, midX, symY);
-                  dxf += dl(symX + symW, symY + symH, midX, symY);
-                  break;
-              case 'tilt-turn-left':
-                   // Turn
-                  dxf += dl(symX, symY, symX + symW, midY);
-                  dxf += dl(symX, symY + symH, symX + symW, midY);
-                  // Tilt
-                  dxf += dl(symX, symY + symH, midX, symY);
-                  dxf += dl(symX + symW, symY + symH, midX, symY);
-                  break;
-              case 'tilt-turn-right':
-                  dxf += dl(symX + symW, symY, symX, midY);
-                  dxf += dl(symX + symW, symY + symH, symX, midY);
-                  dxf += dl(symX, symY + symH, midX, symY);
-                  dxf += dl(symX + symW, symY + symH, midX, symY);
-                  break;
-               case 'sliding':
-                  // Arrow
-                  const arrowY = midY;
-                  dxf += dl(midX - 100, arrowY, midX + 100, arrowY);
-                  dxf += dl(midX + 70, arrowY - 30, midX + 100, arrowY);
-                  dxf += dl(midX + 70, arrowY + 30, midX + 100, arrowY);
-                  break;
-          }
        } else {
           // FIXED GLASS
-          // Sits directly in frame (Allocated Space - FrameWidth)
           const glassX = daylightX + config.glassClearance;
           const glassY = daylightY + config.glassClearance;
           const glassW = daylightW - (2 * config.glassClearance);
@@ -194,17 +126,79 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
     }
   };
 
-  // 1. Draw Global Outer Frame
-  dxf += drawRect(0, 0, unit.width, unit.height, 'FRAME');
+  // 1. Draw Global Outer Frame (With Actual Geometry)
+  const fw = system.frameWidth;
+  
+  if (unit.shape === 'triangle') {
+      const h = unit.height;
+      const w = unit.width;
+      
+      // Outer Triangle
+      const x1 = 0; const y1 = h;
+      const x2 = w / 2; const y2 = 0;
+      const x3 = w; const y3 = h;
+      
+      dxf += `0\nLWPOLYLINE\n8\nFRAME\n90\n3\n70\n1\n` + 
+           `10\n${x1}\n20\n${-y1}\n` +
+           `10\n${x2}\n20\n${-y2}\n` +
+           `10\n${x3}\n20\n${-y3}\n`;
 
-  // 2. Start Recursion
+      // Inner Triangle (Frame Thickness)
+      // Approximate offset logic matching Visualizer
+      const halfW = w / 2;
+      const sideLen = Math.sqrt(halfW*halfW + h*h);
+      const topOffsetY = fw * (sideLen / halfW);
+      
+      const ix1 = fw; const iy1 = h - fw;
+      const ix2 = w / 2; const iy2 = topOffsetY;
+      const ix3 = w - fw; const iy3 = h - fw;
+      
+      dxf += `0\nLWPOLYLINE\n8\nFRAME\n90\n3\n70\n1\n` + 
+           `10\n${ix1}\n20\n${-iy1}\n` +
+           `10\n${ix2}\n20\n${-iy2}\n` +
+           `10\n${ix3}\n20\n${-iy3}\n`;
+
+  } else if (unit.shape === 'arch') {
+      const h = unit.height;
+      const w = unit.width;
+      const archH = unit.archHeight || w/2;
+      const legH = h - archH;
+      
+      const bulge = (Math.abs(archH - w/2) < 1) ? 1 : 0.414;
+      
+      // Outer Arch
+      dxf += `0\nLWPOLYLINE\n8\nFRAME\n90\n4\n70\n1\n` + 
+           `10\n0\n20\n${-h}\n` + 
+           `10\n0\n20\n${-(h - legH)}\n` + 
+           `42\n${bulge}\n` + 
+           `10\n${w}\n20\n${-(h - legH)}\n` + 
+           `10\n${w}\n20\n${-h}\n`;
+           
+      // Inner Arch
+      const innerLegH = legH - fw;
+      // Bulge roughly stays same for semicircle parallel offset
+      
+      dxf += `0\nLWPOLYLINE\n8\nFRAME\n90\n4\n70\n1\n` + 
+           `10\n${fw}\n20\n${-(h-fw)}\n` + 
+           `10\n${fw}\n20\n${-(h - innerLegH - fw)}\n` + 
+           `42\n${bulge}\n` + 
+           `10\n${w-fw}\n20\n${-(h - innerLegH - fw)}\n` + 
+           `10\n${w-fw}\n20\n${-(h-fw)}\n`;
+
+  } else {
+      // Standard Rect
+      dxf += drawRect(0, 0, unit.width, unit.height, 'FRAME');
+      dxf += drawRect(fw, fw, unit.width - 2*fw, unit.height - 2*fw, 'FRAME');
+  }
+
+  // 2. Start Recursion (Note: Children will be drawn as Rects overlapping the frame boundary in DXF for complex shapes)
+  // Ideally we would clip them in CAD logic, but simply drawing them inside the Bounding Box is standard for simple generators.
   traverse(unit.rootNode, 0, 0, unit.width, unit.height);
 
   // 3. Dimensions
   const dimTextH = Math.min(unit.width, unit.height) / 25;
-  dxf += drawText(unit.width / 2, -100, `${unit.width} mm`, dimTextH, 'DIM'); // Width
-  
-  dxf += drawText(-100, unit.height / 2, `${unit.height} mm`, dimTextH, 'DIM'); // Height
+  dxf += drawText(unit.width / 2, -100, `${unit.width} mm`, dimTextH, 'DIM'); 
+  dxf += drawText(-100, unit.height / 2, `${unit.height} mm`, dimTextH, 'DIM'); 
 
   // Label
   dxf += drawText(unit.width / 2, unit.height + 150, `${unit.name} - ${system.name}`, dimTextH, 'DIM');

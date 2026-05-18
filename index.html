@@ -1,8 +1,20 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-L0661CCQL0"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-L0661CCQL0');
+    </script>
+
     <title>Alumetric | Window & Door Engineering</title>
     <!-- We keep Tailwind CDN for simplicity, though best practice for production is PostCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,6 +40,33 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b; 
       }
+
+      /* PRINT OPTIMIZATIONS */
+      @media print {
+        @page {
+          margin: 15mm;
+          size: A4;
+        }
+        body {
+          background-color: white !important;
+          color: black !important;
+        }
+        .print\:hidden {
+          display: none !important;
+        }
+        .print\:bg-white {
+          background-color: white !important;
+        }
+        .print\:text-black {
+          color: black !important;
+        }
+        .print\:border-slate-200 {
+          border-color: #e2e8f0 !important;
+        }
+        .avoid-break {
+          page-break-inside: avoid;
+        }
+      }
     </style>
   <script type="importmap">
 {
@@ -40,7 +79,8 @@
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.js"
   }
 }
 </script>

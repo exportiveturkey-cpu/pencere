@@ -1,12 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
+
 import { Unit, ProfileSystem, Language, WindowNode } from '../types';
 
-const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key not found");
-  return new GoogleGenAI({ apiKey });
-};
-
+// Helper to describe window structure for engineering analysis
 const describeNode = (node: WindowNode): string => {
   if (node.type === 'container' && node.children) {
     const childrenDesc = node.children.map(describeNode).join(', ');
@@ -15,97 +10,108 @@ const describeNode = (node: WindowNode): string => {
   return `Leaf panel (Opening: ${node.openingType || 'fixed'})`;
 };
 
+/**
+ * Performs structural analysis using Gemini via server API.
+ */
 export const analyzeStructure = async (unit: Unit, system: ProfileSystem, lang: Language): Promise<string> => {
   try {
-    const ai = getAiClient();
-    
     const structureDescription = describeNode(unit.rootNode);
-    const areaM2 = (unit.width * unit.height / 1000000).toFixed(2);
     
     const prompt = `
-      As a senior façade engineer and aluminium joinery expert, perform a detailed structural and functional analysis of this window/door unit.
-
-      --- TECHNICAL SPECIFICATIONS ---
-      Dimensions: ${unit.width}mm Width x ${unit.height}mm Height (Total Area: ${areaM2} m²)
-      Quantity: ${unit.quantity} units
+      As a senior façade engineer and aluminium joinery expert, perform a detailed structural and functional analysis.
+      Dimensions: ${unit.width}mm x ${unit.height}mm
+      System: ${system.name} (${system.frameWidth}mm)
+      Structure: ${structureDescription}
+      Glazing: ${unit.glassType} (${unit.glassThickness}mm)
       
-      Profile System: ${system.name}
-      - Frame Depth/Width: ${system.frameWidth}mm
-      - Thermal Insulation (Uf): ${system.uValue} W/m²K
-      
-      Glazing:
-      - Type: ${unit.glassType}
-      - Thickness: ${unit.glassThickness}mm
-      
-      Configuration Structure:
-      ${structureDescription}
-      
-      Accessories Selected:
-      - Handle: ${unit.selectedHandle || 'Standard'}
-      - Hinges: ${unit.selectedHinge || 'Standard'}
-      
-      --- ANALYSIS TASKS ---
-      1. **Static & Structural Integrity**: 
-         - Evaluate if the ${system.frameWidth}mm profile is structurally sufficient for these dimensions under standard wind loads.
-         - Check height-to-width ratios for opening sashes. Are they within safe limits (usually max 1:2 or 2:1)?
-      
-      2. **Glazing Safety Check**:
-         - Verify if ${unit.glassThickness}mm glass thickness is adequate for the pane sizes involved.
-         - Recommend safety glass (tempered/laminated) if appropriate (e.g. large areas or floor-level).
-
-      3. **Functional Feasibility**:
-         - assess if the operating sashes are too heavy or large for standard hardware.
-         - Identify potential operation clashes in the recursive split configuration.
-
-      4. **Engineering Recommendations**:
-         - Suggest specific reinforcement (Ix values in cm⁴) if the statics appear weak.
-         - Suggest heavy-duty hinges or additional locking points if needed.
-
-      --- OUTPUT FORMAT ---
-      Provide the response in ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}.
-      Use professional engineering terminology.
-      Format with clear **Bold Headings** and bullet points.
-      Do not output generic marketing text; focus on engineering validation.
+      Provide analysis in ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}.
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
+    const response = await fetch("/api/ai/analyze-structure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
     });
 
-    return response.text || "Analysis failed.";
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return lang === 'tr' ? "YZ Analizi yapılamadı." : "AI Analysis unavailable.";
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Server error");
+    }
+
+    const data = await response.json();
+    return data.text || "No analysis provided.";
+  } catch (error: any) {
+    console.error("Analysis failed:", error);
+    return lang === 'tr' ? "Analiz başarısız oldu: " + error.message : "Analysis failed: " + error.message;
   }
 };
 
+/**
+ * Automatically detects windows/doors from a technical drawing image or PDF via server API.
+ */
+export const analyzeDrawing = async (base64Data: string, mimeType: string, lang: Language): Promise<any[]> => {
+  try {
+    const prompt = `
+      Analyze this technical drawing/architectural plan (image or PDF). Extract all window and door units.
+      For each unit identified, provide:
+      - name: (e.g., W-01, D-02)
+      - width: (in mm, only number)
+      - height: (in mm, only number)
+      - type: (fixed, turn-left, turn-right, tilt, tilt-turn-left, tilt-turn-right, or sliding)
+
+      Return ONLY a JSON array of objects. Example: [{"name": "W-01", "width": 1200, "height": 1500, "type": "tilt-turn-left"}]
+    `;
+
+    const response = await fetch("/api/ai/analyze-drawing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base64Data, mimeType, prompt }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Server error");
+    }
+
+    const data = await response.json();
+    const cleanText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const result = JSON.parse(cleanText || "[]");
+    return Array.isArray(result) ? result : [];
+  } catch (error) {
+    console.error("Vision analysis failed:", error);
+    return [];
+  }
+};
+
+/**
+ * Generates sales pitch using Gemini via server API.
+ */
 export const generateSalesPitch = async (project: {name: string, client: string}, units: Unit[], lang: Language): Promise<string> => {
   try {
-    const ai = getAiClient();
     const unitSummaries = units.map(u => `${u.width}x${u.height}mm ${u.system}`).join(', ');
     
     const prompt = `
-      Write a professional cover letter/intro for a quotation for aluminium windows.
-      Client: ${project.client}
-      Project: ${project.name}
-      Units Included: ${units.length} units (${unitSummaries})
-      
-      Tone: Professional, assuring high quality, energy efficiency, and modern design.
-      Highlight the durability of aluminium and the thermal properties.
-      
-      IMPORTANT: Provide the response in ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}.
-      Output format: Plain text suitable for an email or PDF header.
+      Write a professional cover letter for an aluminium window quotation.
+      Client: ${project.client}, Project: ${project.name}
+      Units: ${units.length} items (${unitSummaries})
+      Language: ${lang === 'tr' ? 'TURKISH' : 'ENGLISH'}
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
+    const response = await fetch("/api/ai/generate-pitch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
     });
 
-    return response.text || "Description generation failed.";
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Server error");
+    }
+
+    const data = await response.json();
+    return data.text || "";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return lang === 'tr' ? "Açıklama oluşturulamadı." : "AI Description unavailable.";
+    console.error("Pitch generation failed:", error);
+    return "";
   }
 };

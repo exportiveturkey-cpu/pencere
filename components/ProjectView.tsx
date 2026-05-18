@@ -1,15 +1,17 @@
 
-import React, { useState } from 'react';
-import { Project, Unit, ProfileSystem, Language, Accessory } from '../types';
-import { ArrowLeft, Edit2, Plus, FileText, Bot, Printer, Thermometer, Loader2, Package, Trash2, Factory, Archive, Download, X, Save } from 'lucide-react';
-import { generateSalesPitch } from '../services/geminiService';
-import { generateDXF } from '../services/dxfService';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig } from '../types';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
 import { GLASS_TYPES } from '../constants';
-import Logo from './Logo';
+import { analyzeDrawing, generateSalesPitch } from '../services/geminiService';
+import { generateCNCCSV } from '../services/cncService';
+import { generateDXF } from '../services/dxfService';
+import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ProjectViewProps {
   project: Project;
@@ -21,795 +23,738 @@ interface ProjectViewProps {
   onAddUnit: () => void;
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: string) => void;
+  machines?: MachineConfig[];
 }
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit }) => {
-  const [quoteIntro, setQuoteIntro] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [] }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
+  const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
+  const [isScanning, setIsScanning] = useState(false);
+  const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
+  const [selectedMachineId, setSelectedMachineId] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Edit Modal State
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({
-      name: project.name,
-      client: project.client,
-      date: project.date
-  });
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [tempProject, setTempProject] = useState<Project>(project);
 
-  // Advanced Calculation Logic with Rules
-  const getUnitStats = (unit: Unit) => {
-    const system = systems.find(s => s.id === unit.system);
-    const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
-    
-    // Fallbacks
-    if (!system) return { cost: 0, uw: 0, glassName: unit.glassType, totalAreaM2: 0, accessoriesCost: 0, accessoryList: [] };
+  const taxRate = Number(localStorage.getItem('alucraft_tax')) || 20;
 
-    const frameW = system.frameWidth;
-    const sashProfileW = 55; // Approximate width of the sash profile itself
-    const config = system.correctionConfig || { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 };
-    
-    let sashCount = 0;
-    
-    // Recursive Area & Mullion Calc
-    const analyzeNode = (node: any, w: number, h: number): { glassArea: number, frameArea: number, mullionLength: number, perimeter: number } => {
-         // Count sashes
-         if (node.openingType && node.openingType !== 'fixed') {
-             sashCount++;
-         }
-
-         if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
-            const isVert = node.direction === 'vertical';
-            const mullionLen = isVert ? h : w;
-            const mullionArea = mullionLen * frameW;
-            
-            const avail = isVert ? w - frameW : h - frameW;
-            const s1 = avail * node.splitRatio[0];
-            const s2 = avail * node.splitRatio[1];
-            
-            const r1 = analyzeNode(node.children[0], isVert ? s1 : w, isVert ? h : s1);
-            const r2 = analyzeNode(node.children[1], isVert ? s2 : w, isVert ? h : s2);
-            
-            return {
-                glassArea: r1.glassArea + r2.glassArea,
-                frameArea: r1.frameArea + r2.frameArea + mullionArea,
-                mullionLength: mullionLen + r1.mullionLength + r2.mullionLength,
-                perimeter: r1.perimeter + r2.perimeter 
-            };
-         }
-         
-         // Leaf Node - Calculate Real Glass Size
-         const daylightW = Math.max(0, w - 2 * frameW);
-         const daylightH = Math.max(0, h - 2 * frameW);
-         
-         let glassW = daylightW;
-         let glassH = daylightH;
-
-         if (node.openingType && node.openingType !== 'fixed') {
-             // OPENING SASH LOGIC
-             // 1. Sash Outer = Daylight + (2 * Overlap)
-             // 2. Glass Size = Sash Outer - (2 * SashProfileWidth) - (2 * Clearance)
-             
-             const sashOuterW = daylightW + (2 * config.sashOverlap);
-             const sashOuterH = daylightH + (2 * config.sashOverlap);
-             
-             // Glass sits inside the sash
-             glassW = sashOuterW - (2 * sashProfileW) - (2 * config.glassClearance);
-             glassH = sashOuterH - (2 * sashProfileW) - (2 * config.glassClearance);
-         } else {
-             // FIXED LOGIC
-             // Glass Size = Daylight - (2 * Clearance)
-             glassW = daylightW - (2 * config.glassClearance);
-             glassH = daylightH - (2 * config.glassClearance);
-         }
-         
-         const gArea = Math.max(0, glassW * glassH);
-         const total = w * h;
-         const perim = (w + h) * 2;
-         return { glassArea: gArea, frameArea: total - gArea, mullionLength: 0, perimeter: perim };
-    };
-
-    const stats = analyzeNode(unit.rootNode, unit.width, unit.height);
-    const totalAreaM2 = (unit.width * unit.height) / 1000000;
-    const glassAreaM2 = stats.glassArea / 1000000;
-    const frameAreaM2 = stats.frameArea / 1000000;
-    
-    // 1. Profile Cost
-    const outerFrameLen = 2 * (unit.width + unit.height);
-    const totalProfileM = (outerFrameLen + stats.mullionLength) / 1000;
-    const profileCost = totalProfileM * system.pricePerMeter;
-
-    // 2. Glass Cost
-    const glassCost = glassAreaM2 * (glassObj?.pricePerSqm || 50);
-
-    // 3. Accessory Cost Calculation
-    let accessoryCost = 0;
-    const accessoryList: { name: string, count: number, unit: string, price: number }[] = [];
-
-    // Handles
-    if (unit.selectedHandle && sashCount > 0) {
-        const handle = accessories.find(a => a.id === unit.selectedHandle);
-        if (handle) {
-            accessoryCost += handle.price * sashCount;
-            accessoryList.push({ name: handle.name, count: sashCount, unit: t(lang, 'unitPce'), price: handle.price * sashCount });
-        }
+  useEffect(() => {
+    if (machines.length > 0 && !selectedMachineId) {
+      setSelectedMachineId(machines[0].id);
     }
+  }, [machines, selectedMachineId]);
 
-    // Hinges (Approx: 2 per sash < 1200mm, 3 per sash > 1200mm, simple logic: 2 per sash)
-    if (unit.selectedHinge && sashCount > 0) {
-        const hinge = accessories.find(a => a.id === unit.selectedHinge);
-        if (hinge) {
-            const hingesPerSash = unit.height > 1200 ? 3 : 2;
-            const totalHinges = sashCount * hingesPerSash;
-            accessoryCost += hinge.price * totalHinges;
-            accessoryList.push({ name: `${hinge.name} (${hingesPerSash}/sash)`, count: totalHinges, unit: t(lang, 'unitPce'), price: hinge.price * totalHinges });
-        }
-    }
+  const glassOrders = useMemo(() => getAggregatedGlassOrder(project.units, systems), [project.units, systems]);
+  const accessorySummary = useMemo(() => getProjectAccessorySummary(project.units, accessories), [project.units, accessories]);
+  const optimizationSummary = useMemo(() => calculateProjectOptimization(project.units, systems), [project.units, systems]);
 
-    // Corner Cleats (4 for Outer Frame + 4 per Sash)
-    if (unit.selectedCorner) {
-        const corner = accessories.find(a => a.id === unit.selectedCorner);
-        if (corner) {
-            const totalCorners = 4 + (sashCount * 4);
-            accessoryCost += corner.price * totalCorners;
-            accessoryList.push({ name: corner.name, count: totalCorners, unit: t(lang, 'unitPce'), price: corner.price * totalCorners });
-        }
-    }
-
-    // Gaskets (Total Profile Length x 2 for Inner/Outer Seal)
-    if (unit.selectedGasket) {
-        const gasket = accessories.find(a => a.id === unit.selectedGasket);
-        if (gasket) {
-            const totalGasketM = totalProfileM * 2; 
-            accessoryCost += gasket.price * totalGasketM;
-            accessoryList.push({ name: gasket.name, count: parseFloat(totalGasketM.toFixed(1)), unit: t(lang, 'unitMeter'), price: gasket.price * totalGasketM });
-        }
-    }
-
-    // Lock Striker (Approx: 1 per opening sash)
-    if (unit.selectedLockStriker && sashCount > 0) {
-        const acc = accessories.find(a => a.id === unit.selectedLockStriker);
-        if (acc) {
-            const count = sashCount;
-            accessoryCost += acc.price * count;
-            accessoryList.push({ name: acc.name, count, unit: t(lang, 'unitPce'), price: acc.price * count });
-        }
-    }
-
-    // Door Closer (Approx: 1 per opening sash)
-    if (unit.selectedDoorCloser && sashCount > 0) {
-        const acc = accessories.find(a => a.id === unit.selectedDoorCloser);
-        if (acc) {
-            const count = sashCount;
-            accessoryCost += acc.price * count;
-            accessoryList.push({ name: acc.name, count, unit: t(lang, 'unitPce'), price: acc.price * count });
-        }
-    }
-
-    // Kickplate
-    if (unit.selectedKickplate && sashCount > 0) {
-        const acc = accessories.find(a => a.id === unit.selectedKickplate);
-        if (acc) {
-            let quantity = 0;
-            if (acc.unit === 'meter') {
-                // Approximate estimation: Unit Width * Sash Count (conservative)
-                // A better approach would be calculating exact sash widths, but this is sufficient for estimation
-                // If single sash, use that width. If double, assume half width * 2 = full width anyway.
-                // Using unit width is safer to ensure coverage in estimates.
-                quantity = parseFloat(((unit.width / 1000) * sashCount).toFixed(2));
-                // Clamp to reasonable max (e.g., width of unit * 1.5 if multiple sashes overlap)
-                if (quantity > (unit.width / 1000) * 1.2 && sashCount <= 2) {
-                     quantity = parseFloat((unit.width / 1000).toFixed(2));
-                }
-            } else {
-                quantity = sashCount;
-            }
-            const cost = acc.price * quantity;
-            accessoryCost += cost;
-            accessoryList.push({ name: acc.name, count: quantity, unit: acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce'), price: cost });
-        }
-    }
-
-    const totalCost = profileCost + glassCost + accessoryCost;
-    
-    // Uw: Weighted Average
-    const Ug = glassObj?.uValue || 2.8;
-    const Uf = system.uValue;
-    const uw = totalAreaM2 > 0 ? ((glassAreaM2 * Ug) + (frameAreaM2 * Uf)) / totalAreaM2 : 0;
-
-    return {
-        cost: totalCost,
-        uw,
-        glassName: glassObj?.name || unit.glassType,
-        totalAreaM2,
-        accessoriesCost: accessoryCost,
-        accessoryList
-    };
+  const handleUpdateInfo = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUpdateProject(tempProject);
+    setIsEditingInfo(false);
   };
 
-  const calculateTotal = (units: Unit[]) => {
-    return units.reduce((acc, unit) => {
-      return acc + (getUnitStats(unit).cost * (unit.quantity || 1));
-    }, 0);
-  };
-
-  const calculateAvgUw = (units: Unit[]) => {
-    if (units.length === 0) return 0;
-    const totalArea = units.reduce((acc, u) => acc + ((u.width * u.height) * u.quantity), 0);
-    const totalUwArea = units.reduce((acc, u) => {
-         const stats = getUnitStats(u);
-         return acc + (stats.uw * (u.width * u.height) * u.quantity);
-    }, 0);
-    return totalArea > 0 ? totalUwArea / totalArea : 0;
+  const handleQuickUpdateUnit = (unitId: string, updates: Partial<Unit>) => {
+    const updatedUnits = project.units.map(u => u.id === unitId ? { ...u, ...updates } : u);
+    onUpdateProject({ ...project, units: updatedUnits });
   };
 
   const handleGeneratePitch = async () => {
-    setIsGenerating(true);
-    const text = await generateSalesPitch(project, project.units, lang);
-    setQuoteIntro(text);
-    setIsGenerating(false);
+    setIsGeneratingPitch(true);
+    const pitch = await generateSalesPitch(project, project.units, lang);
+    onUpdateProject({ ...project, quoteText: pitch });
+    setIsGeneratingPitch(false);
   };
 
-  const handlePrint = () => {
-    setIsPrinting(true);
-    setTimeout(() => {
-        window.print();
-        setTimeout(() => setIsPrinting(false), 500);
-    }, 100);
-  };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleDownloadDXF = (unit: Unit) => {
-      const system = systems.find(s => s.id === unit.system);
-      if (!system) return;
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      const detectedUnits = await analyzeDrawing(base64, file.type, lang);
       
-      const dxfContent = generateDXF(unit, system);
-      const blob = new Blob([dxfContent], { type: 'application/dxf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${unit.name.replace(/\s+/g, '_')}_${unit.width}x${unit.height}.dxf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-  };
-
-  const handleStatusChange = (newStatus: Project['status']) => {
-    onUpdateProject({ ...project, status: newStatus });
-  };
-  
-  const handleEditClick = () => {
-      setEditForm({
-          name: project.name,
-          client: project.client,
-          date: project.date
-      });
-      setShowEditModal(true);
-  };
-
-  const handleSaveDetails = () => {
-      onUpdateProject({
+      if (detectedUnits.length > 0) {
+        const newUnits: Unit[] = detectedUnits.map(d => ({
+          id: uuidv4(),
+          name: d.name || 'AI Poz',
+          width: Number(d.width) || 1000,
+          height: Number(d.height) || 1000,
+          system: systems[0].id,
+          color: 'RAL 7016',
+          glassType: 'double24',
+          glassThickness: 24,
+          quantity: 1,
+          rootNode: {
+            id: uuidv4(),
+            type: 'glass',
+            openingType: d.type || 'fixed'
+          }
+        }));
+        
+        onUpdateProject({
           ...project,
-          name: editForm.name,
-          client: editForm.client,
-          date: editForm.date
-      });
-      setShowEditModal(false);
+          units: [...project.units, ...newUnits]
+        });
+      }
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const projectAvgUw = calculateAvgUw(project.units);
+  const handleExportCNC = () => {
+    const machine = machines.find(m => m.id === selectedMachineId) || machines[0];
+    if (!machine) {
+        alert(t(lang, 'noMachinesFound'));
+        return;
+    }
+    const csvData = generateCNCCSV(project.units, systems, machine);
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.name}_CNC_${machine.name}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportDXF = (unit: Unit) => {
+    let system = systems.find(s => s.id === unit.system);
+    if (!system) {
+      system = systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase()));
+    }
+    if (!system) system = systems[0];
+    
+    const dxfData = generateDXF(unit, system);
+    const blob = new Blob([dxfData], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${unit.name}_${system.name}.dxf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getUnitStats = (unit: Unit) => {
+    // Robust system lookup
+    let system = systems.find(s => s.id === unit.system);
+    if (!system) {
+      system = systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase()));
+    }
+    if (!system) {
+      system = systems[0];
+    }
+    
+    if (!system) return { cost: 0, weight: 0, selectedAccs: [], accCost: 0 };
+    
+    const cuttingListMap = getAggregatedCuttingList([unit], [system]);
+    const systemCuts = cuttingListMap[system.name] || [];
+    
+    let profileWeight = 0;
+    let perimeterM = 0;
+    systemCuts.forEach(cut => {
+      const lengthM = cut.length / 1000;
+      perimeterM += lengthM * cut.quantity;
+      const label = cut.label.toLowerCase();
+      
+      const weightPerMeter = 
+        label.includes('frame') || label.includes('kasa') ? (system.profileWeights?.frame || 0) :
+        label.includes('sash') || label.includes('kanat') ? (system.profileWeights?.sash || 0) :
+        label.includes('mullion') || label.includes('transom') || label.includes('kayıt') ? (system.profileWeights?.mullion || 0) :
+        label.includes('bead') || label.includes('çıta') ? (system.profileWeights?.glazingBead || 0) : 0;
+        
+      profileWeight += lengthM * weightPerMeter * cut.quantity;
+    });
+
+    const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
+    const totalAreaM2 = (unit.width * unit.height) / 1000000;
+    const profileCost = perimeterM * (system.pricePerMeter || 85);
+    const glassCost = totalAreaM2 * (glassObj?.pricePerSqm || 65);
+    
+    let accCost = 0;
+    const selectedAccs: any[] = [];
+    const accIds = [
+      unit.selectedHandle, 
+      unit.selectedGasket, 
+      unit.selectedHinge, 
+      unit.selectedCorner, 
+      unit.selectedLock, 
+      unit.selectedAutomation,
+      unit.selectedLockStriker,
+      unit.selectedDoorCloser,
+      unit.selectedKickplate,
+      unit.selectedOther
+    ].filter(Boolean);
+
+    accIds.forEach(id => {
+      const acc = accessories.find(a => a.id === id);
+      if (acc) {
+        let qty = 1;
+        if (acc.unit === 'meter') qty = perimeterM;
+        accCost += acc.price * qty;
+        selectedAccs.push({ id: acc.id, name: acc.name, type: acc.type, price: acc.price, qty, unit: acc.unit });
+      }
+    });
+
+    return { cost: profileCost + glassCost + accCost, weight: profileWeight, selectedAccs, accCost };
+  };
+
+  const projectTotalStats = useMemo(() => {
+    let totalWeight = 0;
+    let subTotal = 0;
+    project.units.forEach(u => {
+      const stats = getUnitStats(u);
+      totalWeight += stats.weight * (u.quantity || 1);
+      subTotal += stats.cost * (u.quantity || 1);
+    });
+    const vatAmount = project.isExport ? 0 : (subTotal * taxRate) / 100;
+    return { subTotal, vatAmount, grandTotal: subTotal + vatAmount, totalWeight };
+  }, [project.units, project.isExport, taxRate, systems, accessories]);
 
   return (
-    <>
-    {/* ... (Styles kept same) ... */}
-    <style>{`
-      /* Screen only */
-      #print-view { display: none; }
+    <div className="flex h-full bg-slate-950 overflow-hidden">
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
       
-      @media print {
-        @page {
-          size: A4;
-          margin: 10mm;
-        }
-
-        html, body {
-          height: auto !important;
-          overflow: visible !important;
-          background-color: white !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        #root {
-          display: block !important;
-          background-color: white !important;
-          height: auto !important;
-          min-height: 0 !important;
-        }
-
-        #root > div {
-            min-height: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
-            display: block !important;
-            background-color: white !important;
-            color: black !important;
-        }
-
-        #screen-view {
-          display: none !important;
-        }
-        
-        .no-print {
-          display: none !important;
-        }
-
-        #print-view {
-          display: block !important;
-          width: 100%;
-          background: white;
-          color: black;
-          font-family: 'Inter', sans-serif;
-        }
-
-        * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            box-shadow: none !important;
-        }
-
-        .avoid-break { 
-            page-break-inside: avoid; 
-            break-inside: avoid;
-        }
-        .page-break { 
-            page-break-before: always; 
-        }
-      }
-    `}</style>
-    
-    {/* Edit Project Details Modal */}
-    {showEditModal && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-md p-6 shadow-2xl relative">
-                <button 
-                    onClick={() => setShowEditModal(false)}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
-                >
-                    <X size={20} />
-                </button>
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <Edit2 size={20} className="text-blue-500" />
-                    {t(lang, 'editProjectInfo')}
-                </h3>
-                
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'projectName')}</label>
-                        <input 
-                            type="text" 
-                            value={editForm.name}
-                            onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
-                            autoFocus
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'clientName')}</label>
-                        <input 
-                            type="text" 
-                            value={editForm.client}
-                            onChange={(e) => setEditForm({...editForm, client: e.target.value})}
-                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">{t(lang, 'projectDate')}</label>
-                        <input 
-                            type="date" 
-                            value={editForm.date}
-                            onChange={(e) => setEditForm({...editForm, date: e.target.value})}
-                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none"
-                        />
-                    </div>
-                    
-                    <button 
-                        onClick={handleSaveDetails}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded mt-4 flex items-center justify-center gap-2 font-medium"
-                    >
-                        <Save size={18} />
-                        {t(lang, 'saveChanges')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    )}
-
-    {/* SCREEN VIEW */}
-    <div id="screen-view" className="flex h-full bg-slate-900">
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Header */}
-        <div className="h-16 border-b border-slate-700 bg-slate-800 px-6 flex items-center justify-between">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto print:overflow-visible print:bg-white print:text-black">
+        <div className="h-20 border-b border-slate-700 bg-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 print:hidden shadow-xl">
             <div className="flex items-center gap-4">
-                <button onClick={onBack} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
+                <button onClick={onBack} className="p-2.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors border border-white/5">
                     <ArrowLeft size={20} />
                 </button>
-                <div>
-                    <h1 className="text-xl font-bold text-white flex items-center gap-3">
-                        {project.name}
-                        {project.status === 'Draft' && (
-                            <button 
-                                onClick={handleEditClick}
-                                className="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded hover:bg-slate-700"
-                                title={t(lang, 'edit')}
-                            >
-                                <Edit2 size={16} />
-                            </button>
-                        )}
-                        <span className={`text-xs font-normal px-2 py-0.5 rounded border ${
-                            project.status === 'Draft' ? 'bg-yellow-900/30 border-yellow-700 text-yellow-500' :
-                            project.status === 'Production' ? 'bg-emerald-900/30 border-emerald-700 text-emerald-500' :
-                            'bg-slate-700 border-slate-600 text-slate-400'
-                        }`}>
-                             {project.status === 'Draft' ? t(lang, 'statusDraft') : 
-                             project.status === 'Production' ? t(lang, 'statusProd') : t(lang, 'statusComp')}
-                        </span>
-                    </h1>
-                    <p className="text-xs text-slate-400">{project.client} • {project.date}</p>
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setTempProject(project); setIsEditingInfo(true); }}>
+                          <h1 className="text-xl font-bold text-white leading-tight">{project.name}</h1>
+                          <Edit2 size={14} className="text-slate-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{project.client} • {project.date}</span>
                 </div>
             </div>
-            
-            {/* Center Brand */}
-            <div className="hidden md:block opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
-                <Logo className="w-8 h-8" showText={false} />
-            </div>
 
-            <div className="flex items-center gap-3">
-                 {/* Status Action Buttons */}
-                {project.status === 'Draft' && (
-                    <button 
-                        onClick={() => handleStatusChange('Production')}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors mr-2"
-                        title={t(lang, 'approveProduction')}
-                    >
-                        <Factory size={16} /> 
-                        <span className="hidden lg:inline">{t(lang, 'approve')}</span>
+            <div className="flex items-center gap-4">
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 mr-4">
+                    <button onClick={() => setActiveTab('details')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'details' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {t(lang, 'detailsTab')}
                     </button>
-                )}
-                {project.status === 'Production' && (
-                    <button 
-                        onClick={() => handleStatusChange('Completed')}
-                        className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors mr-2"
-                        title={t(lang, 'markAsCompleted')}
-                    >
-                        <Archive size={16} />
-                        <span className="hidden lg:inline">{t(lang, 'complete')}</span>
+                    <button onClick={() => setActiveTab('quote')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'quote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {t(lang, 'quoteTab')}
                     </button>
-                )}
-
-                <div className="text-right mr-4 border-l border-slate-700 pl-4">
-                    <p className="text-xs text-slate-400">{t(lang, 'totalEst')}</p>
-                    <p className="text-lg font-mono font-bold text-emerald-400">${calculateTotal(project.units).toFixed(2)}</p>
+                    <button onClick={() => setActiveTab('production')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {t(lang, 'productionTab')}
+                    </button>
+                    <button onClick={() => setActiveTab('cnc')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'cnc' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {t(lang, 'cncSectionTab')}
+                    </button>
                 </div>
-                <button 
-                    onClick={onAddUnit}
-                    disabled={project.status !== 'Draft'}
-                    className={`px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors ${
-                        project.status === 'Draft' 
-                        ? 'bg-blue-600 hover:bg-blue-500 text-white' 
-                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                    }`}
-                >
-                    <Plus size={16} /> {t(lang, 'addPosition')}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    disabled={isScanning}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-lg transition-all border border-white/5"
+                  >
+                    {isScanning ? <Loader2 className="animate-spin" size={18} /> : <ScanSearch size={18} />}
+                    <span className="hidden md:inline">{t(lang, 'scanDrawing')}</span>
+                  </button>
+                  <button onClick={onAddUnit} className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-lg">
+                      <Plus size={18} strokeWidth={3} /> {t(lang, 'addPosition')}
+                  </button>
+                </div>
             </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-8">
-            {/* Units Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-                {project.units.map((unit, index) => {
-                    const stats = getUnitStats(unit);
-                    return (
-                        <div 
-                            key={unit.id}
-                            className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden group hover:border-blue-500 transition-colors"
-                        >
-                            <div className="aspect-square bg-slate-900/50 relative flex items-center justify-center p-4 border-b border-slate-700">
-                                {/* Small Preview in Grid */}
-                                <div className="w-full h-full max-w-[200px] max-h-[200px] flex items-center justify-center">
-                                    <svg viewBox={`0 0 ${unit.width} ${unit.height}`} className="w-full h-full">
-                                        <Visualizer 
-                                            node={unit.rootNode}
-                                            width={unit.width}
-                                            height={unit.height}
-                                            system={systems.find(s => s.id === unit.system) || systems[0]}
-                                            selectedNodeId={null}
-                                            onSelectNode={() => {}}
-                                        />
-                                    </svg>
-                                </div>
-                                
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleDownloadDXF(unit); }} 
-                                        className="p-2 bg-emerald-600 rounded text-white hover:scale-110 transition-transform" 
-                                        title={t(lang, 'downloadDxf')}
-                                    >
-                                        <Download size={16}/>
-                                    </button>
-                                    
-                                    {project.status === 'Draft' ? (
-                                        <>
-                                            <button onClick={() => onEditUnit(unit)} className="p-2 bg-blue-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={16}/></button>
-                                            <button onClick={(e) => { e.stopPropagation(); onDeleteUnit(unit.id); }} className="p-2 bg-red-600 rounded text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={16}/></button>
-                                        </>
-                                    ) : (
-                                        <div className="bg-slate-900 px-3 py-1 rounded text-xs border border-slate-600 text-slate-300">
-                                            {t(lang, 'readOnly')}
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <div className="absolute top-2 left-2 bg-slate-800 px-2 py-1 rounded text-xs font-mono text-slate-300 border border-slate-700">
-                                    Pos {String(index + 1).padStart(3, '0')}
-                                </div>
-                                <div className="absolute bottom-2 right-2 bg-blue-900 px-2 py-1 rounded text-xs font-mono text-blue-200 border border-blue-700">
-                                    x{unit.quantity || 1}
-                                </div>
-                                <div className="absolute top-2 right-2 bg-slate-800/80 px-2 py-1 rounded text-[10px] text-slate-300 border border-slate-600 flex items-center gap-1 backdrop-blur-sm">
-                                    <Thermometer size={10} /> {stats.uw.toFixed(2)}
-                                </div>
-                            </div>
-                            <div className="p-4">
-                                <h3 className="font-semibold text-white mb-1">{unit.name}</h3>
-                                <div className="text-xs text-slate-400 space-y-1">
-                                    <p>{unit.width}mm x {unit.height}mm</p>
-                                    <p>{systems.find(s => s.id === unit.system)?.name || 'Unknown System'}</p>
-                                    <div className="flex justify-between items-center mt-2">
-                                         <p className="font-medium text-emerald-400">${(stats.cost * (unit.quantity || 1)).toFixed(2)}</p>
-                                         {stats.accessoriesCost > 0 && <span className="text-[10px] bg-slate-700 text-slate-300 px-1 rounded flex gap-1 items-center"><Package size={10}/> Acc</span>}
-                                    </div>
-                                </div>
+        <div className="flex-1 p-8 space-y-12 max-w-7xl mx-auto w-full print:p-0 print:space-y-4 print:max-w-none">
+            {activeTab === 'details' && (
+                <>
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] p-8 shadow-inner print:bg-white print:border-slate-200 print:rounded-none print:p-4 print:shadow-none">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'summary')}</h2>
+                            <div className="flex items-center gap-2 print:hidden">
+                                <button onClick={() => {
+                                    project.units.forEach(u => handleExportDXF(u));
+                                }} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+                                    <Download size={14} /> {t(lang, 'downloadDxf')} (All)
+                                </button>
+                                <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+                                    <Printer size={14} /> {t(lang, 'exportPdf')}
+                                </button>
                             </div>
                         </div>
-                    );
-                })}
-            </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 print:gap-4">
+                            <div className="bg-slate-900/40 p-5 rounded-2xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-1 print:text-slate-400">{t(lang, 'positions')}</span>
+                                <span className="text-2xl font-bold text-white print:text-slate-900">{project.units.length}</span>
+                            </div>
+                            <div className="bg-slate-900/40 p-5 rounded-2xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-1 print:text-slate-400">{t(lang, 'totalWeight')}</span>
+                                <span className="text-2xl font-bold text-orange-400 print:text-orange-600">{projectTotalStats.totalWeight.toFixed(1)} kg</span>
+                            </div>
+                            <div className="bg-slate-900/40 p-5 rounded-2xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-1 print:text-slate-400">{t(lang, 'grandTotal')}</span>
+                                <span className="text-2xl font-bold text-emerald-400 print:text-emerald-600">${projectTotalStats.grandTotal.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
 
-            {/* Cutting List (Screen) */}
-            <CuttingList units={project.units} systems={systems} lang={lang} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 print:grid-cols-2 print:gap-4">
+                        {project.units.map((unit, index) => {
+                            const stats = getUnitStats(unit);
+                            return (
+                                <div key={unit.id} className="bg-slate-800 border border-slate-700 rounded-[1.5rem] overflow-hidden group hover:border-blue-500/50 transition-all flex flex-col shadow-sm relative avoid-break print:bg-white print:border-slate-200">
+                                    <div className="flex flex-col h-full">
+                                        <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center p-6 border-b border-slate-200 overflow-hidden print:bg-white">
+                                            <div className="w-full h-full flex items-center justify-center">
+                                              <svg 
+                                                viewBox={`0 0 ${unit.width} ${unit.height}`} 
+                                                className="w-full h-full max-h-full max-w-full p-2"
+                                                preserveAspectRatio="xMidYMid meet"
+                                              >
+                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" />
+                                              </svg>
+                                            </div>
+                                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
+                                                <button onClick={() => onEditUnit(unit)} className="p-3 bg-blue-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={20}/></button>
+                                                <button onClick={() => handleExportDXF(unit)} className="p-3 bg-emerald-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'downloadDxf')}><Download size={20}/></button>
+                                                <button onClick={() => onDeleteUnit(unit.id)} className="p-3 bg-red-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={20}/></button>
+                                            </div>
+                                        </div>
+                                        <div className="p-5 print:p-3">
+                                            <div className="flex justify-between items-start mb-3">
+                                              <div className="flex flex-col min-w-0 flex-1">
+                                                <h3 className="font-bold text-white text-sm truncate pr-2 print:text-black">{unit.name}</h3>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                  <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-tight print:text-slate-500 print:bg-slate-50 print:border-slate-200">
+                                                      {GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <span className="text-emerald-400 font-mono font-bold text-sm print:text-emerald-700 shrink-0">
+                                                  ${(stats.cost * (unit.quantity || 1)).toLocaleString()}
+                                              </span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                    <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'width')}</label>
+                                                    <div className="text-white font-mono font-bold text-xs print:text-black">{unit.width} mm</div>
+                                                </div>
+                                                <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                    <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'height')}</label>
+                                                    <div className="text-white font-mono font-bold text-xs print:text-black">{unit.height} mm</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
 
-            {/* Optimization Report (Screen) */}
-            <OptimizationReport units={project.units} systems={systems} lang={lang} />
+            {activeTab === 'quote' && (
+                <div className="animate-in slide-in-from-right-4 duration-300">
+                    <div className="bg-white text-black p-12 rounded-[2rem] shadow-2xl min-h-[1000px] flex flex-col border border-slate-200">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
+                            <div>
+                                <h1 className="text-4xl font-black text-slate-900 mb-2 uppercase tracking-tight">{t(lang, 'printQuote')}</h1>
+                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
+                                    <Globe size={14} className="text-blue-600" /> ALUMETRIC Engineering Suite • {project.date}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-slate-400 text-[10px] font-black uppercase mb-1">{t(lang, 'clientName')}</div>
+                                <div className="text-xl font-black text-slate-800">{project.client}</div>
+                                <div className="text-slate-500 text-sm mt-1">{project.name}</div>
+                            </div>
+                        </div>
 
-            {/* Quote Generation Section */}
-            <div className="border-t border-slate-700 pt-8">
-                {/* ... (Kept existing quote generation section same) ... */}
-                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <FileText size={20} className="text-blue-400" /> 
-                    {t(lang, 'quoteGen')}
-                </h2>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2">
-                         <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                            <div className="flex justify-between items-center mb-4">
-                                <label className="text-sm font-medium text-slate-300">{t(lang, 'coverLetter')}</label>
+                        {/* Cover Letter */}
+                        <div className="mb-12">
+                            <div className="flex items-center justify-between mb-4 print:hidden">
+                                <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <FileCheck size={16} className="text-blue-600" /> {t(lang, 'coverLetter')}
+                                </h2>
                                 <button 
                                     onClick={handleGeneratePitch}
-                                    disabled={isGenerating || project.units.length === 0}
-                                    className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={isGeneratingPitch}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 transition-all shadow-lg"
                                 >
-                                    <Bot size={14} /> 
-                                    {isGenerating ? t(lang, 'drafting') : t(lang, 'draftGemini')}
+                                    {isGeneratingPitch ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                                    {t(lang, 'draftGemini')}
                                 </button>
                             </div>
                             <textarea 
-                                className="w-full h-48 bg-slate-900 border border-slate-600 rounded p-4 text-sm text-slate-300 leading-relaxed focus:border-blue-500 outline-none resize-none"
+                                value={project.quoteText || ''}
+                                onChange={e => onUpdateProject({...project, quoteText: e.target.value})}
                                 placeholder={t(lang, 'draftPlaceholder')}
-                                value={quoteIntro}
-                                onChange={(e) => setQuoteIntro(e.target.value)}
-                            ></textarea>
-                         </div>
-                    </div>
-                    
-                    <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 h-fit">
-                        <h3 className="font-semibold text-white mb-4">{t(lang, 'summary')}</h3>
-                        <div className="space-y-2 text-sm text-slate-400 mb-6">
-                            <div className="flex justify-between"><span>{t(lang, 'positions')}:</span> <span className="text-slate-200">{project.units.length}</span></div>
-                            <div className="flex justify-between"><span>{t(lang, 'totalArea')}:</span> <span className="text-slate-200">{(project.units.reduce((acc, u) => acc + (u.width * u.height), 0) / 1000000).toFixed(2)} m²</span></div>
-                            <div className="flex justify-between"><span>{t(lang, 'avgUValue')}:</span> <span className="text-slate-200">{projectAvgUw.toFixed(2)} {t(lang, 'wMk')}</span></div>
-                            <div className="flex justify-between border-t border-slate-700 pt-2 mt-2 font-bold text-white">
-                                <span>{t(lang, 'total')}:</span> 
-                                <span>${calculateTotal(project.units).toFixed(2)}</span>
+                                className="w-full border-none focus:ring-0 p-0 text-slate-700 leading-relaxed min-h-[150px] resize-none text-base italic"
+                            />
+                        </div>
+
+                        {/* Itemized List */}
+                        <div className="flex-1">
+                            <table className="w-full border-collapse mb-10">
+                                <thead>
+                                    <tr className="border-b-2 border-slate-900 bg-slate-50">
+                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">POS</th>
+                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'technicalDrawing')}</th>
+                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'details')}</th>
+                                        <th className="py-4 px-2 text-center text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'quantity')}</th>
+                                        <th className="py-4 px-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'unitPrice')}</th>
+                                        <th className="py-4 px-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'totalPrice')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {project.units.map((unit, idx) => {
+                                        const stats = getUnitStats(unit);
+                                        const sys = systems.find(s => s.id === unit.system);
+
+                                        return (
+                                            <tr key={unit.id} className="border-b border-slate-100 group">
+                                                <td className="py-8 px-2 align-top font-black text-slate-400">#{(idx + 1).toString().padStart(2, '0')}</td>
+                                                <td className="py-8 px-2 align-top w-48">
+                                                    <div className="w-40 h-40 bg-slate-50 rounded-xl border border-slate-200 p-2 flex items-center justify-center">
+                                                       <svg 
+                                                         viewBox={`0 0 ${unit.width} ${unit.height}`} 
+                                                         className="w-full h-full max-h-full max-w-full"
+                                                         preserveAspectRatio="xMidYMid meet"
+                                                       >
+                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} />
+                                                       </svg>
+                                                    </div>
+                                                </td>
+                                                <td className="py-8 px-2 align-top">
+                                                    <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
+                                                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
+                                                    <div className="space-y-1 mb-4">
+                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'glassType')}:</span> <span className="font-bold text-slate-900">{GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}</span></div>
+                                                    </div>
+                                                    
+                                                    {/* Accessory Listing in Quotation */}
+                                                    {stats.selectedAccs.length > 0 && (
+                                                        <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 max-w-sm">
+                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t(lang, 'accessories')}</div>
+                                                            <div className="grid grid-cols-1 gap-1.5">
+                                                              {stats.selectedAccs.map((acc: any, aIdx: number) => (
+                                                                <div key={aIdx} className="text-xs text-slate-600 flex items-start gap-2">
+                                                                    <span className="font-bold shrink-0 min-w-[80px] text-slate-500">{t(lang, acc.type)}:</span>
+                                                                    <span className="text-slate-800 font-semibold">{acc.name}</span>
+                                                                </div>
+                                                              ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-8 px-2 align-top text-center font-black text-xl text-slate-800">{unit.quantity || 1}</td>
+                                                <td className="py-8 px-2 align-top text-right font-black text-lg text-slate-800">${stats.cost.toLocaleString()}</td>
+                                                <td className="py-8 px-2 align-top text-right font-black text-xl text-blue-600">${(stats.cost * (unit.quantity || 1)).toLocaleString()}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="mt-12 flex flex-col md:flex-row justify-between items-end gap-10">
+                            <div className="flex-1 w-full max-w-sm print:hidden">
+                                <label className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-all">
+                                    <div className={`w-12 h-6 rounded-full relative transition-colors ${project.isExport ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${project.isExport ? 'left-7' : 'left-1'}`} />
+                                    </div>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={project.isExport || false} 
+                                      onChange={e => onUpdateProject({...project, isExport: e.target.checked})} 
+                                      className="hidden" 
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-black text-slate-800 uppercase tracking-widest">{t(lang, 'isExport')}</span>
+                                        <span className="text-[10px] text-slate-500">{project.isExport ? t(lang, 'exportSale') : t(lang, 'domesticSale')}</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="w-full md:w-80 space-y-3">
+                                <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                                    <span>{t(lang, 'subTotal')}</span>
+                                    <span className="text-base text-slate-800 font-black">${projectTotalStats.subTotal.toLocaleString()}</span>
+                                </div>
+                                {!project.isExport && (
+                                    <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                                        <span>VAT ({taxRate}%)</span>
+                                        <span className="text-base text-slate-800 font-black">${projectTotalStats.vatAmount.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center pt-4 border-t-2 border-slate-900">
+                                    <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">{t(lang, 'grandTotal')}</span>
+                                    <span className="text-3xl font-black text-slate-900">${projectTotalStats.grandTotal.toLocaleString()}</span>
+                                </div>
                             </div>
                         </div>
-                        <button 
-                            onClick={handlePrint}
-                            disabled={isPrinting}
-                            className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-wait"
-                        >
-                            {isPrinting ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} 
-                            {isPrinting ? t(lang, 'preparingPdf') : t(lang, 'exportPdf')}
+
+                        {/* Footer */}
+                        <div className="mt-20 pt-10 border-t border-slate-100 flex justify-between">
+                             <div className="w-48 text-center border-t border-slate-300 pt-4">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t(lang, 'approve')}</div>
+                                <div className="text-[10px] text-slate-500 font-bold mt-1">{project.client}</div>
+                             </div>
+                             <div className="w-48 text-center border-t border-slate-300 pt-4">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t(lang, 'signature')} / {t(lang, 'date')}</div>
+                                <div className="text-[10px] text-slate-500 font-bold mt-1">Alumetric Suite</div>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center mt-12 print:hidden">
+                        <button onClick={() => window.print()} className="flex items-center gap-3 px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] font-black text-lg transition-all shadow-2xl shadow-blue-900/40">
+                            <Printer size={24} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-      </div>
-    </div>
-
-    {/* PRINT VIEW */}
-    <div id="print-view">
-        <div className="max-w-[210mm] mx-auto py-8 text-black">
-            <header className="border-b-2 border-slate-300 pb-6 mb-8 flex justify-between items-start">
-                <Logo theme="light" className="w-16 h-16" />
-                <div className="text-right">
-                    <h2 className="text-2xl font-light text-slate-700">{t(lang, 'printQuote')}</h2>
-                    <p className="text-slate-500 text-sm mt-1">{new Date().toLocaleDateString()}</p>
-                </div>
-            </header>
-
-            <section className="mb-8 flex justify-between p-6 rounded bg-slate-50 border border-slate-200">
-                <div>
-                    <h3 className="text-xs font-bold uppercase text-slate-400 mb-1">Client</h3>
-                    <p className="font-semibold text-xl text-slate-900">{project.client}</p>
-                </div>
-                <div className="text-right">
-                    <h3 className="text-xs font-bold uppercase text-slate-400 mb-1">Project</h3>
-                    <p className="font-semibold text-xl text-slate-900">{project.name}</p>
-                    <p className="text-sm text-slate-600">{project.status}</p>
-                </div>
-            </section>
-
-            {quoteIntro && (
-                <section className="mb-10">
-                    <h3 className="text-sm font-bold uppercase text-slate-400 mb-2 border-b border-slate-200 pb-1">Executive Summary</h3>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 italic">{quoteIntro}</p>
-                </section>
             )}
 
-            <div className="space-y-8">
-                {project.units.map((unit, idx) => {
-                    const stats = getUnitStats(unit);
-                    const system = systems.find(s => s.id === unit.system);
+            {activeTab === 'production' && (
+                <div className="space-y-8 animate-in fade-in">
+                    <div className="flex items-center justify-between print:hidden">
+                        <div className="flex gap-4 p-1 bg-slate-950 rounded-2xl border border-white/5 w-fit">
+                            <button onClick={() => setProductionSubTab('bom')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'materialSummary')}</button>
+                            <button onClick={() => setProductionSubTab('cuts')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'cuts' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'cuttingList')}</button>
+                            <button onClick={() => setProductionSubTab('glass')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'glass' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'glassList')}</button>
+                        </div>
+                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-white/5">
+                            <Printer size={16} /> {t(lang, 'exportPdf')}
+                        </button>
+                    </div>
                     
-                    return (
-                        <div key={unit.id} className="avoid-break border border-slate-200 rounded-lg p-6 flex flex-row gap-8 shadow-sm bg-white">
-                            {/* Visual (Left) */}
-                            <div className="w-1/3 flex flex-col justify-center items-center border-r border-slate-100 pr-6">
-                                <div className="w-full aspect-square max-h-[250px] flex items-center justify-center mb-2 bg-slate-50 rounded p-4">
-                                     <svg viewBox={`0 0 ${unit.width} ${unit.height}`} className="w-full h-full">
-                                        <Visualizer 
-                                            node={unit.rootNode}
-                                            width={unit.width}
-                                            height={unit.height}
-                                            system={system || systems[0]}
-                                            selectedNodeId={null}
-                                            onSelectNode={() => {}}
-                                        />
-                                    </svg>
+                    {productionSubTab === 'bom' && (
+                        <div className="space-y-8 animate-in slide-in-from-bottom-4">
+                            {/* Aluminum BOM */}
+                            <div className="bg-slate-800 rounded-[2rem] border border-slate-700 overflow-hidden shadow-2xl print:bg-white print:border-slate-200 print:rounded-none print:shadow-none">
+                                <div className="bg-slate-900/80 p-6 border-b border-slate-700 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
+                                    <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 print:hidden">
+                                        <Package size={24} />
+                                    </div>
+                                    <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'profilesSummary')}</h2>
                                 </div>
-                                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mt-2">{t(lang, 'technicalDrawing')}</p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left border-collapse">
+                                        <thead className="text-[11px] text-white uppercase bg-slate-950 border-b border-slate-700 print:bg-slate-100 print:text-slate-700 print:border-slate-300">
+                                            <tr>
+                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'profileType')}</th>
+                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'profileCode')}</th>
+                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'totalMeters')}</th>
+                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'totalWeight')}</th>
+                                                <th className="px-8 py-4 text-center font-black tracking-widest">{t(lang, 'totalBars')} (6m)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700 print:divide-slate-200">
+                                            {optimizationSummary.map((opt, idx) => {
+                                                const totalMeters = opt.bars.reduce((acc, bar) => acc + (opt.barLength / 1000), 0);
+                                                // Assuming we want a sum of all lengths of this specific code across project
+                                                const totalCutLengthM = opt.bars.reduce((acc, bar) => acc + bar.cuts.reduce((sum, cut) => sum + cut, 0), 0) / 1000;
+                                                const sys = systems.find(s => s.id === opt.systemId);
+                                                const weightPerM = opt.profileLabel.toLowerCase().includes('frame') ? sys?.profileWeights?.frame :
+                                                                 opt.profileLabel.toLowerCase().includes('sash') ? sys?.profileWeights?.sash :
+                                                                 opt.profileLabel.toLowerCase().includes('mullion') || opt.profileLabel.toLowerCase().includes('transom') ? sys?.profileWeights?.mullion :
+                                                                 opt.profileLabel.toLowerCase().includes('bead') ? sys?.profileWeights?.glazingBead : 0;
+
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                                                        <td className="px-8 py-5">
+                                                            <div className="font-bold text-white text-base print:text-black">{t(lang, opt.profileLabel as any) || opt.profileLabel}</div>
+                                                            <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase print:text-slate-400">{opt.systemName}</div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="bg-slate-950 px-2 py-1 rounded text-xs font-mono text-emerald-400 border border-white/5 print:bg-slate-50 print:text-emerald-700 print:border-slate-200">{opt.profileCode}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right font-mono text-white font-black text-base print:text-black">
+                                                            {totalCutLengthM.toFixed(2)} m
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right font-mono text-slate-300 font-bold text-base print:text-slate-600">
+                                                            {(totalCutLengthM * (weightPerM || 0)).toFixed(1)} kg
+                                                        </td>
+                                                        <td className="px-8 py-5 text-center">
+                                                            <span className="bg-blue-500/10 text-blue-400 px-4 py-1 rounded-full font-black text-lg print:bg-blue-50 print:text-blue-700">
+                                                                {opt.totalBars}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
-                            {/* Details (Right) */}
-                            <div className="flex-1 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex justify-between items-start mb-6 border-b border-slate-100 pb-3">
-                                        <h3 className="font-bold text-xl text-slate-800">
-                                            <span className="text-slate-400 mr-2 text-base font-normal">Pos {String(idx + 1).padStart(2, '0')}</span> 
-                                            {unit.name}
-                                        </h3>
-                                        <div className="text-right">
-                                            <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{t(lang, 'totalPrice')}</div>
-                                            <div className="font-bold text-xl text-slate-900">${(stats.cost * (unit.quantity || 1)).toFixed(2)}</div>
-                                        </div>
+                            {/* Accessory BOM */}
+                            <div className="bg-slate-800 rounded-[2rem] border border-slate-700 overflow-hidden shadow-2xl print:bg-white print:border-slate-200 print:rounded-none print:shadow-none">
+                                <div className="bg-slate-900/80 p-6 border-b border-slate-700 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
+                                    <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400 print:hidden">
+                                        <Wrench size={24} />
                                     </div>
-
-                                    <div className="grid grid-cols-2 gap-y-3 text-sm">
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'dimensions')}</div>
-                                            <div className="font-semibold text-slate-700">{unit.width}mm x {unit.height}mm</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'area')}</div>
-                                            <div className="font-semibold text-slate-700">{stats.totalAreaM2.toFixed(2)} m²</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'quantity')}</div>
-                                            <div className="font-semibold text-slate-700">x{unit.quantity || 1}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'uValue')}</div>
-                                            <div className="font-semibold text-slate-700">{stats.uw.toFixed(2)} {t(lang, 'wMk')}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'profileSystem')}</div>
-                                            <div className="font-semibold text-slate-700">{system?.name}</div>
-                                        </div>
-                                        <div>
-                                            <div className="text-slate-400 text-xs uppercase">{t(lang, 'glazing')}</div>
-                                            <div className="font-semibold text-slate-700">{stats.glassName}</div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Accessory Breakdown */}
-                                    {stats.accessoryList.length > 0 && (
-                                        <div className="mt-4 bg-slate-50 p-3 rounded border border-slate-100">
-                                            <div className="text-xs font-bold text-slate-500 uppercase mb-2">{t(lang, 'accessories')}</div>
-                                            {stats.accessoryList.map((acc, i) => (
-                                                <div key={i} className="flex justify-between text-xs text-slate-600 mb-1">
-                                                    <span>{acc.name} (x{acc.count} {acc.unit})</span>
-                                                    <span>${acc.price.toFixed(2)}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
+                                    <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'accessoriesSummary')}</h2>
                                 </div>
-                                
-                                <div className="pt-4 mt-4 border-t border-dashed border-slate-200 flex justify-between text-sm text-slate-600">
-                                     <span>{t(lang, 'unitPrice')}:</span>
-                                     <span className="font-mono text-black font-bold">${stats.cost.toFixed(2)}</span>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left border-collapse">
+                                        <thead className="text-[11px] text-white uppercase bg-slate-950 border-b border-slate-700 print:bg-slate-100 print:text-slate-700 print:border-slate-300">
+                                            <tr>
+                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'accessoryName')}</th>
+                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'type')}</th>
+                                                <th className="px-8 py-4 text-center font-black tracking-widest">{t(lang, 'totalQty')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700 print:divide-slate-200">
+                                            {accessorySummary.map((acc, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                                                    <td className="px-8 py-5">
+                                                        <div className="font-bold text-white text-base print:text-black">{acc.name}</div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="text-xs text-slate-500 uppercase font-black tracking-widest print:text-slate-400">{t(lang, acc.type as any)}</span>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="bg-emerald-500/10 text-emerald-400 px-4 py-1 rounded-full font-black text-lg print:bg-emerald-50 print:text-emerald-700">
+                                                                {acc.unit === 'pce' ? acc.quantity : acc.quantity.toFixed(1)}
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-500 font-bold uppercase mt-1 print:text-slate-400">{t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')}</span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
-                    );
-                })}
-            </div>
+                    )}
+
+                    {productionSubTab === 'cuts' && (
+                        <div className="space-y-12">
+                            <CuttingList units={project.units} systems={systems} lang={lang} />
+                            <OptimizationReport units={project.units} systems={systems} lang={lang} />
+                        </div>
+                    )}
+
+                    {productionSubTab === 'glass' && (
+                        <div className="bg-slate-800 rounded-[2rem] border border-slate-700 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 print:bg-white print:border-slate-200 print:rounded-none print:shadow-none">
+                            <div className="bg-slate-900/80 p-6 border-b border-slate-700 flex justify-between items-center print:bg-slate-50 print:border-slate-200">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 print:hidden">
+                                        <ImageIcon size={24} />
+                                    </div>
+                                    <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'glassOrder')}</h2>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse">
+                                    <thead className="text-[11px] text-white uppercase bg-slate-950 border-b border-slate-700 print:bg-slate-100 print:text-slate-700 print:border-slate-300">
+                                        <tr>
+                                            <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'glassType')}</th>
+                                            <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'netSize')} (W x H)</th>
+                                            <th className="px-8 py-4 text-center font-black tracking-widest">{t(lang, 'quantity')}</th>
+                                            <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'area')} (m²)</th>
+                                            <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'weight')} (kg)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-700 print:divide-slate-200">
+                                        {glassOrders.map((pane, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                                                <td className="px-8 py-5">
+                                                    <div className="font-bold text-white text-base print:text-black">{pane.type}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase print:text-slate-400">{pane.unitName}</div>
+                                                </td>
+                                                <td className="px-8 py-5 text-right font-mono text-white font-black text-base print:text-black">
+                                                    {pane.width} x {pane.height}
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <span className="bg-blue-500/10 text-blue-400 px-4 py-1 rounded-full font-black text-lg print:bg-blue-50 print:text-blue-700">
+                                                        {pane.quantity}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5 text-right font-mono text-emerald-400 font-bold text-base print:text-emerald-700">
+                                                    {(pane.area * pane.quantity).toFixed(3)}
+                                                </td>
+                                                <td className="px-8 py-5 text-right font-mono text-slate-300 font-bold text-base print:text-slate-600">
+                                                    {(pane.weight * pane.quantity).toFixed(1)} kg
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
             
-            <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
-               <h2 className="text-2xl font-light text-slate-700 mb-6">{t(lang, 'cuttingList')}</h2>
-               <CuttingList units={project.units} systems={systems} lang={lang} />
-            </div>
-
-            <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
-               <h2 className="text-2xl font-light text-slate-700 mb-6">{t(lang, 'optimizationReport')}</h2>
-               <OptimizationReport units={project.units} systems={systems} lang={lang} />
-            </div>
-
-            <div className="mt-12 border-t-2 border-slate-300 pt-6 avoid-break">
-                <div className="flex justify-end items-end gap-12">
-                     <div className="text-right">
-                        <p className="text-sm font-bold uppercase text-slate-400 mb-1">{t(lang, 'avgUValue')}</p>
-                        <p className="text-xl font-bold text-slate-700">
-                            {projectAvgUw.toFixed(2)} {t(lang, 'wMk')}
-                        </p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-sm font-bold uppercase text-slate-400 mb-1">{t(lang, 'totalArea')}</p>
-                        <p className="text-xl font-bold text-slate-700">
-                            {(project.units.reduce((acc, u) => acc + ((u.width * u.height * (u.quantity || 1))), 0) / 1000000).toFixed(2)} m²
-                        </p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-sm font-bold uppercase text-slate-400 mb-1">{t(lang, 'totalPrice')}</p>
-                        <p className="text-4xl font-bold text-slate-900">${calculateTotal(project.units).toFixed(2)}</p>
-                    </div>
+            {activeTab === 'cnc' && (
+                <div className="bg-slate-800 border border-slate-700 rounded-[2rem] p-10 flex flex-col items-center text-center animate-in zoom-in-95 min-h-[400px] justify-center">
+                    <Cpu size={48} className="text-emerald-500 mb-6" />
+                    <h2 className="text-2xl font-bold text-white mb-2">{t(lang, 'cncIntegration')}</h2>
+                    <p className="text-slate-400 max-w-md mb-8">Export job files for automated cutting centers.</p>
+                    
+                    {machines.length > 0 ? (
+                        <div className="w-full max-w-sm space-y-6">
+                            <div className="space-y-2 text-left">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{t(lang, 'selectMachine')}</label>
+                                <div className="relative group">
+                                    <select 
+                                        value={selectedMachineId}
+                                        onChange={(e) => setSelectedMachineId(e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-xl py-4 pl-5 pr-12 text-white font-bold appearance-none outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                                    >
+                                        {machines.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name} ({m.brand})</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-emerald-400 transition-colors">
+                                        <ChevronDown size={20} />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={handleExportCNC} 
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-5 rounded-2xl font-bold shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <Download size={22} strokeWidth={2.5} /> {t(lang, 'cncExport')}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl max-w-md">
+                            <AlertCircle className="text-red-500 mx-auto mb-3" size={32} />
+                            <p className="text-red-400 font-bold mb-4">{t(lang, 'noMachinesFound')}</p>
+                        </div>
+                    )}
                 </div>
-            </div>
-
-            <footer className="mt-16 pt-8 border-t border-slate-200 avoid-break">
-                <div className="flex justify-between items-end mb-8">
-                     <div className="w-1/3">
-                        <div className="border-b border-black h-12 mb-2"></div>
-                        <p className="text-xs uppercase font-bold text-slate-500">{t(lang, 'date')}</p>
-                     </div>
-                     <div className="w-1/3">
-                        <div className="border-b border-black h-12 mb-2"></div>
-                        <p className="text-xs uppercase font-bold text-slate-500">{t(lang, 'signature')}</p>
-                     </div>
-                </div>
-                <div className="text-center text-xs text-slate-400">
-                    <p>Generated by Alumetric - Window & Door Engineering Suite</p>
-                    <p>{new Date().getFullYear()} © Alumetric Inc.</p>
-                </div>
-            </footer>
+            )}
         </div>
+      </div>
+
+      {isEditingInfo && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-white mb-6">Edit Project Info</h2>
+            <form onSubmit={handleUpdateInfo} className="space-y-4">
+              <input value={tempProject.name} onChange={e => setTempProject({...tempProject, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" placeholder="Project Name" />
+              <input value={tempProject.client} onChange={e => setTempProject({...tempProject, client: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none mt-2" placeholder="Client Name" />
+              <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">Save</button>
+              <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">Cancel</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
-    </>
   );
 };
 

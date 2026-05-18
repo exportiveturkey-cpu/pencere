@@ -1,38 +1,63 @@
 
 import React, { useState } from 'react';
-import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Key, ArrowRight, AlertCircle, ShieldCheck, Loader2, Mail } from 'lucide-react';
 import { Language } from '../types';
 import { t } from '../translations';
 import Logo from './Logo';
 
 interface LoginProps {
   lang: Language;
-  onLogin: (password: string) => boolean;
+  onLogin: (licenseKey: string) => Promise<boolean>; 
 }
 
 const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
-  const [password, setPassword] = useState('');
+  const [key, setKey] = useState('');
   const [error, setError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = onLogin(password);
-    if (!success) {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setError(false);
+
+    try {
+      const success = await onLogin(key);
+      if (success) {
+        setIsSuccess(true);
+      } else {
+        setError(true);
+        setShaking(true);
+        setTimeout(() => setShaking(false), 500);
+      }
+    } catch (err) {
       setError(true);
-      setShaking(true);
-      setTimeout(() => setShaking(false), 500);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  if (isSuccess) {
+      return (
+          <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+              <div className="text-center animate-in fade-in zoom-in-95 duration-700">
+                  <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
+                      <ShieldCheck size={40} className="text-emerald-500" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-white mb-2">Erişim Doğrulandı</h1>
+                  <p className="text-slate-400">Bulut verileri senkronize ediliyor...</p>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Effects */}
       <div className="absolute inset-0 opacity-20 pointer-events-none" 
-           style={{ 
-               backgroundImage: 'radial-gradient(#1e293b 1px, transparent 1px)', 
-               backgroundSize: '30px 30px' 
-           }} 
+           style={{ backgroundImage: 'radial-gradient(#1e293b 1px, transparent 1px)', backgroundSize: '30px 30px' }} 
       />
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-purple-500 to-blue-600 opacity-50"></div>
 
@@ -44,7 +69,7 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
               {t(lang, 'welcomeTitle')}
             </h1>
             <p className="text-slate-400 text-sm mt-2 text-center">
-              {t(lang, 'welcomeSubtitle')}
+              Bulut tabanlı lisans kontrolü aktif
             </p>
         </div>
 
@@ -55,14 +80,15 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
                 </label>
                 <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                        <Lock size={18} />
+                        <Key size={18} />
                     </div>
                     <input 
                         type="password" 
-                        value={password}
-                        onChange={(e) => { setPassword(e.target.value); setError(false); }}
-                        className={`w-full bg-slate-950 border ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-blue-500'} rounded-lg py-3 pl-10 pr-4 text-white placeholder-slate-600 outline-none transition-all shadow-inner`}
-                        placeholder="••••••••"
+                        value={key}
+                        disabled={isLoading}
+                        onChange={(e) => { setKey(e.target.value); setError(false); }}
+                        className={`w-full bg-slate-950 border ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-blue-500'} rounded-lg py-3 pl-10 pr-4 text-white placeholder-slate-600 outline-none transition-all shadow-inner font-mono disabled:opacity-50`}
+                        placeholder="ŞİFREYİ GİRİNİZ"
                         autoFocus
                     />
                 </div>
@@ -74,19 +100,39 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
                 )}
             </div>
 
-            <button 
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 group"
-            >
-                {t(lang, 'loginBtn')}
-                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-            </button>
+            <div className="flex flex-col gap-4">
+                <button 
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 group disabled:bg-slate-800 disabled:cursor-wait"
+                >
+                    {isLoading ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <>
+                        {t(lang, 'loginBtn')}
+                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                </button>
+
+                <a 
+                    href="mailto:alumetric@alumetric.net" 
+                    className="flex items-center justify-center gap-2 text-[11px] text-slate-500 hover:text-blue-400 transition-colors py-2 group"
+                >
+                    <Mail size={12} className="group-hover:scale-110 transition-transform" />
+                    {t(lang, 'noKeyContact')}
+                </a>
+            </div>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center space-y-3">
             <p className="text-xs text-slate-500">
-                &copy; {new Date().getFullYear()} Alumetric Engineering Suite
+                &copy; {new Date().getFullYear()} Alumetric Cloud Licensing
             </p>
+            <div className="text-[10px] text-slate-600 uppercase tracking-tighter">
+                Güvenli Bulut Bağlantısı Sağlandı
+            </div>
         </div>
       </div>
 

@@ -8,35 +8,45 @@ export interface Project {
   date: string;
   status: 'Draft' | 'Production' | 'Completed';
   units: Unit[];
+  quoteText?: string;
+  isExport?: boolean;
 }
 
 export interface Accessory {
   id: string;
-  name: string; // Brand/Model e.g., "Roto Swing Secustik"
+  name: string;
   type: 'handle' | 'gasket' | 'hinge' | 'lock' | 'corner' | 'automation' | 'kickplate' | 'doorCloser' | 'lockStriker' | 'other';
-  unit: 'pce' | 'meter'; // Piece or Meter
+  unit: 'pce' | 'meter';
   price: number;
-  maxWeightKg?: number; // Load capacity for hinges
+  maxWeightKg?: number;
+  compatibility?: 'sliding' | 'hinged' | 'both';
 }
+
+export type UnitShape = 'rect' | 'triangle' | 'arch';
 
 export interface Unit {
   id: string;
   name: string;
-  width: number; // mm
-  height: number; // mm
-  system: string; // e.g., 'EcoLine 50', 'ThermoPro 75'
-  color: string; // Legacy string, kept for compatibility
+  width: number;
+  height: number;
+  shape?: UnitShape;
+  archHeight?: number;
+  system: string;
+  color: string;
   glassType: string;
   glassThickness: number;
   rootNode: WindowNode;
   quantity: number;
-  selectedHandle?: string; // ID of selected handle accessory
-  selectedGasket?: string; // ID of selected gasket accessory
-  selectedHinge?: string; // ID of selected hinge accessory
-  selectedCorner?: string; // ID of selected corner cleat accessory
-  selectedLockStriker?: string; // ID of selected lock striker
-  selectedDoorCloser?: string; // ID of selected door closer
-  selectedKickplate?: string; // ID of selected kickplate
+  selectedHandle?: string;
+  selectedGasket?: string;
+  selectedHinge?: string;
+  selectedCorner?: string;
+  selectedLock?: string;
+  selectedAutomation?: string;
+  selectedLockStriker?: string;
+  selectedDoorCloser?: string;
+  selectedKickplate?: string;
+  selectedOther?: string;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';
@@ -45,33 +55,60 @@ export type SplitDirection = 'vertical' | 'horizontal';
 export interface WindowNode {
   id: string;
   type: NodeType;
-  direction?: SplitDirection; // Only for containers
-  children?: WindowNode[]; // Only for containers
-  splitRatio?: number[]; // Percentage of split for children (e.g., [0.5, 0.5])
-  
-  // Leaf properties
-  // Updated Opening Types
+  direction?: SplitDirection;
+  children?: WindowNode[];
+  splitRatio?: number[];
   openingType?: 'fixed' | 'turn-left' | 'turn-right' | 'tilt' | 'tilt-turn-left' | 'tilt-turn-right' | 'sliding';
   handlePosition?: 'left' | 'right' | 'bottom'; 
 }
 
-// NEW: Advanced Cutting Rules
 export interface CuttingCorrectionConfig {
-  sashOverlap: number; // "Bini Payı": How much sash overlaps frame (e.g., 6mm)
-  glassClearance: number; // "Cam Boşluğu": Gap between frame/sash and glass (e.g., 5mm)
-  mullionCorrection: number; // "Orta Kayıt Bağlantı": Adjustment for mechanical joints (e.g., 0 or -1mm)
-  frameCornerWelding: number; // "Kaynak Payı": Added length for welding (usually 0 for Aluminium crimping, 6mm for PVC)
+  sashOverlap: number;
+  glassClearance: number;
+  mullionCorrection: number;
+  frameCornerWelding: number;
+}
+
+export interface MachineConfig {
+  id: string;
+  name: string;
+  brand: string;
+  bladeThickness: number;
+  minWaste: number;
+  clampingOffset: number;
+}
+
+export interface ProfileCodes {
+  frame: string;
+  sash: string;
+  mullion: string;
+  glazingBead: string;
+}
+
+export interface ProfileWeights {
+  frame: number;
+  sash: number;
+  mullion: number;
+  glazingBead: number;
 }
 
 export interface ProfileSystem {
   id: string;
   name: string;
-  uValue: number; // Thermal insulation
-  frameWidth: number; // mm
+  type: 'sliding' | 'hinged';
+  cncCode?: string; 
+  uValue: number;
+  frameWidth: number;
+  frameDepth: number;         // New: Kasa derinliği
+  sashDepth?: number;         // New: Kanat derinliği
+  thermalBreakWidth?: number; // New: Isı köprüsü genişliği (Polyamid)
+  wallThickness: number;      // New: Et kalınlığı
   pricePerMeter: number;
-  profileLength: number; // meters per bar
-  correctionConfig: CuttingCorrectionConfig; // NEW Field
-  defaultCornerCleat?: string; // ID of default corner accessory
+  profileLength: number;
+  correctionConfig: CuttingCorrectionConfig;
+  defaultCornerCleat?: string;
+  profileCodes?: ProfileCodes;
+  profileWeights?: ProfileWeights;
 }
 
 export interface GlassType {
@@ -82,11 +119,9 @@ export interface GlassType {
   pricePerSqm: number;
 }
 
-// Backup Data Structure
 export interface AppData {
   projects: Project[];
   systems: ProfileSystem[];
   accessories: Accessory[];
-  version: string;
-  date: string;
+  machines?: MachineConfig[];
 }

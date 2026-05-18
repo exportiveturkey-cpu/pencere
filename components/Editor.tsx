@@ -1,12 +1,12 @@
 
-import React, { useState } from 'react';
-import { Unit, WindowNode, ProfileSystem, Language, Accessory } from '../types';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape } from '../types';
 import Visualizer from './Visualizer';
+import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
-import { GLASS_TYPES, INITIAL_ROOT_NODE } from '../constants';
+import { INITIAL_ROOT_NODE, GLASS_TYPES } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Wand2, CheckCircle2, ArrowUp, Ruler, Undo, ScanLine } from 'lucide-react';
-import { analyzeStructure } from '../services/geminiService';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
 import { t } from '../translations';
 
 interface EditorProps {
@@ -19,671 +19,452 @@ interface EditorProps {
 }
 
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel }) => {
-  const defaultSystemId = systems.length > 0 ? systems[0].id : '';
-  
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
   const [height, setHeight] = useState(initialUnit?.height || 1500);
-  const [systemId, setSystemId] = useState(initialUnit?.system || defaultSystemId);
-  const [glassId, setGlassId] = useState(initialUnit?.glassType || GLASS_TYPES[1].id);
-  const [glassThickness, setGlassThickness] = useState(initialUnit?.glassThickness || 24);
   const [quantity, setQuantity] = useState(initialUnit?.quantity || 1);
+  const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
+  const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
+  const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  const [showSection, setShowSection] = useState(false);
   
-  // Undo History
+  const [visualScale, setVisualScale] = useState(0.20);
   const [history, setHistory] = useState<WindowNode[]>([]);
 
-  // Accessory Selection State
-  const [selectedHandleId, setSelectedHandleId] = useState<string>(initialUnit?.selectedHandle || '');
-  const [selectedGasketId, setSelectedGasketId] = useState<string>(initialUnit?.selectedGasket || '');
-  const [selectedHingeId, setSelectedHingeId] = useState<string>(initialUnit?.selectedHinge || '');
-  const [selectedCornerId, setSelectedCornerId] = useState<string>(initialUnit?.selectedCorner || '');
-  const [selectedLockStrikerId, setSelectedLockStrikerId] = useState<string>(initialUnit?.selectedLockStriker || '');
-  const [selectedDoorCloserId, setSelectedDoorCloserId] = useState<string>(initialUnit?.selectedDoorCloser || '');
-  const [selectedKickplateId, setSelectedKickplateId] = useState<string>(initialUnit?.selectedKickplate || '');
+  const [selectedHandle, setSelectedHandle] = useState(initialUnit?.selectedHandle || '');
+  const [selectedHinge, setSelectedHinge] = useState(initialUnit?.selectedHinge || '');
+  const [selectedGasket, setSelectedGasket] = useState(initialUnit?.selectedGasket || '');
+  const [selectedLock, setSelectedLock] = useState(initialUnit?.selectedLock || '');
+  const [selectedCorner, setSelectedCorner] = useState(initialUnit?.selectedCorner || '');
+  const [selectedAutomation, setSelectedAutomation] = useState(initialUnit?.selectedAutomation || '');
+  const [selectedKickplate, setSelectedKickplate] = useState(initialUnit?.selectedKickplate || '');
+  const [selectedDoorCloser, setSelectedDoorCloser] = useState(initialUnit?.selectedDoorCloser || '');
+  const [selectedLockStriker, setSelectedLockStriker] = useState(initialUnit?.selectedLockStriker || '');
+  const [selectedOther, setSelectedOther] = useState(initialUnit?.selectedOther || '');
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showSection, setShowSection] = useState(false);
+  useEffect(() => {
+    const maxDim = Math.max(width, height);
+    if (maxDim > 3000) setVisualScale(0.12);
+    else if (maxDim > 2000) setVisualScale(0.18);
+  }, []);
 
-  const currentSystem = systems.find(s => s.id === systemId) || systems[0];
+  useEffect(() => {
+    const system = systems.find(s => s.id === systemId);
+    if (!system) return;
 
-  // Filter accessories by type
-  const handles = accessories.filter(a => a.type === 'handle');
-  const gaskets = accessories.filter(a => a.type === 'gasket');
-  const hinges = accessories.filter(a => a.type === 'hinge');
-  const corners = accessories.filter(a => a.type === 'corner');
-  const lockStrikers = accessories.filter(a => a.type === 'lockStriker');
-  const doorClosers = accessories.filter(a => a.type === 'doorCloser');
-  const kickplates = accessories.filter(a => a.type === 'kickplate');
+    const validateNodes = (node: WindowNode): WindowNode => {
+      let updated = { ...node };
+      if (node.openingType && node.openingType !== 'fixed') {
+        if (system.type === 'sliding' && node.openingType !== 'sliding') {
+          updated.openingType = 'fixed';
+        } else if (system.type === 'hinged' && node.openingType === 'sliding') {
+          updated.openingType = 'fixed';
+        }
+      }
+      if (node.children) {
+        updated.children = node.children.map(validateNodes);
+      }
+      return updated;
+    };
+    
+    setRootNode(prev => validateNodes(prev));
 
-  // History Helper
-  const addToHistory = () => {
-    const snapshot = JSON.parse(JSON.stringify(rootNode));
-    setHistory(prev => [...prev, snapshot]);
-  };
+    const checkAcc = (id: string) => {
+      if (!id) return '';
+      const acc = accessories.find(a => a.id === id);
+      if (acc && acc.compatibility && acc.compatibility !== 'both' && acc.compatibility !== system.type) {
+        return '';
+      }
+      return id;
+    };
+
+    setSelectedHandle(prev => checkAcc(prev));
+    setSelectedHinge(prev => checkAcc(prev));
+    setSelectedGasket(prev => checkAcc(prev));
+    setSelectedLock(prev => checkAcc(prev));
+    setSelectedCorner(prev => checkAcc(prev));
+    setSelectedAutomation(prev => checkAcc(prev));
+    setSelectedKickplate(prev => checkAcc(prev));
+    setSelectedDoorCloser(prev => checkAcc(prev));
+    setSelectedLockStriker(prev => checkAcc(prev));
+    setSelectedOther(prev => checkAcc(prev));
+  }, [systemId, systems, accessories]);
+
+  const handleUpdateRootNode = useCallback((newNode: WindowNode) => {
+    setHistory(prev => [...prev, rootNode]);
+    setRootNode(newNode);
+  }, [rootNode]);
 
   const handleUndo = () => {
     if (history.length === 0) return;
-    const previousState = history[history.length - 1];
+    const previous = history[history.length - 1];
     setHistory(prev => prev.slice(0, -1));
-    setRootNode(previousState);
+    setRootNode(previous);
+    setSelectedNodeId(null);
   };
 
-  const updateNode = (id: string, updateFn: (node: WindowNode) => WindowNode) => {
-    const traverse = (node: WindowNode): WindowNode => {
-      if (node.id === id) {
-        return updateFn(node);
-      }
-      if (node.children) {
-        return { ...node, children: node.children.map(traverse) };
-      }
-      return node;
-    };
-    setRootNode(prev => traverse(prev));
+  const findAndUpdateNode = (node: WindowNode, targetId: string, updateFn: (node: WindowNode) => WindowNode): WindowNode => {
+    if (node.id === targetId) return updateFn(node);
+    if (node.children) {
+      return { ...node, children: node.children.map(child => findAndUpdateNode(child, targetId, updateFn)) };
+    }
+    return node;
   };
 
-  const findNode = (id: string, node: WindowNode): WindowNode | null => {
+  const handleSplit = (direction: SplitDirection) => {
+    if (!selectedNodeId) return;
+    handleUpdateRootNode(findAndUpdateNode(rootNode, selectedNodeId, (node) => ({
+      ...node,
+      type: 'container',
+      direction,
+      splitRatio: [0.5, 0.5],
+      openingType: 'fixed',
+      children: [
+        { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+        { id: uuidv4(), type: 'glass', openingType: 'fixed' }
+      ]
+    })));
+    setSelectedNodeId(null);
+  };
+
+  const handleSetOpening = (type: string) => {
+    if (!selectedNodeId) return;
+    handleUpdateRootNode(findAndUpdateNode(rootNode, selectedNodeId, (node) => ({
+      ...node,
+      type: 'glass',
+      openingType: type as any
+    })));
+  };
+
+  const handleUpdateSplitRatio = (ratio0: number) => {
+    if (!selectedNodeId) return;
+    const ratio1 = 1 - ratio0;
+    handleUpdateRootNode(findAndUpdateNode(rootNode, selectedNodeId, (node) => ({
+      ...node,
+      splitRatio: [ratio0, ratio1]
+    })));
+  };
+
+  const findNode = (node: WindowNode, id: string): WindowNode | null => {
     if (node.id === id) return node;
     if (node.children) {
       for (const child of node.children) {
-        const found = findNode(id, child);
+        const found = findNode(child, id);
         if (found) return found;
       }
     }
     return null;
   };
-  
-  const findParentId = (targetId: string, node: WindowNode, parentId: string | null = null): string | null => {
-      if (node.id === targetId) return parentId;
-      if (node.children) {
-          for (const child of node.children) {
-              const found = findParentId(targetId, child, node.id);
-              if (found) return found;
-          }
-      }
-      return null;
-  };
 
-  const getNodeContext = (targetId: string, node: WindowNode, w: number, h: number): { width: number, height: number } | null => {
-      if (node.id === targetId) return { width: w, height: h };
-      
-      if (node.children && node.children.length === 2 && node.splitRatio) {
-          const frameW = currentSystem.frameWidth;
-          const isVert = node.direction === 'vertical';
-          
-          const availableSpace = isVert ? w - frameW : h - frameW;
-          const s1 = availableSpace * node.splitRatio[0];
-          const s2 = availableSpace * node.splitRatio[1];
-          
-          const r1 = getNodeContext(targetId, node.children[0], isVert ? s1 : w, isVert ? h : s1);
-          if (r1) return r1;
-          
-          const r2 = getNodeContext(targetId, node.children[1], isVert ? s2 : w, isVert ? h : s2);
-          if (r2) return r2;
-      }
-      return null;
-  };
-
-  const handleSplit = (direction: 'vertical' | 'horizontal') => {
-    if (!selectedNodeId) return;
-    addToHistory();
-    updateNode(selectedNodeId, (node) => ({
-      id: node.id, 
-      type: 'container',
-      direction,
-      splitRatio: [0.5, 0.5],
-      children: [
-        { id: uuidv4(), type: 'glass', openingType: 'fixed' },
-        { id: uuidv4(), type: 'glass', openingType: 'fixed' }
-      ]
-    }));
-    setSelectedNodeId(null);
-  };
-
-  const handleUpdateProp = (key: keyof WindowNode, value: any) => {
-    if (!selectedNodeId) return;
-    addToHistory();
-    updateNode(selectedNodeId, (node) => ({ ...node, [key]: value }));
-  };
-  
-  const handleRatioChange = (newSize: number, index: number) => {
-      if (!selectedNodeId || !selectedNode || selectedNode.type !== 'container') return;
-      
-      const ctx = getNodeContext(selectedNodeId, rootNode, width, height);
-      if (!ctx) return;
-      
-      const frameW = currentSystem.frameWidth;
-      const isVert = selectedNode.direction === 'vertical';
-      const totalAvailable = (isVert ? ctx.width : ctx.height) - frameW;
-      
-      if (totalAvailable <= 0) return;
-      
-      const ratio = Math.min(Math.max(newSize / totalAvailable, 0.1), 0.9);
-      
-      const newRatios = [...(selectedNode.splitRatio || [0.5, 0.5])];
-      
-      addToHistory();
-
-      if (index === 0) {
-          newRatios[0] = ratio;
-          newRatios[1] = 1 - ratio;
-      } else {
-          newRatios[1] = ratio;
-          newRatios[0] = 1 - ratio;
-      }
-      
-      updateNode(selectedNodeId, (node) => ({ ...node, splitRatio: newRatios }));
-  };
-
-  const handleDelete = () => {
-    if(confirm(t(lang, 'resetConfirm'))) {
-        addToHistory();
-        setRootNode({ ...INITIAL_ROOT_NODE, id: uuidv4() });
-        setSelectedNodeId(null);
+  const findParentId = (node: WindowNode, targetId: string): string | null => {
+    if (!node.children) return null;
+    if (node.children.some(c => c.id === targetId)) return node.id;
+    for (const child of node.children) {
+      const found = findParentId(child, targetId);
+      if (found) return found;
     }
+    return null;
   };
-  
-  const handleSelectParent = () => {
-      if (!selectedNodeId) return;
-      const pid = findParentId(selectedNodeId, rootNode);
-      if (pid) setSelectedNodeId(pid);
-  };
-  
-  const runAiCheck = async () => {
-    if (!currentSystem) return;
-    setIsAnalyzing(true);
-    setAiAnalysis(null);
-    const handleName = accessories.find(a => a.id === selectedHandleId)?.name;
-    const hingeName = accessories.find(a => a.id === selectedHingeId)?.name;
-    const mockUnit: Unit = { 
-        id: 'temp', name, width, height, system: currentSystem.name, 
-        glassType: GLASS_TYPES.find(g => g.id === glassId)?.name || '', 
-        glassThickness,
-        color: '', rootNode, quantity,
-        selectedHandle: handleName,
-        selectedHinge: hingeName,
-        selectedCorner: accessories.find(a => a.id === selectedCornerId)?.name
-    };
-    const result = await analyzeStructure(mockUnit, currentSystem, lang);
-    setAiAnalysis(result);
-    setIsAnalyzing(false);
-  };
+
+  const selectedNode = selectedNodeId ? findNode(rootNode, selectedNodeId) : null;
+  const parentId = selectedNodeId ? findParentId(rootNode, selectedNodeId) : null;
 
   const handleSave = () => {
-    const unit: Unit = {
+    const glassObj = GLASS_TYPES.find(g => g.id === glassTypeId) || GLASS_TYPES[0];
+    onSave({
       id: initialUnit?.id || uuidv4(),
-      name,
-      width,
-      height,
-      system: systemId,
-      color: 'Standard',
-      glassType: glassId,
-      glassThickness,
-      rootNode,
-      quantity: Math.max(1, quantity),
-      selectedHandle: selectedHandleId,
-      selectedGasket: selectedGasketId,
-      selectedHinge: selectedHingeId,
-      selectedCorner: selectedCornerId,
-      selectedLockStriker: selectedLockStrikerId,
-      selectedDoorCloser: selectedDoorCloserId,
-      selectedKickplate: selectedKickplateId
-    };
-    onSave(unit);
+      name, width, height, system: systemId,
+      color: 'RAL 7016', glassType: glassTypeId, glassThickness: glassObj.thickness,
+      rootNode, quantity: Math.max(1, quantity), shape, archHeight,
+      selectedHandle, selectedHinge, selectedGasket, selectedLock, 
+      selectedCorner, selectedAutomation, selectedKickplate, 
+      selectedDoorCloser, selectedLockStriker, selectedOther
+    });
   };
 
-  const calculateHeaviestSashWeight = (node: WindowNode, w: number, h: number): number => {
-      const glassDensity = 2.5; 
-      if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
-          const frameW = currentSystem.frameWidth;
-          const isVert = node.direction === 'vertical';
-          const availableSpace = isVert ? w - frameW : h - frameW;
-          const s1 = availableSpace * node.splitRatio[0];
-          const s2 = availableSpace * node.splitRatio[1];
-          return Math.max(
-              calculateHeaviestSashWeight(node.children[0], isVert ? s1 : w, isVert ? h : s1),
-              calculateHeaviestSashWeight(node.children[1], isVert ? s2 : w, isVert ? h : s2)
-          );
-      }
-      if (node.openingType && node.openingType !== 'fixed') {
-           const areaM2 = (w * h) / 1000000;
-           return areaM2 * glassThickness * glassDensity;
-      }
-      return 0;
+  const AccessorySelect = ({ label, type, value, onChange }: { label: string, type: Accessory['type'], value: string, onChange: (val: string) => void }) => {
+    const filtered = accessories.filter(a => 
+      a.type === type && 
+      (a.compatibility === 'both' || a.compatibility === selectedSystem.type || !a.compatibility)
+    );
+    return (
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{label}</label>
+        <div className="relative">
+          <select 
+            value={value} 
+            onChange={e => onChange(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500/50 appearance-none"
+          >
+            <option value="">{t(lang, 'selectAccessories')}</option>
+            {filtered.map(acc => (
+              <option key={acc.id} value={acc.id}>{acc.name} (${acc.price})</option>
+            ))}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
+             <ChevronUp size={12} className="rotate-180" />
+          </div>
+        </div>
+      </div>
+    );
   };
 
-  const selectedNode = selectedNodeId ? findNode(selectedNodeId, rootNode) : null;
-  const parentId = selectedNodeId ? findParentId(selectedNodeId, rootNode) : null;
-  
-  let containerSizes = { s1: 0, s2: 0, total: 0 };
-  if (selectedNode && selectedNode.type === 'container') {
-      const ctx = getNodeContext(selectedNode.id, rootNode, width, height);
-      if (ctx) {
-          const frameW = currentSystem.frameWidth;
-          const isVert = selectedNode.direction === 'vertical';
-          const avail = (isVert ? ctx.width : ctx.height) - frameW;
-          containerSizes = {
-              total: avail,
-              s1: avail * (selectedNode.splitRatio?.[0] || 0.5),
-              s2: avail * (selectedNode.splitRatio?.[1] || 0.5)
-          };
-      }
-  }
+  const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
+  const currentUnitFor3D: Unit = {
+    id: 'temp',
+    name, width, height, system: systemId,
+    color: 'RAL 7016', glassType: 'double24', glassThickness: 24,
+    rootNode, quantity, shape, archHeight
+  };
 
-  if (!currentSystem) return <div>{t(lang, 'loading')}</div>;
-
-  const maxSashWeight = calculateHeaviestSashWeight(rootNode, width, height);
-
-  const openingTypes = [
-    'fixed', 'turn-left', 'turn-right', 'tilt', 
-    'tilt-turn-left', 'tilt-turn-right', 'sliding'
-  ] as const;
+  // Check if any part is openable for section view
+  const hasOpeningPart = (node: WindowNode): boolean => {
+    if (node.openingType && node.openingType !== 'fixed') return true;
+    if (node.children) return node.children.some(hasOpeningPart);
+    return false;
+  };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-200">
-      {/* Modal: Section Viewer */}
-      {showSection && (
-          <CrossSection 
-            system={currentSystem}
-            glassThickness={glassThickness}
-            isOpenable={selectedNode ? selectedNode.openingType !== 'fixed' : true}
-            lang={lang}
-            onClose={() => setShowSection(false)}
-          />
-      )}
-
-      {/* Toolbar */}
-      <div className="h-14 border-b border-slate-700 flex items-center justify-between px-4 bg-slate-800">
-        <div className="flex items-center space-x-4">
-            <button onClick={onCancel} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
-                <ArrowLeft size={20} />
-            </button>
-            <h2 className="font-semibold text-lg">{t(lang, 'unitEditor')}</h2>
-            <input 
-                value={name} 
-                onChange={e => setName(e.target.value)} 
-                className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm focus:border-blue-500 outline-none w-64"
-            />
+    <div className="flex flex-col h-full bg-slate-950 text-slate-200">
+      <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-slate-900/50 backdrop-blur-xl z-20">
+        <div className="flex items-center gap-6">
+            <button onClick={onCancel} className="p-2 hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft size={20} /></button>
+            <div className="flex flex-col">
+              <input value={name} onChange={e => setName(e.target.value)} className="bg-transparent border-none text-lg font-bold focus:ring-0 outline-none text-white p-0 h-6" />
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{t(lang, 'unitEditor')}</span>
+            </div>
         </div>
-        <div className="flex space-x-2">
-            {history.length > 0 && (
-                <button 
-                    onClick={handleUndo}
-                    className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-medium transition-colors text-slate-200 mr-2"
-                >
-                    <Undo size={16} /> 
-                    <span className="hidden sm:inline">{t(lang, 'undo')}</span>
-                </button>
-            )}
-            <button 
-                onClick={runAiCheck}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-sm font-medium transition-colors"
-                disabled={isAnalyzing}
-            >
-               {isAnalyzing ? <span className="animate-spin">⌛</span> : <Wand2 size={16} />}
-               {t(lang, 'aiCheck')}
+        <div className="flex gap-3">
+            <div className="flex bg-slate-800 p-1 rounded-xl border border-white/5 mr-4">
+              <button onClick={() => setViewMode('2d')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${viewMode === '2d' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                <Monitor size={14} /> 2D VIEW
+              </button>
+              <button onClick={() => setViewMode('3d')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${viewMode === '3d' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                <BoxSelect size={14} /> 3D PREVIEW
+              </button>
+            </div>
+            <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
+              <Undo2 size={18} /> {t(lang, 'undo')}
             </button>
-            <button 
-                onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
-            >
-                <Save size={16} /> {t(lang, 'saveUnit')}
+            <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20">
+              <Save size={18} /> {t(lang, 'saveUnit')}
             </button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Global Config */}
-        <div className="w-80 bg-slate-800 border-r border-slate-700 p-4 flex flex-col gap-6 overflow-y-auto">
-            
+        <div className="w-80 border-r border-white/5 bg-slate-900/40 p-5 overflow-y-auto space-y-8 custom-scrollbar">
             <section>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'dimensions')}</h3>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'width')}</label>
-                        <input 
-                            type="number" 
-                            value={width} 
-                            onChange={(e) => setWidth(Number(e.target.value))}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'height')}</label>
-                        <input 
-                            type="number" 
-                            value={height} 
-                            onChange={(e) => setHeight(Number(e.target.value))}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        />
-                    </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Ruler size={14} className="text-blue-500" />
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'dimensions')} & {t(lang, 'quantity')}</h3>
                 </div>
-                {/* Quantity Input */}
-                <div>
-                    <label className="block text-xs mb-1 text-slate-400">{t(lang, 'quantity')}</label>
-                    <input 
-                        type="number" 
-                        min="1"
-                        value={quantity} 
-                        onChange={(e) => setQuantity(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                    />
-                </div>
-            </section>
-
-            <section>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'systemGlass')}</h3>
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'profileSystem')}</label>
-                        <select 
-                            value={systemId}
-                            onChange={(e) => setSystemId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            {systems.map(s => (
-                                <option key={s.id} value={s.id}>{s.name} ({s.frameWidth}mm)</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'glazing')}</label>
-                        <select 
-                            value={glassId}
-                            onChange={(e) => setGlassId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            {GLASS_TYPES.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'glassThickness')}</label>
-                        <input 
-                            type="number" 
-                            value={glassThickness} 
-                            onChange={(e) => setGlassThickness(Number(e.target.value))}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        />
-                    </div>
-                </div>
-            </section>
-
-            <section className="border-t border-slate-700 pt-6">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{t(lang, 'selectAccessories')}</h3>
-                <div className="space-y-4">
-                     <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'handle')}</label>
-                        <select 
-                            value={selectedHandleId}
-                            onChange={(e) => setSelectedHandleId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {handles.map(h => (
-                                <option key={h.id} value={h.id}>{h.name} (${h.price})</option>
-                            ))}
-                        </select>
-                    </div>
-                    
-                     <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'hinge')}</label>
-                        <select 
-                            value={selectedHingeId}
-                            onChange={(e) => setSelectedHingeId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {hinges.map(h => {
-                                const capacity = h.maxWeightKg || 999;
-                                const isTooWeak = maxSashWeight > capacity;
-                                return (
-                                    <option 
-                                        key={h.id} 
-                                        value={h.id} 
-                                        disabled={isTooWeak}
-                                        className={isTooWeak ? 'text-slate-500 bg-slate-800' : ''}
-                                    >
-                                        {h.name} (${h.price}) 
-                                        {h.maxWeightKg ? ` [Max: ${h.maxWeightKg}kg]` : ''}
-                                        {isTooWeak ? ` - ${t(lang, 'tooHeavy')}` : ''}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'gasket')}</label>
-                        <select 
-                            value={selectedGasketId}
-                            onChange={(e) => setSelectedGasketId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {gaskets.map(g => (
-                                <option key={g.id} value={g.id}>{g.name} (${g.price}/{g.unit === 'meter' ? 'm' : 'pce'})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'corner')}</label>
-                        <select 
-                            value={selectedCornerId}
-                            onChange={(e) => setSelectedCornerId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {corners.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'lockStriker')}</label>
-                        <select 
-                            value={selectedLockStrikerId}
-                            onChange={(e) => setSelectedLockStrikerId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {lockStrikers.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'doorCloser')}</label>
-                        <select 
-                            value={selectedDoorCloserId}
-                            onChange={(e) => setSelectedDoorCloserId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {doorClosers.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs mb-1 text-slate-400">{t(lang, 'kickplate')}</label>
-                        <select 
-                            value={selectedKickplateId}
-                            onChange={(e) => setSelectedKickplateId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm"
-                        >
-                            <option value="">-- {t(lang, 'selectAccessories')} --</option>
-                            {kickplates.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} (${c.price})</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-            </section>
-
-            {selectedNode && (
-                <section className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 animate-in fade-in slide-in-from-left-4 mt-6">
-                    <div className="flex justify-between items-start mb-3">
-                         <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                            {selectedNode.type === 'container' ? t(lang, 'containerInfo') : t(lang, 'selectedPane')}
-                         </h3>
-                         {parentId && (
-                             <button onClick={handleSelectParent} className="text-[10px] bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                                 <ArrowUp size={10} /> {t(lang, 'selectParent')}
-                             </button>
-                         )}
-                    </div>
-                    
-                    {/* Leaf Actions (Split/Type) */}
-                    {selectedNode.type !== 'container' && (
-                        <div className="space-y-3">
-                            <label className="block text-xs text-slate-400">{t(lang, 'actions')}</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button 
-                                    onClick={() => handleSplit('horizontal')}
-                                    className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
-                                >
-                                    <SplitSquareVertical size={20} className="mb-1" />
-                                    <span className="text-[10px]">{t(lang, 'splitVert')}</span>
-                                </button>
-                                <button 
-                                    onClick={() => handleSplit('vertical')}
-                                    className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-600 rounded border border-slate-600 transition-all"
-                                >
-                                    <SplitSquareHorizontal size={20} className="mb-1" />
-                                    <span className="text-[10px]">{t(lang, 'splitHorz')}</span>
-                                </button>
-                            </div>
-                            
-                            <div className="pt-2 border-t border-slate-600">
-                                 <label className="block text-xs mb-2 text-slate-400">{t(lang, 'openingType')}</label>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    {openingTypes.map(type => (
-                                        <button
-                                            key={type}
-                                            onClick={() => handleUpdateProp('openingType', type)}
-                                            className={`text-xs px-2 py-1.5 rounded border capitalize ${
-                                                selectedNode.openingType === type 
-                                                ? 'bg-blue-600 border-blue-500 text-white' 
-                                                : 'bg-slate-900 border-slate-600 text-slate-400 hover:border-slate-500'
-                                            }`}
-                                        >
-                                            {t(lang, type === 'tilt-turn-left' ? 'tiltTurnLeft' : type === 'tilt-turn-right' ? 'tiltTurnRight' : type === 'turn-left' ? 'turnLeft' : type === 'turn-right' ? 'turnRight' : type as any)}
-                                        </button>
-                                    ))}
-                                 </div>
-                            </div>
+                <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                            <label className="block text-[9px] text-slate-500 mb-0.5 uppercase">{t(lang, 'width')}</label>
+                            <input type="number" value={width} onChange={e => setWidth(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full outline-none text-sm" />
                         </div>
-                    )}
-
-                    {/* Container Actions (Resizing) */}
-                    {selectedNode.type === 'container' && (
-                        <div className="space-y-4">
-                             <div className="flex items-center gap-2 text-slate-300 text-sm border-b border-slate-600 pb-2">
-                                 <Ruler size={16} />
-                                 <span className="font-semibold">{t(lang, 'splitSizes')}</span>
-                             </div>
-                             <div className="space-y-3">
-                                 <div>
-                                     <label className="block text-xs mb-1 text-slate-400">{t(lang, 'pane1')}</label>
-                                     <input 
-                                        type="number"
-                                        value={Math.round(containerSizes.s1)}
-                                        onChange={(e) => handleRatioChange(Number(e.target.value), 0)}
-                                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm font-mono"
-                                     />
-                                 </div>
-                                 <div>
-                                     <label className="block text-xs mb-1 text-slate-400">{t(lang, 'pane2')}</label>
-                                     <input 
-                                        type="number"
-                                        value={Math.round(containerSizes.s2)}
-                                        onChange={(e) => handleRatioChange(Number(e.target.value), 1)}
-                                        className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm font-mono"
-                                     />
-                                 </div>
-                             </div>
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                            <label className="block text-[9px] text-slate-500 mb-0.5 uppercase">{t(lang, 'height')}</label>
+                            <input type="number" value={height} onChange={e => setHeight(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full outline-none text-sm" />
                         </div>
+                    </div>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                        <label className="block text-[9px] text-slate-500 mb-0.5 uppercase">{t(lang, 'quantity')}</label>
+                        <div className="flex items-center gap-2">
+                           <input type="number" min="1" value={quantity} onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="bg-transparent text-blue-400 font-mono font-bold w-full outline-none text-sm" />
+                           <span className="text-[10px] text-slate-600 font-bold uppercase">{t(lang, 'unitPce')}</span>
+                        </div>
+                    </div>
+                    <div className="space-y-3 pt-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'shape')}</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button onClick={() => setShape('rect')} className={`flex flex-col items-center p-2 rounded-xl border transition-all ${shape === 'rect' ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-slate-950 border-white/5 text-slate-500'}`}>
+                            <Square size={16} className="mb-1" /><span className="text-[8px] font-bold uppercase">{t(lang, 'rect')}</span>
+                          </button>
+                          <button onClick={() => setShape('triangle')} className={`flex flex-col items-center p-2 rounded-xl border transition-all ${shape === 'triangle' ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-slate-950 border-white/5 text-slate-500'}`}>
+                            <Triangle size={16} className="mb-1" /><span className="text-[8px] font-bold uppercase">{t(lang, 'triangle')}</span>
+                          </button>
+                          <button onClick={() => setShape('arch')} className={`flex flex-col items-center p-2 rounded-xl border transition-all ${shape === 'arch' ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-slate-950 border-white/5 text-slate-500'}`}>
+                            <Circle size={16} className="mb-1" /><span className="text-[8px] font-bold uppercase">{t(lang, 'arch')}</span>
+                          </button>
+                        </div>
+                    </div>
+                    {shape === 'arch' && (
+                      <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5 animate-in fade-in slide-in-from-top-1">
+                          <label className="block text-[9px] text-slate-500 mb-0.5 uppercase">{t(lang, 'archHeight')}</label>
+                          <input type="number" value={archHeight} onChange={e => setArchHeight(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full outline-none text-sm" />
+                      </div>
                     )}
-
-                    {selectedNodeId === rootNode.id && (
-                        <div className="pt-4 mt-4 border-t border-slate-600">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'glassType')}</label>
+                        <select value={glassTypeId} onChange={e => setGlassTypeId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                          {GLASS_TYPES.map(g => <option key={g.id} value={g.id}>{g.name} ({g.thickness}mm)</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'profileSystem')}</label>
+                        <div className="flex gap-2">
+                            <select value={systemId} onChange={e => setSystemId(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                            {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
                             <button 
-                                onClick={handleDelete}
-                                className="w-full flex items-center justify-center gap-2 p-2 text-red-400 hover:bg-red-900/20 border border-transparent hover:border-red-900 rounded transition-colors text-xs"
+                                onClick={() => setShowSection(true)}
+                                className="p-2.5 bg-slate-800 hover:bg-blue-600/20 border border-white/5 rounded-xl text-blue-400 transition-all"
+                                title={t(lang, 'sectionDetail')}
                             >
-                                <Trash2 size={14} /> {t(lang, 'resetUnit')}
+                                <Layers size={16} />
                             </button>
                         </div>
+                    </div>
+                </div>
+            </section>
+            <section className="pt-6 border-t border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Settings2 size={14} className="text-blue-500" />
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'selectedPane')}</h3>
+                  </div>
+                  {parentId && <button onClick={() => setSelectedNodeId(parentId)} className="p-1.5 hover:bg-slate-800 rounded-lg text-blue-400 transition-colors" title={t(lang, 'selectParent')}><ChevronUp size={14} /></button>}
+                </div>
+                {!selectedNodeId ? (
+                  <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-xl text-center">
+                    <MousePointer2 className="mx-auto mb-2 text-blue-500/40" size={20} />
+                    <p className="text-[10px] text-slate-500 italic">{t(lang, 'selectPaneInfo')}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedNode?.type === 'container' ? (
+                      <div className="space-y-4 bg-slate-900/50 p-4 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Layout size={12} className="text-blue-400" />
+                          <span className="text-[10px] font-bold uppercase text-slate-400">{t(lang, 'splitSizes')}</span>
+                        </div>
+                        <div className="space-y-3">
+                          <input type="range" min="0.1" max="0.9" step="0.01" value={selectedNode.splitRatio?.[0] || 0.5} onChange={e => handleUpdateSplitRatio(Number(e.target.value))} className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                          <div className="flex justify-between font-mono text-[9px] text-blue-400">
+                            <span>{Math.round((selectedNode.splitRatio?.[0] || 0.5) * (selectedNode.direction === 'vertical' ? width : height))} mm</span>
+                            <span>{Math.round((selectedNode.splitRatio?.[1] || 0.5) * (selectedNode.direction === 'vertical' ? width : height))} mm</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleSplit('vertical')} className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all border border-white/5 group">
+                          <SplitSquareHorizontal size={18} className="mb-1 text-slate-400 group-hover:text-blue-400" /><span className="text-[9px] font-bold uppercase tracking-tighter">{t(lang, 'splitVert')}</span>
+                        </button>
+                        <button onClick={() => handleSplit('horizontal')} className="flex flex-col items-center justify-center p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all border border-white/5 group">
+                          <SplitSquareVertical size={18} className="mb-1 text-slate-400 group-hover:text-blue-400" /><span className="text-[9px] font-bold uppercase tracking-tighter">{t(lang, 'splitHorz')}</span>
+                        </button>
+                      </div>
                     )}
-                </section>
-            )}
+                    {selectedNode?.type !== 'container' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t(lang, 'openingType')}</label>
+                        <select value={selectedNode?.openingType || 'fixed'} onChange={e => handleSetOpening(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                          <option value="fixed">{t(lang, 'fixed')}</option>
+                          {selectedSystem.type === 'hinged' ? (
+                            <>
+                              <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                              <option value="turn-right">{t(lang, 'turnRight')}</option>
+                              <option value="tilt">{t(lang, 'tilt')}</option>
+                              <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                              <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                            </>
+                          ) : (
+                            <option value="sliding">{t(lang, 'sliding')}</option>
+                          )}
+                        </select>
+                      </div>
+                    )}
+                    <button onClick={() => { setRootNode({ ...INITIAL_ROOT_NODE, id: uuidv4() }); setSelectedNodeId(null); }} className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20">
+                      <Trash2 size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">{t(lang, 'resetUnit')}</span>
+                    </button>
+                  </div>
+                )}
+            </section>
+            <section className="pt-6 border-t border-white/5 pb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Wrench size={14} className="text-blue-500" />
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'accessories')}</h3>
+                </div>
+                <div className="space-y-4">
+                    <AccessorySelect label={t(lang, 'handle')} type="handle" value={selectedHandle} onChange={setSelectedHandle} />
+                    <AccessorySelect label={t(lang, 'hinge')} type="hinge" value={selectedHinge} onChange={setSelectedHinge} />
+                    <AccessorySelect label={t(lang, 'gasket')} type="gasket" value={selectedGasket} onChange={setSelectedGasket} />
+                    <AccessorySelect label={t(lang, 'lock')} type="lock" value={selectedLock} onChange={setSelectedLock} />
+                    <AccessorySelect label={t(lang, 'corner')} type="corner" value={selectedCorner} onChange={setSelectedCorner} />
+                    <AccessorySelect label={t(lang, 'automation')} type="automation" value={selectedAutomation} onChange={setSelectedAutomation} />
+                    <AccessorySelect label={t(lang, 'kickplate')} type="kickplate" value={selectedKickplate} onChange={setSelectedKickplate} />
+                </div>
+            </section>
         </div>
 
-        {/* Center: Workspace */}
-        <div className="flex-1 bg-slate-950 relative overflow-auto flex items-center justify-center p-10">
-            {/* Grid Background */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none" 
-                 style={{ 
-                     backgroundImage: 'radial-gradient(#64748b 1px, transparent 1px)', 
-                     backgroundSize: '20px 20px' 
-                 }} 
-            />
-            
-            <div className="relative shadow-2xl shadow-black">
-                 {/* Visualizer Tools */}
-                 <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-                     <button 
-                        onClick={() => setShowSection(true)}
-                        className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 p-2 rounded-lg text-white transition-all shadow-lg"
-                        title={t(lang, 'sectionDetail')}
-                     >
-                         <ScanLine size={20} />
-                     </button>
-                 </div>
+        <div className={`flex-1 ${viewMode === '3d' ? 'bg-slate-100' : 'bg-slate-900'} relative flex items-center justify-center p-8 overflow-auto`} onClick={() => setSelectedNodeId(null)}>
+             
+             {/* Common Floating Zoom Controls */}
+             <div className="absolute bottom-6 right-6 flex flex-col bg-slate-800 border border-white/10 rounded-2xl shadow-2xl p-2 z-40 gap-1" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setVisualScale(Math.min(0.5, visualScale + 0.05))} className="p-2.5 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors" title="Zoom In"><ZoomIn size={18} /></button>
+                <button onClick={() => setVisualScale(Math.max(0.05, visualScale - 0.05))} className="p-2.5 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors" title="Zoom Out"><ZoomOut size={18} /></button>
+                <div className="h-px bg-white/5 mx-2 my-1" />
+                <button onClick={() => setVisualScale(0.15)} className="p-2.5 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors" title="Fit to Screen"><Maximize size={18} /></button>
+                <div className="text-[9px] font-black text-blue-400 text-center mt-1 uppercase tracking-tighter">%{Math.round(visualScale * 500)}</div>
+             </div>
 
-                {/* Measurements Outside */}
-                <div className="absolute -top-8 left-0 w-full text-center text-xs text-slate-400 font-mono border-b border-slate-700 pb-1">
-                    {width} mm
-                </div>
-                <div className="absolute -left-10 top-0 h-full flex items-center text-xs text-slate-400 font-mono border-r border-slate-700 pr-1 writing-mode-vertical">
-                    <span className="transform -rotate-90">{height} mm</span>
-                </div>
+             {viewMode === '2d' ? (
+               <div className="relative w-full h-full flex items-center justify-center min-h-[500px]">
+                  <div className="absolute inset-0 bg-slate-100 opacity-[0.2] pointer-events-none" 
+                        style={{ backgroundImage: 'linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)', backgroundSize: '50px 50px' }} 
+                  />
+                  
+                  <div className="relative p-12 flex items-center justify-center group transition-all duration-300" style={{ transform: `scale(${visualScale * 5})`, transformOrigin: 'center center' }}>
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <Box size={10} className="text-blue-500" /> {width} mm
+                    </div>
+                    <div className="absolute left-0 top-1/2 -translate-x-16 -translate-y-1/2 rotate-90 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <Box size={10} className="text-blue-500" /> {height} mm
+                    </div>
 
-                <svg width={width/2} height={height/2} viewBox={`0 0 ${width} ${height}`} className="bg-white/5 backdrop-blur-sm">
-                    <Visualizer 
-                        node={rootNode} 
-                        width={width} 
-                        height={height} 
-                        system={currentSystem}
-                        selectedNodeId={selectedNodeId}
-                        onSelectNode={setSelectedNodeId}
-                    />
-                </svg>
-            </div>
+                    <svg 
+                      width={width * 0.2} 
+                      height={height * 0.2} 
+                      viewBox={`0 0 ${width} ${height}`} 
+                      className="drop-shadow-2xl overflow-visible transition-transform duration-300"
+                    >
+                        <Visualizer 
+                            node={rootNode} width={width} height={height} 
+                            system={selectedSystem}
+                            selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId}
+                            shape={shape} archHeight={archHeight}
+                            theme="light"
+                        />
+                    </svg>
+                  </div>
+               </div>
+             ) : (
+               <ThreeDPreview 
+                  unit={currentUnitFor3D} 
+                  system={selectedSystem} 
+                  scale={visualScale}
+               />
+             )}
         </div>
-        
-        {/* Right: AI Panel */}
-        {aiAnalysis && (
-            <div className="w-80 bg-slate-900 border-l border-slate-700 p-4 overflow-y-auto animate-in slide-in-from-right">
-                <div className="flex items-center gap-2 mb-4 text-emerald-400">
-                    <CheckCircle2 size={20} />
-                    <h3 className="font-bold">{t(lang, 'aiResult')}</h3>
-                </div>
-                <div className="prose prose-invert prose-sm text-slate-300">
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed font-light">{aiAnalysis}</p>
-                </div>
-            </div>
-        )}
       </div>
+
+      {showSection && (
+        <CrossSection 
+          system={selectedSystem} 
+          glassThickness={24} 
+          isOpenable={hasOpeningPart(rootNode)} 
+          lang={lang} 
+          onClose={() => setShowSection(false)} 
+        />
+      )}
     </div>
   );
 };

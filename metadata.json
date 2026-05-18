@@ -1,5 +1,8 @@
 {
   "name": "Alumetric - Engineering Suite",
   "description": "Professional aluminium window and door fabrication software featuring recursive unit designer, cost estimation, and AI-powered structural analysis.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
