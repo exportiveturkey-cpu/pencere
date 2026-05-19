@@ -405,8 +405,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 value={project.quoteText || ''}
                                 onChange={e => onUpdateProject({...project, quoteText: e.target.value})}
                                 placeholder={t(lang, 'draftPlaceholder')}
-                                className="w-full border-none focus:ring-0 p-0 text-slate-700 leading-relaxed min-h-[150px] resize-none text-base italic"
+                                className="w-full border-none focus:ring-0 p-0 text-slate-700 leading-relaxed min-h-[400px] resize-none text-base italic print:hidden"
                             />
+                            <div className="hidden print:block text-slate-700 leading-relaxed text-base italic whitespace-pre-wrap">
+                                {project.quoteText || ''}
+                            </div>
                         </div>
 
                         {/* Itemized List */}
