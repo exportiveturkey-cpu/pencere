@@ -34,15 +34,21 @@ export const analyzeStructure = async (unit: Unit, system: ProfileSystem, lang: 
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || "Server error");
+      let errorMsg = "Server error";
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        // Not a JSON error
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
     return data.text || "No analysis provided.";
   } catch (error: any) {
     console.error("Analysis failed:", error);
-    return lang === 'tr' ? "Analiz başarısız oldu: " + error.message : "Analysis failed: " + error.message;
+    throw error;
   }
 };
 
@@ -77,9 +83,9 @@ export const analyzeDrawing = async (base64Data: string, mimeType: string, lang:
     const cleanText = data.text.replace(/```json/g, '').replace(/```/g, '').trim();
     const result = JSON.parse(cleanText || "[]");
     return Array.isArray(result) ? result : [];
-  } catch (error) {
+  } catch (error: any) {
     console.error("Vision analysis failed:", error);
-    return [];
+    throw error;
   }
 };
 
@@ -104,14 +110,20 @@ export const generateSalesPitch = async (project: {name: string, client: string}
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || "Server error");
+      let errorMsg = "Server error";
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        // Not a JSON error
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
     return data.text || "";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Pitch generation failed:", error);
-    return "";
+    throw error;
   }
 };

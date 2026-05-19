@@ -23,7 +23,7 @@ async function setupVite(app: express.Express) {
     // Serve static files in production
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -37,26 +37,30 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  const genAI = apiKey ? new GoogleGenAI(apiKey) : null;
+  const ai = apiKey ? new GoogleGenAI({ 
+    apiKey,
+    httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+  }) : null;
 
   // API Routes for Gemini AI Features
   app.post("/api/ai/analyze-structure", async (req, res) => {
-    if (!genAI) return res.status(500).json({ error: "Gemini API key not configured" });
+    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { prompt } = req.body;
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(prompt);
-      res.json({ text: result.response.text() });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      res.json({ text: response.text });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post("/api/ai/analyze-drawing", async (req, res) => {
-    if (!genAI) return res.status(500).json({ error: "Gemini API key not configured" });
+    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { base64Data, mimeType, prompt } = req.body;
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const imagePart = {
         inlineData: {
@@ -65,20 +69,25 @@ async function startServer() {
         },
       };
 
-      const result = await model.generateContent([imagePart, prompt]);
-      res.json({ text: result.response.text() });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: { parts: [imagePart, { text: prompt }] }
+      });
+      res.json({ text: response.text });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
   app.post("/api/ai/generate-pitch", async (req, res) => {
-    if (!genAI) return res.status(500).json({ error: "Gemini API key not configured" });
+    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { prompt } = req.body;
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(prompt);
-      res.json({ text: result.response.text() });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+      res.json({ text: response.text });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

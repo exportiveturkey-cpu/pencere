@@ -62,9 +62,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const handleGeneratePitch = async () => {
     setIsGeneratingPitch(true);
-    const pitch = await generateSalesPitch(project, project.units, lang);
-    onUpdateProject({ ...project, quoteText: pitch });
-    setIsGeneratingPitch(false);
+    try {
+      const pitch = await generateSalesPitch(project, project.units, lang);
+      if (!pitch) {
+        throw new Error(lang === 'tr' ? "Teklif metni oluşturulamadı. Lütfen API anahtarınızı kontrol edin." : "Could not generate pitch. Please check your API key.");
+      }
+      onUpdateProject({ ...project, quoteText: pitch });
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsGeneratingPitch(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,33 +82,38 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     setIsScanning(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
-      const detectedUnits = await analyzeDrawing(base64, file.type, lang);
-      
-      if (detectedUnits.length > 0) {
-        const newUnits: Unit[] = detectedUnits.map(d => ({
-          id: uuidv4(),
-          name: d.name || 'AI Poz',
-          width: Number(d.width) || 1000,
-          height: Number(d.height) || 1000,
-          system: systems[0].id,
-          color: 'RAL 7016',
-          glassType: 'double24',
-          glassThickness: 24,
-          quantity: 1,
-          rootNode: {
-            id: uuidv4(),
-            type: 'glass',
-            openingType: d.type || 'fixed'
-          }
-        }));
+      try {
+        const base64 = event.target?.result as string;
+        const detectedUnits = await analyzeDrawing(base64, file.type, lang);
         
-        onUpdateProject({
-          ...project,
-          units: [...project.units, ...newUnits]
-        });
+        if (detectedUnits.length > 0) {
+          const newUnits: Unit[] = detectedUnits.map(d => ({
+            id: uuidv4(),
+            name: d.name || 'AI Poz',
+            width: Number(d.width) || 1000,
+            height: Number(d.height) || 1000,
+            system: systems[0].id,
+            color: 'RAL 7016',
+            glassType: 'double24',
+            glassThickness: 24,
+            quantity: 1,
+            rootNode: {
+              id: uuidv4(),
+              type: 'glass',
+              openingType: d.type || 'fixed'
+            }
+          }));
+          
+          onUpdateProject({
+            ...project,
+            units: [...project.units, ...newUnits]
+          });
+        }
+      } catch (error: any) {
+        alert(lang === 'tr' ? "Çizim analizi başarısız oldu: " + error.message : "Drawing analysis failed: " + error.message);
+      } finally {
+        setIsScanning(false);
       }
-      setIsScanning(false);
     };
     reader.readAsDataURL(file);
   };

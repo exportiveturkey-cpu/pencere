@@ -8,16 +8,21 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-const genAI = apiKey ? new GoogleGenAI(apiKey) : null;
+const ai = apiKey ? new GoogleGenAI({ 
+  apiKey,
+  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+}) : null;
 
 // API Route: Analyze Structure
 app.post("/api/ai/analyze-structure", async (req, res) => {
-  if (!genAI) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
   try {
     const { prompt } = req.body;
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    res.json({ text: result.response.text() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt
+    });
+    res.json({ text: response.text });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -25,10 +30,9 @@ app.post("/api/ai/analyze-structure", async (req, res) => {
 
 // API Route: Analyze Drawing
 app.post("/api/ai/analyze-drawing", async (req, res) => {
-  if (!genAI) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
   try {
     const { base64Data, mimeType, prompt } = req.body;
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const imagePart = {
       inlineData: {
@@ -37,8 +41,11 @@ app.post("/api/ai/analyze-drawing", async (req, res) => {
       },
     };
 
-    const result = await model.generateContent([imagePart, prompt]);
-    res.json({ text: result.response.text() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts: [imagePart, { text: prompt }] }
+    });
+    res.json({ text: response.text });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -46,12 +53,14 @@ app.post("/api/ai/analyze-drawing", async (req, res) => {
 
 // API Route: Generate Pitch
 app.post("/api/ai/generate-pitch", async (req, res) => {
-  if (!genAI) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
   try {
     const { prompt } = req.body;
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    res.json({ text: result.response.text() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt
+    });
+    res.json({ text: response.text });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
