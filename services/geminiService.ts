@@ -75,8 +75,20 @@ export const analyzeDrawing = async (base64Data: string, mimeType: string, lang:
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || "Server error");
+      let errorMsg = "Server error";
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        if (response.status === 413) {
+          errorMsg = lang === 'tr'
+            ? "Dosya boyutu çok büyük (Maksimum 4.5MB). Lütfen daha küçük bir dosya yükleyin veya PDF yerine sıkıştırılmış bir görsel yükleyin."
+            : "File size too large (Vercel limit 4.5MB). Please upload a smaller file or a compressed image instead of a large PDF.";
+        } else {
+          errorMsg = `Server error (${response.status}): ${response.statusText}`;
+        }
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();

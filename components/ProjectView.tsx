@@ -26,6 +26,64 @@ interface ProjectViewProps {
   machines?: MachineConfig[];
 }
 
+const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          base64: e.target?.result as string,
+          type: file.type
+        });
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1600;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ base64: e.target?.result as string, type: file.type });
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress as jpeg with 0.8 quality to keep payload small
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+        resolve({
+          base64: compressedBase64,
+          type: 'image/jpeg'
+        });
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
 const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [] }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
   const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
@@ -79,43 +137,46 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/') && file.size > 4.5 * 1024 * 1024) {
+      alert(lang === 'tr'
+        ? "Yüklediğiniz PDF dosyası çok büyük (Sınır: 4.5MB). Lütfen daha küçük boyutlu bir PDF yükleyin veya çizimden ekran görüntüsü (PNG/JPG) alıp yükleyin."
+        : "The uploaded PDF file is too large (Limit: 4.5MB). Please upload a smaller PDF or capture a screenshot (PNG/JPG) of the drawing and upload it.");
+      return;
+    }
+
     setIsScanning(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const base64 = event.target?.result as string;
-        const detectedUnits = await analyzeDrawing(base64, file.type, lang);
-        
-        if (detectedUnits.length > 0) {
-          const newUnits: Unit[] = detectedUnits.map(d => ({
+    try {
+      const { base64, type } = await compressImageIfNeeded(file);
+      const detectedUnits = await analyzeDrawing(base64, type, lang);
+      
+      if (detectedUnits.length > 0) {
+        const newUnits: Unit[] = detectedUnits.map(d => ({
+          id: uuidv4(),
+          name: d.name || 'AI Poz',
+          width: Number(d.width) || 1000,
+          height: Number(d.height) || 1000,
+          system: systems[0].id,
+          color: 'RAL 7016',
+          glassType: 'double24',
+          glassThickness: 24,
+          quantity: 1,
+          rootNode: {
             id: uuidv4(),
-            name: d.name || 'AI Poz',
-            width: Number(d.width) || 1000,
-            height: Number(d.height) || 1000,
-            system: systems[0].id,
-            color: 'RAL 7016',
-            glassType: 'double24',
-            glassThickness: 24,
-            quantity: 1,
-            rootNode: {
-              id: uuidv4(),
-              type: 'glass',
-              openingType: d.type || 'fixed'
-            }
-          }));
-          
-          onUpdateProject({
-            ...project,
-            units: [...project.units, ...newUnits]
-          });
-        }
-      } catch (error: any) {
-        alert(lang === 'tr' ? "Çizim analizi başarısız oldu: " + error.message : "Drawing analysis failed: " + error.message);
-      } finally {
-        setIsScanning(false);
+            type: 'glass',
+            openingType: d.type || 'fixed'
+          }
+        }));
+        
+        onUpdateProject({
+          ...project,
+          units: [...project.units, ...newUnits]
+        });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error: any) {
+      alert(lang === 'tr' ? "Çizim analizi başarısız oldu: " + error.message : "Drawing analysis failed: " + error.message);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleExportCNC = () => {
