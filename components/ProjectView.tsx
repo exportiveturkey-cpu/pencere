@@ -517,15 +517,32 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                     
                                                     {/* Accessory Listing in Quotation */}
                                                     {stats.selectedAccs.length > 0 && (
-                                                        <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 max-w-sm">
-                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t(lang, 'accessories')}</div>
+                                                        <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 max-w-xl">
+                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
+                                                                <span>{t(lang, 'accessories')}</span>
+                                                                <span>{t(lang, 'price')}</span>
+                                                            </div>
                                                             <div className="grid grid-cols-1 gap-1.5">
                                                               {stats.selectedAccs.map((acc: any, aIdx: number) => (
-                                                                <div key={aIdx} className="text-xs text-slate-600 flex items-start gap-2">
-                                                                    <span className="font-bold shrink-0 min-w-[80px] text-slate-500">{t(lang, acc.type)}:</span>
-                                                                    <span className="text-slate-800 font-semibold">{acc.name}</span>
+                                                                <div key={aIdx} className="text-xs text-slate-600 flex items-center justify-between gap-4">
+                                                                    <div className="flex items-start gap-2">
+                                                                        <span className="font-bold shrink-0 min-w-[85px] text-slate-500">{t(lang, acc.type)}:</span>
+                                                                        <span className="text-slate-800 font-semibold">{acc.name}</span>
+                                                                    </div>
+                                                                    <div className="text-slate-500 font-mono text-[11px] whitespace-nowrap text-right">
+                                                                        <span>
+                                                                            {acc.qty.toFixed(1)} {acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce')} x ${acc.price.toLocaleString(undefined, { minimumFractionDigits: 2 })} = 
+                                                                        </span>
+                                                                        <span className="font-bold text-slate-900 ml-1">
+                                                                            ${(acc.price * acc.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
                                                               ))}
+                                                              <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 mt-1 text-[11px] text-slate-500 font-bold">
+                                                                  <span>{t(lang, 'accessoryCost')}</span>
+                                                                  <span className="text-slate-900">${stats.accCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                              </div>
                                                             </div>
                                                         </div>
                                                     )}
@@ -687,27 +704,41 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'accessoryName')}</th>
                                                 <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'type')}</th>
                                                 <th className="px-8 py-4 text-center font-black tracking-widest">{t(lang, 'totalQty')}</th>
+                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'unitPrice')}</th>
+                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'totalPrice')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700 print:divide-slate-200">
-                                            {accessorySummary.map((acc, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
-                                                    <td className="px-8 py-5">
-                                                        <div className="font-bold text-white text-base print:text-black">{acc.name}</div>
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        <span className="text-xs text-slate-500 uppercase font-black tracking-widest print:text-slate-400">{t(lang, acc.type as any)}</span>
-                                                    </td>
-                                                    <td className="px-8 py-5 text-center">
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="bg-emerald-500/10 text-emerald-400 px-4 py-1 rounded-full font-black text-lg print:bg-emerald-50 print:text-emerald-700">
-                                                                {acc.unit === 'pce' ? acc.quantity : acc.quantity.toFixed(1)}
-                                                            </span>
-                                                            <span className="text-[9px] text-slate-500 font-bold uppercase mt-1 print:text-slate-400">{t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')}</span>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {accessorySummary.map((acc, idx) => {
+                                                const match = accessories.find(a => a.id === acc.id);
+                                                const unitPrice = match?.price || 0;
+                                                const totalAccCost = unitPrice * acc.quantity;
+
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                                                        <td className="px-8 py-5">
+                                                            <div className="font-bold text-white text-base print:text-black">{acc.name}</div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className="text-xs text-slate-500 uppercase font-black tracking-widest print:text-slate-400">{t(lang, acc.type as any)}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-center">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="bg-emerald-500/10 text-emerald-400 px-4 py-1 rounded-full font-black text-lg print:bg-emerald-50 print:text-emerald-700">
+                                                                    {acc.unit === 'pce' ? acc.quantity : acc.quantity.toFixed(1)}
+                                                                </span>
+                                                                <span className="text-[9px] text-slate-500 font-bold uppercase mt-1 print:text-slate-400">{t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right font-mono font-bold text-slate-300 print:text-slate-700">
+                                                            ${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right font-mono font-black text-blue-400 print:text-blue-700">
+                                                            ${totalAccCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
