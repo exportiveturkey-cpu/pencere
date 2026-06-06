@@ -45,7 +45,33 @@
       @media print {
         @page {
           margin: 10mm;
-          size: A4;
+          size: A4 portrait;
+        }
+        html, body, #root, #root > div {
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          display: block !important;
+          position: relative !important;
+          width: 100% !important;
+          background: white !important;
+          color: black !important;
+        }
+        /* ensure the main scrolling elements do not lock scrolling/display */
+        .overflow-hidden, .overflow-y-auto {
+          overflow: visible !important;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+        .flex {
+          display: flex !important;
+        }
+        /* Reset root layout flex/height to block to allow natural page breaks */
+        .flex.h-full.bg-slate-950, 
+        .flex-1.flex.flex-col.h-full {
+          display: block !important;
+          height: auto !important;
+          background: white !important;
         }
         body {
           background-color: white !important;
@@ -63,8 +89,9 @@
         .print\:border-slate-200 {
           border-color: #e2e8f0 !important;
         }
-        .avoid-break {
-          page-break-inside: avoid;
+        .avoid-break, .print\:break-inside-avoid {
+          page-break-inside: avoid !important;
+          break-inside: avoid-page !important;
         }
       }
     </style>
