@@ -285,9 +285,19 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       totalWeight += stats.weight * (u.quantity || 1);
       subTotal += stats.cost * (u.quantity || 1);
     });
-    const vatAmount = project.isExport ? 0 : (subTotal * taxRate) / 100;
-    return { subTotal, vatAmount, grandTotal: subTotal + vatAmount, totalWeight };
-  }, [project.units, project.isExport, taxRate, systems, accessories]);
+    const discountAmount = (subTotal * (project.discountPercentage || 0)) / 100;
+    const discountedSubTotal = subTotal - discountAmount;
+    const vatAmount = project.isExport ? 0 : (discountedSubTotal * taxRate) / 100;
+    return { 
+      subTotal, 
+      discountPercentage: project.discountPercentage || 0,
+      discountAmount,
+      discountedSubTotal,
+      vatAmount, 
+      grandTotal: discountedSubTotal + vatAmount, 
+      totalWeight 
+    };
+  }, [project.units, project.isExport, project.discountPercentage, taxRate, systems, accessories]);
 
   return (
     <div className="flex h-full bg-slate-950 overflow-hidden">
@@ -664,7 +674,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                         {/* Summary */}
                         <div className="mt-12 flex flex-col md:flex-row justify-between items-end gap-10">
-                            <div className="flex-1 w-full max-w-sm print:hidden">
+                            <div className="flex-1 w-full max-w-sm flex flex-col gap-4 print:hidden">
                                 <label className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-all">
                                     <div className={`w-12 h-6 rounded-full relative transition-colors ${project.isExport ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${project.isExport ? 'left-7' : 'left-1'}`} />
@@ -680,22 +690,66 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         <span className="text-[10px] text-slate-500">{project.isExport ? t(lang, 'exportSale') : t(lang, 'domesticSale')}</span>
                                     </div>
                                 </label>
+
+                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col gap-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                                            {lang === 'tr' ? 'İSKONTO / İNDİRİM' : 'DISCOUNT'} (%)
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <input 
+                                            type="range"
+                                            min="0"
+                                            max="90"
+                                            step="1"
+                                            value={project.discountPercentage || 0}
+                                            onChange={e => onUpdateProject({...project, discountPercentage: Number(e.target.value)})}
+                                            className="flex-1 accent-blue-600 cursor-pointer"
+                                        />
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            max="95" 
+                                            value={project.discountPercentage || 0} 
+                                            onChange={e => {
+                                              let val = Number(e.target.value);
+                                              if (val < 0) val = 0;
+                                              if (val > 95) val = 95;
+                                              onUpdateProject({...project, discountPercentage: val});
+                                            }}
+                                            className="w-16 text-center text-sm font-bold bg-white border border-slate-300 rounded-xl p-1.5 text-slate-800 focus:border-blue-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="w-full md:w-80 space-y-3">
                                 <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
                                     <span>{t(lang, 'subTotal')}</span>
-                                    <span className="text-base text-slate-800 font-black">${projectTotalStats.subTotal.toLocaleString()}</span>
+                                    <span className="text-base text-slate-800 font-black">${projectTotalStats.subTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
+                                {projectTotalStats.discountPercentage > 0 && (
+                                    <>
+                                        <div className="flex justify-between items-center text-rose-500 font-bold uppercase tracking-widest text-[10px]">
+                                            <span>{lang === 'tr' ? `İSKONTO / İNDİRİM (%${projectTotalStats.discountPercentage})` : `DISCOUNT (${projectTotalStats.discountPercentage}%)`}</span>
+                                            <span className="text-base font-black">-${projectTotalStats.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px] pb-1 border-b border-dashed border-slate-300">
+                                            <span>{lang === 'tr' ? 'İNDİRİMLİ ARA TOPLAM' : 'DISCOUNTED SUB-TOTAL'}</span>
+                                            <span className="text-base text-slate-800 font-bold">${projectTotalStats.discountedSubTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        </div>
+                                    </>
+                                )}
                                 {!project.isExport && (
                                     <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
                                         <span>VAT ({taxRate}%)</span>
-                                        <span className="text-base text-slate-800 font-black">${projectTotalStats.vatAmount.toLocaleString()}</span>
+                                        <span className="text-base text-slate-800 font-black">${projectTotalStats.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 )}
                                 <div className="flex justify-between items-center pt-4 border-t-2 border-slate-900">
                                     <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">{t(lang, 'grandTotal')}</span>
-                                    <span className="text-3xl font-black text-slate-900">${projectTotalStats.grandTotal.toLocaleString()}</span>
+                                    <span className="text-3xl font-black text-slate-900">${projectTotalStats.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         </div>
@@ -978,6 +1032,23 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   <option value="Production">{t(lang, 'statusProd')}</option>
                   <option value="Completed">{t(lang, 'statusComp')}</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'İskonto Oranı (%)' : 'Discount Rate (%)'}</label>
+                <input 
+                  type="number"
+                  min="0"
+                  max="95"
+                  value={tempProject.discountPercentage || 0}
+                  onChange={e => {
+                    let val = Number(e.target.value);
+                    if (val < 0) val = 0;
+                    if (val > 95) val = 95;
+                    setTempProject({...tempProject, discountPercentage: val});
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" 
+                  placeholder={lang === 'tr' ? 'İskonto (%)' : 'Discount (%)'} 
+                />
               </div>
               <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
               <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">{lang === 'tr' ? 'İptal' : 'Cancel'}</button>

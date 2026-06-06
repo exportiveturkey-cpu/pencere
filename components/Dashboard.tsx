@@ -1,13 +1,16 @@
 
-import React, { useState } from 'react';
-import { Project, Language } from '../types';
-import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Project, Language, ProfileSystem, Accessory } from '../types';
+import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
+import { calculateProjectCost } from '../services/priceCalculator';
 
 interface DashboardProps {
   projects: Project[];
+  systems: ProfileSystem[];
+  accessories: Accessory[];
   lang: Language;
   setLang: (lang: Language) => void;
   onCreateProject: () => void;
@@ -20,6 +23,8 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   projects, 
+  systems,
+  accessories,
   lang, 
   setLang, 
   onCreateProject, 
@@ -36,6 +41,59 @@ const Dashboard: React.FC<DashboardProps> = ({
   const toggleLang = () => setLang(lang === 'en' ? 'tr' : 'en');
   const session = getSessionInfo();
   const displayName = forcedName || session.companyName;
+
+  const stats = useMemo(() => {
+    let totalCount = projects.length;
+    let totalValue = 0;
+    
+    let draftCount = 0;
+    let draftValue = 0;
+    
+    let productionCount = 0;
+    let productionValue = 0;
+    
+    let completedCount = 0;
+    let completedValue = 0;
+    
+    projects.forEach(project => {
+      const costReport = calculateProjectCost(project, systems || [], accessories || []);
+      const val = costReport.grandTotal;
+      totalValue += val;
+      
+      const st = project.status || 'Draft';
+      if (st === 'Draft') {
+        draftCount++;
+        draftValue += val;
+      } else if (st === 'Production') {
+        productionCount++;
+        productionValue += val;
+      } else if (st === 'Completed') {
+        completedCount++;
+        completedValue += val;
+      }
+    });
+    
+    const approvedCount = productionCount + completedCount;
+    const approvedValue = productionValue + completedValue;
+    
+    const conversionRateQty = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+    const conversionRateVal = totalValue > 0 ? Math.round((approvedValue / totalValue) * 100) : 0;
+    
+    return {
+      totalCount,
+      totalValue,
+      draftCount,
+      draftValue,
+      productionCount,
+      productionValue,
+      completedCount,
+      completedValue,
+      approvedCount,
+      approvedValue,
+      conversionRateQty,
+      conversionRateVal
+    };
+  }, [projects, systems, accessories]);
 
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -102,6 +160,136 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <Plus size={22} strokeWidth={3} /> {t(lang, 'newProject')}
             </button>
         </div>
+
+        {/* Statistics & KPI Analytics Panel */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Card 1: Total Projects Value */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 flex items-start gap-4 shadow-lg hover:border-slate-700/50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0 border border-blue-500/10">
+              <LayoutGrid size={20} />
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider block mb-1">
+                {lang === 'tr' ? 'TOPLAM PORTFÖY' : 'TOTAL PORTFOLIO'}
+              </span>
+              <span className="text-2xl font-black text-white block tracking-tight">
+                ${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-slate-400 text-xs font-semibold mt-1 block">
+                {lang === 'tr' ? `${stats.totalCount} Etkin Proje` : `${stats.totalCount} Active Projects`}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Draft / Quotes */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 flex items-start gap-4 shadow-lg hover:border-slate-700/50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0 border border-amber-500/10">
+              <FileText size={20} />
+            </div>
+            <div>
+              <span className="text-[10px] text-amber-500/70 font-extrabold uppercase tracking-wider block mb-1">
+                {lang === 'tr' ? 'TASLAK & TEKLİFLER' : 'DRAFTS & QUOTES'}
+              </span>
+              <span className="text-2xl font-black text-white block tracking-tight">
+                ${stats.draftValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-slate-400 text-xs font-semibold mt-1 block">
+                {lang === 'tr' ? `${stats.draftCount} Açık Teklif` : `${stats.draftCount} Open Quotes`}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: In Production */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 flex items-start gap-4 shadow-lg hover:border-slate-700/50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 border border-indigo-500/10">
+              <Cpu size={20} />
+            </div>
+            <div>
+              <span className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-wider block mb-1">
+                {lang === 'tr' ? 'AKTİF ÜRETİMDE' : 'IN PRODUCTION'}
+              </span>
+              <span className="text-2xl font-black text-white block tracking-tight">
+                ${stats.productionValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-slate-400 text-xs font-semibold mt-1 block">
+                {lang === 'tr' ? `${stats.productionCount} Fabrikada` : `${stats.productionCount} at Factory`}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Completed */}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 flex items-start gap-4 shadow-lg hover:border-slate-700/50 transition-colors">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0 border border-emerald-500/10">
+              <FileCheck size={20} />
+            </div>
+            <div>
+              <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider block mb-1">
+                {lang === 'tr' ? 'TAMAMLANANLAR' : 'COMPLETED'}
+              </span>
+              <span className="text-2xl font-black text-white block tracking-tight">
+                ${stats.completedValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-slate-400 text-xs font-semibold mt-1 block">
+                {lang === 'tr' ? `${stats.completedCount} Arşivlenen` : `${stats.completedCount} Archived`}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Conversion & Approval Analytics Progress Strip */}
+        {stats.totalCount > 0 && (
+          <div className="bg-slate-900/20 border border-white/5 rounded-2xl p-6 mb-12 flex flex-col md:flex-row shadow-inner items-center justify-between gap-8">
+            <div className="flex flex-col max-w-sm">
+              <span className="text-xs font-extrabold text-blue-400 tracking-wider uppercase mb-1 flex items-center gap-1.5">
+                <TrendingUp size={14} />
+                {lang === 'tr' ? 'ONAY VE DÖNÜŞÜM ANALİZİ' : 'CONVERSION & APPROVAL ANALYSIS'}
+              </span>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                {lang === 'tr' 
+                  ? 'Taslak halindeki projelerin onaylanıp üretime aktarılma oranlarını adet ve bütçe bazında gösterir.' 
+                  : 'Displays the proportion of draft estimations successfully approved and moved into active manufacturing.'}
+              </p>
+            </div>
+
+            <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Adet dönüşüm barı */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-400">{lang === 'tr' ? 'Onay Oranı (Proje Adeti)' : 'Approval Rate (by Project Count)'}</span>
+                  <span className="text-emerald-400">%{stats.conversionRateQty}</span>
+                </div>
+                <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500" 
+                    style={{ width: `${stats.conversionRateQty}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-slate-500 font-semibold flex justify-between">
+                  <span>{lang === 'tr' ? `${stats.approvedCount} Onaylı` : `${stats.approvedCount} Approved`}</span>
+                  <span>{lang === 'tr' ? `${stats.totalCount} Toplam` : `${stats.totalCount} Total`}</span>
+                </div>
+              </div>
+
+              {/* Tutar dönüşüm barı */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-slate-400">{lang === 'tr' ? 'Ciro Onay Oranı (Bütçe Bazlı)' : 'Approval Rate (by Financial Value)'}</span>
+                  <span className="text-emerald-400">%{stats.conversionRateVal}</span>
+                </div>
+                <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500" 
+                    style={{ width: `${stats.conversionRateVal}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-slate-500 font-semibold flex justify-between">
+                  <span>${stats.approvedValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} {lang === 'tr' ? 'Onaylı' : 'Approved'}<span></span></span>
+                  <span>${stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} {lang === 'tr' ? 'Toplam' : 'Total'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-8 flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">

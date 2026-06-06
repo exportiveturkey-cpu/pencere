@@ -312,6 +312,8 @@ const App: React.FC = () => {
       {view === 'DASHBOARD' && (
         <Dashboard 
           projects={projects}
+          systems={systems}
+          accessories={accessories}
           lang={lang}
           setLang={setLang}
           onCreateProject={handleCreateProject}

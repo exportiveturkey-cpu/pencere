@@ -10,6 +10,7 @@ export interface Project {
   units: Unit[];
   quoteText?: string;
   isExport?: boolean;
+  discountPercentage?: number;
 }
 
 export interface Accessory {
