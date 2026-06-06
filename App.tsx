@@ -14,6 +14,7 @@ import {
   getSessionInfo, 
   cloud_getProjects, 
   cloud_saveProject, 
+  cloud_deleteProject,
   cloud_getSystems,
   cloud_saveSystems,
   cloud_getAccessories,
@@ -121,6 +122,15 @@ const App: React.FC = () => {
     setIsSyncing(true);
     try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
     setIsSyncing(false);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (window.confirm(lang === 'tr' ? 'Bu projeyi tümüyle silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this project completely?')) {
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      setIsSyncing(true);
+      try { await cloud_deleteProject(session.key, projectId); } catch (e) {}
+      setIsSyncing(false);
+    }
   };
 
   const handleSaveUnit = async (unit: Unit) => {
@@ -307,6 +317,7 @@ const App: React.FC = () => {
           onCreateProject={handleCreateProject}
           onSelectProject={(id) => { setActiveProjectId(id); setView('PROJECT_VIEW'); }}
           onUpdateProject={handleUpdateProject}
+          onDeleteProject={handleDeleteProject}
           onOpenSettings={() => setView('SETTINGS')}
           forcedName={companyName} 
         />

@@ -58,6 +58,11 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
   await setDoc(docRef, project);
 };
 
+export const cloud_deleteProject = async (licenseKey: string, projectId: string) => {
+  const docRef = doc(db, "licenses", licenseKey, "projects", projectId);
+  await deleteDoc(docRef);
+};
+
 export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> => {
   const colRef = collection(db, "licenses", licenseKey, "projects");
   const snap = await getDocs(colRef);

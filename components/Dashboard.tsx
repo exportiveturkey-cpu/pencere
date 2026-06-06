@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Project, Language } from '../types';
-import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles } from 'lucide-react';
+import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2 } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
@@ -13,6 +13,7 @@ interface DashboardProps {
   onCreateProject: () => void;
   onSelectProject: (id: string) => void;
   onUpdateProject: (project: Project) => void;
+  onDeleteProject: (id: string) => void;
   onOpenSettings: () => void;
   forcedName?: string;
 }
@@ -24,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onCreateProject, 
   onSelectProject, 
   onUpdateProject,
+  onDeleteProject,
   onOpenSettings, 
   forcedName 
 }) => {
@@ -139,6 +141,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                           className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
                         >
                           <Edit2 size={14} /> {t(lang, 'edit')}
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onDeleteProject(project.id); setShowMenuId(null); }}
+                          className="w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 flex items-center gap-2 border-t border-slate-700/50"
+                        >
+                          <Trash2 size={14} /> {lang === 'tr' ? 'Sil' : 'Delete'}
                         </button>
                       </div>
                     )}
