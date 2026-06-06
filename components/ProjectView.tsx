@@ -431,7 +431,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
             {activeTab === 'quote' && (
                 <div className="animate-in slide-in-from-right-4 duration-300">
-                    <div className="bg-white text-black p-12 rounded-[2rem] shadow-2xl min-h-[1000px] flex flex-col border border-slate-200">
+                    <div className="bg-white text-black p-12 print:p-2 rounded-[2rem] print:rounded-none shadow-2xl print:shadow-none min-h-[1000px] print:min-h-0 flex flex-col border border-slate-200 print:border-none">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
                             <div>
@@ -478,12 +478,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <table className="w-full border-collapse mb-10">
                                 <thead>
                                     <tr className="border-b-2 border-slate-900 bg-slate-50">
-                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">POS</th>
-                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'technicalDrawing')}</th>
-                                        <th className="py-4 px-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'details')}</th>
-                                        <th className="py-4 px-2 text-center text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'quantity')}</th>
-                                        <th className="py-4 px-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'unitPrice')}</th>
-                                        <th className="py-4 px-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'totalPrice')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">POS</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'technicalDrawing')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'details')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-center text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'quantity')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'unitPrice')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500">{t(lang, 'totalPrice')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -492,10 +492,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         const sys = systems.find(s => s.id === unit.system);
 
                                         return (
-                                            <tr key={unit.id} className="border-b border-slate-100 group">
-                                                <td className="py-8 px-2 align-top font-black text-slate-400">#{(idx + 1).toString().padStart(2, '0')}</td>
-                                                <td className="py-8 px-2 align-top w-48">
-                                                    <div className="w-40 h-40 bg-slate-50 rounded-xl border border-slate-200 p-2 flex items-center justify-center">
+                                            <tr key={unit.id} className="border-b border-slate-100 group print:break-inside-avoid">
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400">#{(idx + 1).toString().padStart(2, '0')}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-48 print:w-32">
+                                                    <div className="w-40 h-40 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center">
                                                        <svg 
                                                          viewBox={`0 0 ${unit.width} ${unit.height}`} 
                                                          className="w-full h-full max-h-full max-w-full"
@@ -505,7 +505,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                        </svg>
                                                     </div>
                                                 </td>
-                                                <td className="py-8 px-2 align-top">
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
                                                     <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
                                                     <div className="space-y-1 mb-4">
@@ -542,14 +542,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                               <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 mt-1 text-[11px] text-slate-500 font-bold">
                                                                   <span>{t(lang, 'accessoryCost')}</span>
                                                                   <span className="text-slate-900">${stats.accCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                                              </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td className="py-8 px-2 align-top text-center font-black text-xl text-slate-800">{unit.quantity || 1}</td>
-                                                <td className="py-8 px-2 align-top text-right font-black text-lg text-slate-800">${stats.cost.toLocaleString()}</td>
-                                                <td className="py-8 px-2 align-top text-right font-black text-xl text-blue-600">${(stats.cost * (unit.quantity || 1)).toLocaleString()}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-center font-black text-xl print:text-sm text-slate-800">{unit.quantity || 1}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-lg print:text-sm text-slate-800">${stats.cost.toLocaleString()}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-xl print:text-sm text-blue-600">${(stats.cost * (unit.quantity || 1)).toLocaleString()}</td>
                                             </tr>
                                         );
                                     })}
