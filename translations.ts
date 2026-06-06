@@ -469,7 +469,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     fixed: "Sabit",
     turn: "Tek Açılım",
     tiltTurn: "Çift Açılım",
-    sliding: "Sürme",
+    sliding: "Sürgülü (Sürme)",
     turnLeft: "Sola Açılım",
     turnRight: "Sağa Açılım",
     tilt: "Vasistas",

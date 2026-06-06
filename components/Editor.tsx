@@ -58,13 +58,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
     const validateNodes = (node: WindowNode): WindowNode => {
       let updated = { ...node };
-      if (node.openingType && node.openingType !== 'fixed') {
-        if (system.type === 'sliding' && node.openingType !== 'sliding') {
-          updated.openingType = 'fixed';
-        } else if (system.type === 'hinged' && node.openingType === 'sliding') {
-          updated.openingType = 'fixed';
-        }
-      }
       if (node.children) {
         updated.children = node.children.map(validateNodes);
       }
@@ -368,17 +361,12 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t(lang, 'openingType')}</label>
                         <select value={selectedNode?.openingType || 'fixed'} onChange={e => handleSetOpening(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
                           <option value="fixed">{t(lang, 'fixed')}</option>
-                          {selectedSystem.type === 'hinged' ? (
-                            <>
-                              <option value="turn-left">{t(lang, 'turnLeft')}</option>
-                              <option value="turn-right">{t(lang, 'turnRight')}</option>
-                              <option value="tilt">{t(lang, 'tilt')}</option>
-                              <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
-                              <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
-                            </>
-                          ) : (
-                            <option value="sliding">{t(lang, 'sliding')}</option>
-                          )}
+                          <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                          <option value="turn-right">{t(lang, 'turnRight')}</option>
+                          <option value="tilt">{t(lang, 'tilt')}</option>
+                          <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                          <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                          <option value="sliding">{t(lang, 'sliding')}</option>
                         </select>
                       </div>
                     )}
