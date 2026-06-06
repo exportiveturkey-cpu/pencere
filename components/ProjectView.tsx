@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+// Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig } from '../types';
 import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown } from 'lucide-react';
 import { t } from '../translations';
