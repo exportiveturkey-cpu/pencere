@@ -345,6 +345,110 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         <div className="flex-1 p-8 space-y-12 max-w-7xl mx-auto w-full print:p-0 print:space-y-4 print:max-w-none">
             {activeTab === 'details' && (
                 <>
+                    {/* Visual Status Workflow Bar */}
+                    <div className="bg-slate-800/50 border border-slate-700/60 rounded-[1.5rem] p-6 print:hidden shadow-lg flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mb-1.5">
+                                {lang === 'tr' ? 'PROJE DURUM AKIŞI' : 'PROJECT FLOW STATUS'}
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                                    project.status === 'Draft' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' :
+                                    project.status === 'Production' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
+                                    'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                }`}>
+                                    {project.status === 'Draft' ? t(lang, 'statusDraft') :
+                                     project.status === 'Production' ? t(lang, 'statusProd') :
+                                     t(lang, 'statusComp')}
+                                </span>
+                                <span className="text-slate-400 text-sm font-semibold">
+                                    {project.status === 'Draft' ? (lang === 'tr' ? 'Tasarım ve fiyatlandırma aşamasında' : 'In design and pricing phase') :
+                                     project.status === 'Production' ? (lang === 'tr' ? 'Fabrikada aktif üretimde' : 'In active production at factory') :
+                                     (lang === 'tr' ? 'Proje başarıyla tamamlandı ve arşivlendi' : 'Project successfully completed and archived')}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Visual Step Tracker */}
+                        <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-lg justify-center">
+                            {/* Step 1: Draft */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                    project.status === 'Draft' ? 'bg-yellow-500 text-slate-950 shadow-md ring-4 ring-yellow-500/20' : 'bg-slate-700 text-slate-300'
+                                }`}>
+                                    1
+                                </div>
+                                <span className={`text-xs font-bold hidden sm:inline ${project.status === 'Draft' ? 'text-yellow-500' : 'text-slate-400'}`}>
+                                    {t(lang, 'statusDraft')}
+                                </span>
+                            </div>
+                            
+                            <div className={`h-1 flex-1 min-w-[20px] rounded ${project.status !== 'Draft' ? 'bg-indigo-500' : 'bg-slate-800'}`} />
+
+                            {/* Step 2: Production */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                    project.status === 'Production' ? 'bg-indigo-500 text-white shadow-md ring-4 ring-indigo-500/20' : 
+                                    project.status === 'Completed' ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-300'
+                                }`}>
+                                    2
+                                </div>
+                                <span className={`text-xs font-bold hidden sm:inline ${project.status === 'Production' ? 'text-indigo-400' : 'text-slate-400'}`}>
+                                    {t(lang, 'statusProd')}
+                                </span>
+                            </div>
+
+                            <div className={`h-1 flex-1 min-w-[20px] rounded ${project.status === 'Completed' ? 'bg-emerald-500' : 'bg-slate-800'}`} />
+
+                            {/* Step 3: Completed */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                    project.status === 'Completed' ? 'bg-emerald-500 text-slate-950 shadow-md ring-4 ring-emerald-500/20' : 'bg-slate-700 text-slate-300'
+                                }`}>
+                                    3
+                                </div>
+                                <span className={`text-xs font-bold hidden sm:inline ${project.status === 'Completed' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    {t(lang, 'statusComp')}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Quick state transitions */}
+                        <div className="flex gap-2 shrink-0">
+                            {project.status === 'Draft' && (
+                                <button
+                                    onClick={() => onUpdateProject({ ...project, status: 'Production' })}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    {t(lang, 'approveProduction') || 'Üretime Gönder'} &rarr;
+                                </button>
+                            )}
+                            {project.status === 'Production' && (
+                                <>
+                                    <button
+                                        onClick={() => onUpdateProject({ ...project, status: 'Draft' })}
+                                        className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded-xl text-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                    >
+                                        &larr; {lang === 'tr' ? 'Taslağa Çek' : 'Revert to Draft'}
+                                    </button>
+                                    <button
+                                        onClick={() => onUpdateProject({ ...project, status: 'Completed' })}
+                                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                    >
+                                        &check; {t(lang, 'complete') || 'Tamamla'}
+                                    </button>
+                                </>
+                            )}
+                            {project.status === 'Completed' && (
+                                <button
+                                    onClick={() => onUpdateProject({ ...project, status: 'Production' })}
+                                    className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded-xl text-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    &larr; {lang === 'tr' ? 'Tekrar Üretime Al' : 'Revert to Production'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] p-8 shadow-inner print:bg-white print:border-slate-200 print:rounded-none print:p-4 print:shadow-none">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'summary')}</h2>
@@ -853,12 +957,30 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       {isEditingInfo && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl">
-            <h2 className="text-lg font-bold text-white mb-6">Edit Project Info</h2>
+            <h2 className="text-lg font-bold text-white mb-6">{lang === 'tr' ? 'Proje Bilgilerini Düzenle' : "Edit Project Info"}</h2>
             <form onSubmit={handleUpdateInfo} className="space-y-4">
-              <input value={tempProject.name} onChange={e => setTempProject({...tempProject, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" placeholder="Project Name" />
-              <input value={tempProject.client} onChange={e => setTempProject({...tempProject, client: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none mt-2" placeholder="Client Name" />
-              <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">Save</button>
-              <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">Cancel</button>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Proje Adı' : 'Project Name'}</label>
+                <input value={tempProject.name} onChange={e => setTempProject({...tempProject, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" placeholder="Project Name" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Müşteri Adı' : 'Client Name'}</label>
+                <input value={tempProject.client} onChange={e => setTempProject({...tempProject, client: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" placeholder="Client Name" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Proje Durumu' : 'Project Status'}</label>
+                <select
+                  value={tempProject.status || 'Draft'}
+                  onChange={e => setTempProject({...tempProject, status: e.target.value as any})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none cursor-pointer"
+                >
+                  <option value="Draft">{t(lang, 'statusDraft')}</option>
+                  <option value="Production">{t(lang, 'statusProd')}</option>
+                  <option value="Completed">{t(lang, 'statusComp')}</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
+              <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">{lang === 'tr' ? 'İptal' : 'Cancel'}</button>
             </form>
           </div>
         </div>

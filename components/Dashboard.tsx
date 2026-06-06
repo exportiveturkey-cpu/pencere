@@ -201,8 +201,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                   required
                   value={editingProject.date}
                   onChange={e => setEditingProject({...editingProject, date: e.target.value})}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50 mb-3"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">{lang === 'tr' ? 'Proje Durumu' : 'Project Status'}</label>
+                <select
+                  value={editingProject.status || 'Draft'}
+                  onChange={e => setEditingProject({...editingProject, status: e.target.value as any})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50 cursor-pointer"
+                >
+                  <option value="Draft">{t(lang, 'statusDraft')}</option>
+                  <option value="Production">{t(lang, 'statusProd')}</option>
+                  <option value="Completed">{t(lang, 'statusComp')}</option>
+                </select>
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setEditingProject(null)} className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all">
