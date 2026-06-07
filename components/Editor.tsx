@@ -210,27 +210,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
 
-  const getNodeBounds = (node: WindowNode, currentW: number, currentH: number, targetId: string): { w: number, h: number } | null => {
-    if (node.id === targetId) return { w: currentW, h: currentH };
-    if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
-      const isVerticalSplit = node.direction === 'vertical';
-      const availableSpace = isVerticalSplit ? currentW - selectedSystem.frameWidth : currentH - selectedSystem.frameWidth;
-      const firstSize = availableSpace * node.splitRatio[0];
-      const secondSize = availableSpace * node.splitRatio[1];
-
-      const b1 = getNodeBounds(node.children[0], isVerticalSplit ? firstSize : currentW, isVerticalSplit ? currentH : firstSize, targetId);
-      if (b1) return b1;
-      const b2 = getNodeBounds(node.children[1], isVerticalSplit ? secondSize : currentW, isVerticalSplit ? currentH : secondSize, targetId);
-      if (b2) return b2;
-    }
-    return null;
-  };
-
-  const localBounds = selectedNodeId ? getNodeBounds(rootNode, width, height, selectedNodeId) : null;
   const isVerticalSplit = selectedNode?.direction === 'vertical';
-  const availableSpace = localBounds ? (isVerticalSplit ? localBounds.w - selectedSystem.frameWidth : localBounds.h - selectedSystem.frameWidth) : 0;
-  const size1 = localBounds ? Math.round((selectedNode?.splitRatio?.[0] || 0.5) * availableSpace) : 0;
-  const size2 = localBounds ? Math.round((selectedNode?.splitRatio?.[1] || 0.5) * availableSpace) : 0;
+  const totalDim = isVerticalSplit ? width : height;
+  const size1 = selectedNode ? Math.round((selectedNode.splitRatio?.[0] || 0.5) * totalDim) : 0;
+  const size2 = selectedNode ? Math.round((selectedNode.splitRatio?.[1] || 0.5) * totalDim) : 0;
 
   useEffect(() => {
     if (selectedNode?.type === 'container') {
@@ -240,13 +223,17 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   }, [selectedNodeId, size1, size2, selectedNode?.type]);
 
   const handleUpdateSplitSize = (index: number, val: number) => {
-    if (!selectedNodeId || !localBounds || availableSpace <= 0) return;
-    const clampedVal = Math.max(5, Math.min(availableSpace - 5, val));
+    if (!selectedNodeId || !selectedNode) return;
+    const isVertical = selectedNode.direction === 'vertical';
+    const totalDimVal = isVertical ? width : height;
+    if (totalDimVal <= 0) return;
+
+    const clampedVal = Math.max(10, Math.min(totalDimVal - 10, val));
     let ratio0 = 0.5;
     if (index === 0) {
-      ratio0 = clampedVal / availableSpace;
+      ratio0 = clampedVal / totalDimVal;
     } else {
-      ratio0 = 1 - (clampedVal / availableSpace);
+      ratio0 = 1 - (clampedVal / totalDimVal);
     }
     handleUpdateSplitRatio(ratio0);
   };
