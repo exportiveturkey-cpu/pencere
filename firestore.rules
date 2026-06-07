@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // LİSANSLAR SİSTEMİ (Licenses Collection)
+    match /licenses/{licenseKey} {
+      
+      // 1. Lisans Doğrulama (Okuma Güvenliği):
+      // - Kullanıcıların lisans anahtarını girmesini ve doğrulanmasını sağlamak için tekil okuma (get) hakkı verilir.
+      // - Dışarıdan veya kötü niyetli bir tarayıcıdan "tüm lisans anahtarlarını listeleme" (list) işlemi kesinlikle ENGELLEmiştir.
+      allow get: if true;
+      allow list, write: if false;
+
+      // 2. Projeler Alt Koleksiyonu (Projects Subcollection)
+      // - Sadece ve sadece girdiği lisans anahtarı (parent document) veritabanında gerçekten mevcutsa 
+      //   o lisansa ait projeleri okuyabilir, yazabilir, güncelleyebilir veya silebilir.
+      match /projects/{projectId} {
+        allow read, write: if exists(/databases/$(database)/documents/licenses/$(licenseKey));
+      }
+
+      // 3. Ayarlar Alt Koleksiyonu (Settings Subcollection - Profil Sistemleri, Aksesuarlar, Makineler vb.)
+      // - Sistem yapılandırmaları ve parametreleri de sadece geçerli bir lisans anahtarına bağlıysa okunup yazılabilir.
+      match /settings/{settingId} {
+        allow read, write: if exists(/databases/$(database)/documents/licenses/$(licenseKey));
+      }
+    }
+  }
+}

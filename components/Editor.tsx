@@ -34,6 +34,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   
   const [visualScale, setVisualScale] = useState(0.20);
   const [history, setHistory] = useState<WindowNode[]>([]);
+  const [inputVal1, setInputVal1] = useState<string>('');
+  const [inputVal2, setInputVal2] = useState<string>('');
 
   const [selectedHandle, setSelectedHandle] = useState(initialUnit?.selectedHandle || '');
   const [selectedHinge, setSelectedHinge] = useState(initialUnit?.selectedHinge || '');
@@ -207,6 +209,47 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   };
 
   const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
+
+  const getNodeBounds = (node: WindowNode, currentW: number, currentH: number, targetId: string): { w: number, h: number } | null => {
+    if (node.id === targetId) return { w: currentW, h: currentH };
+    if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
+      const isVerticalSplit = node.direction === 'vertical';
+      const availableSpace = isVerticalSplit ? currentW - selectedSystem.frameWidth : currentH - selectedSystem.frameWidth;
+      const firstSize = availableSpace * node.splitRatio[0];
+      const secondSize = availableSpace * node.splitRatio[1];
+
+      const b1 = getNodeBounds(node.children[0], isVerticalSplit ? firstSize : currentW, isVerticalSplit ? currentH : firstSize, targetId);
+      if (b1) return b1;
+      const b2 = getNodeBounds(node.children[1], isVerticalSplit ? secondSize : currentW, isVerticalSplit ? currentH : secondSize, targetId);
+      if (b2) return b2;
+    }
+    return null;
+  };
+
+  const localBounds = selectedNodeId ? getNodeBounds(rootNode, width, height, selectedNodeId) : null;
+  const isVerticalSplit = selectedNode?.direction === 'vertical';
+  const availableSpace = localBounds ? (isVerticalSplit ? localBounds.w - selectedSystem.frameWidth : localBounds.h - selectedSystem.frameWidth) : 0;
+  const size1 = localBounds ? Math.round((selectedNode?.splitRatio?.[0] || 0.5) * availableSpace) : 0;
+  const size2 = localBounds ? Math.round((selectedNode?.splitRatio?.[1] || 0.5) * availableSpace) : 0;
+
+  useEffect(() => {
+    if (selectedNode?.type === 'container') {
+      setInputVal1(String(size1));
+      setInputVal2(String(size2));
+    }
+  }, [selectedNodeId, size1, size2, selectedNode?.type]);
+
+  const handleUpdateSplitSize = (index: number, val: number) => {
+    if (!selectedNodeId || !localBounds || availableSpace <= 0) return;
+    const clampedVal = Math.max(5, Math.min(availableSpace - 5, val));
+    let ratio0 = 0.5;
+    if (index === 0) {
+      ratio0 = clampedVal / availableSpace;
+    } else {
+      ratio0 = 1 - (clampedVal / availableSpace);
+    }
+    handleUpdateSplitRatio(ratio0);
+  };
   const currentUnitFor3D: Unit = {
     id: 'temp',
     name, width, height, system: systemId,
@@ -334,16 +377,81 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                   <div className="space-y-4">
                     {selectedNode?.type === 'container' ? (
                       <div className="space-y-4 bg-slate-900/50 p-4 rounded-xl border border-white/5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Layout size={12} className="text-blue-400" />
-                          <span className="text-[10px] font-bold uppercase text-slate-400">{t(lang, 'splitSizes')}</span>
-                        </div>
-                        <div className="space-y-3">
-                          <input type="range" min="0.1" max="0.9" step="0.01" value={selectedNode.splitRatio?.[0] || 0.5} onChange={e => handleUpdateSplitRatio(Number(e.target.value))} className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                          <div className="flex justify-between font-mono text-[9px] text-blue-400">
-                            <span>{Math.round((selectedNode.splitRatio?.[0] || 0.5) * (selectedNode.direction === 'vertical' ? width : height))} mm</span>
-                            <span>{Math.round((selectedNode.splitRatio?.[1] || 0.5) * (selectedNode.direction === 'vertical' ? width : height))} mm</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Layout size={12} className="text-blue-400" />
+                            <span className="text-[10px] font-bold uppercase text-slate-400">{t(lang, 'splitSizes')}</span>
                           </div>
+                          <span className="text-[9px] text-slate-500 font-extrabold font-mono uppercase bg-slate-950 px-2 py-0.5 rounded border border-white/5">
+                            {selectedNode.direction === 'vertical' ? (lang === 'tr' ? 'Dikey Bölme' : 'Vertical Split') : (lang === 'tr' ? 'Yatay Bölme' : 'Horizontal Split')}
+                          </span>
+                        </div>
+                        
+                        {/* Manual Input Fields side by side */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                            <label className="block text-[9px] font-bold text-slate-500 mb-1 uppercase">
+                              {selectedNode.direction === 'vertical'
+                                ? (lang === 'tr' ? 'Sol Bölme (Y1)' : 'Left Width (W1)')
+                                : (lang === 'tr' ? 'Üst Bölme (H1)' : 'Top Height (H1)')}
+                            </label>
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <input 
+                                type="text" 
+                                value={inputVal1} 
+                                onChange={e => {
+                                  const val = e.target.value.replace(/[^\d]/g, '');
+                                  setInputVal1(val);
+                                  const num = parseInt(val, 10);
+                                  if (!isNaN(num) && num > 0) {
+                                    handleUpdateSplitSize(0, num);
+                                  }
+                                }} 
+                                className="bg-transparent text-white font-bold w-full outline-none text-xs focus:text-blue-400" 
+                              />
+                              <span className="text-[9px] text-slate-600 font-semibold uppercase">MM</span>
+                            </div>
+                          </div>
+                          <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                            <label className="block text-[9px] font-bold text-slate-500 mb-1 uppercase">
+                              {selectedNode.direction === 'vertical'
+                                ? (lang === 'tr' ? 'Sağ Bölme (Y2)' : 'Right Width (W2)')
+                                : (lang === 'tr' ? 'Alt Bölme (H2)' : 'Bottom Height (H2)')}
+                            </label>
+                            <div className="flex items-center gap-1.5 font-mono">
+                              <input 
+                                type="text" 
+                                value={inputVal2} 
+                                onChange={e => {
+                                  const val = e.target.value.replace(/[^\d]/g, '');
+                                  setInputVal2(val);
+                                  const num = parseInt(val, 10);
+                                  if (!isNaN(num) && num > 0) {
+                                    handleUpdateSplitSize(1, num);
+                                  }
+                                }} 
+                                className="bg-transparent text-white font-bold w-full outline-none text-xs focus:text-blue-400" 
+                              />
+                              <span className="text-[9px] text-slate-600 font-semibold uppercase">MM</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Visual Range Slider for sliding control */}
+                        <div className="space-y-2 pt-2 border-t border-white/5">
+                          <div className="flex items-center justify-between text-[9px] font-semibold text-slate-500">
+                            <span>{lang === 'tr' ? 'Sürgü ile ayarla' : 'Adjust with slider'}</span>
+                            <span className="text-blue-400 font-mono">%{Math.round((selectedNode.splitRatio?.[0] || 0.5) * 100)}</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="0.05" 
+max="0.95" 
+                            step="0.01" 
+                            value={selectedNode.splitRatio?.[0] || 0.5} 
+                            onChange={e => handleUpdateSplitRatio(Number(e.target.value))} 
+                            className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" 
+                          />
                         </div>
                       </div>
                     ) : (
