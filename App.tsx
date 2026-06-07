@@ -60,8 +60,24 @@ const App: React.FC = () => {
       const cloudAccessories = await cloud_getAccessories(session.key);
       const cloudMachines = await cloud_getMachines(session.key);
 
+      let finalSystems = cloudSystems;
+      if (cloudSystems) {
+        // Automatically migrate if old Default systems are present in the cloud list
+        const hasOldSystems = cloudSystems.some(s => s.id.startsWith('asas-') || s.id === 'kurt-l60' || s.id.startsWith('saray-') || s.id.startsWith('cuha-') || s.id.startsWith('akpa-'));
+        if (hasOldSystems) {
+          finalSystems = PROFILE_SYSTEMS;
+          try {
+            await cloud_saveSystems(session.key, PROFILE_SYSTEMS);
+          } catch (migrateErr) {
+            console.error("Could not write migrated systems to cloud:", migrateErr);
+          }
+        }
+      } else {
+        finalSystems = PROFILE_SYSTEMS;
+      }
+
       setProjects(cloudProjects.length > 0 ? cloudProjects : MOCK_PROJECTS);
-      setSystems(cloudSystems || PROFILE_SYSTEMS);
+      setSystems(finalSystems);
       setAccessories(cloudAccessories || MOCK_ACCESSORIES);
       setMachines(cloudMachines || []);
       setIsDataLoaded(true);
@@ -228,6 +244,22 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
+  const handleDeleteSystem = async (id: string) => {
+    const updated = systems.filter(s => s.id !== id);
+    setSystems(updated);
+    setIsSyncing(true);
+    try { await cloud_saveSystems(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
+  const handleDeleteAccessory = async (id: string) => {
+    const updated = accessories.filter(a => a.id !== id);
+    setAccessories(updated);
+    setIsSyncing(true);
+    try { await cloud_saveAccessories(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
   const handleExportData = () => {
     const data: AppData = { projects, systems, accessories, machines };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -333,8 +365,10 @@ const App: React.FC = () => {
           lang={lang}
           onAddSystem={handleAddSystem}
           onUpdateSystem={handleUpdateSystem}
+          onDeleteSystem={handleDeleteSystem}
           onAddAccessory={handleAddAccessory}
           onUpdateAccessory={handleUpdateAccessory}
+          onDeleteAccessory={handleDeleteAccessory}
           onAddMachine={handleAddMachine}
           onUpdateMachine={handleUpdateMachine}
           onDeleteMachine={handleDeleteMachine}

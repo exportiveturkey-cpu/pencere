@@ -14,8 +14,10 @@ interface SettingsProps {
   lang: Language;
   onAddSystem: (system: ProfileSystem) => void;
   onUpdateSystem: (system: ProfileSystem) => void;
+  onDeleteSystem?: (id: string) => void;
   onAddAccessory?: (acc: Accessory) => void;
   onUpdateAccessory?: (acc: Accessory) => void;
+  onDeleteAccessory?: (id: string) => void;
   onAddMachine?: (machine: MachineConfig) => void;
   onUpdateMachine?: (machine: MachineConfig) => void;
   onDeleteMachine?: (id: string) => void;
@@ -30,9 +32,11 @@ const Settings: React.FC<SettingsProps> = ({
     machines = [],
     lang, 
     onAddSystem, 
-    onUpdateSystem, 
+    onUpdateSystem,
+    onDeleteSystem,
     onAddAccessory,
     onUpdateAccessory,
+    onDeleteAccessory,
     onAddMachine,
     onUpdateMachine,
     onDeleteMachine,
@@ -302,7 +306,12 @@ const Settings: React.FC<SettingsProps> = ({
                                     {sys.profileCodes?.frame && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">{sys.profileCodes.frame}</span>}
                                 </div>
                             </div>
-                            <button onClick={() => { setEditingSysId(sys.id); setSysForm(sys); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors"><Edit2 size={18} /></button>
+                            <div className="flex gap-2">
+                                <button onClick={() => { setEditingSysId(sys.id); setSysForm(sys); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={18} /></button>
+                                {onDeleteSystem && (
+                                    <button onClick={() => { if (window.confirm(lang === 'tr' ? 'Bu sistemi silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this system?')) onDeleteSystem(sys.id); }} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={18} /></button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -369,7 +378,12 @@ const Settings: React.FC<SettingsProps> = ({
                                 <h3 className="font-bold text-white text-base">{acc.name}</h3>
                                 <p className="text-xs text-slate-500 uppercase font-black tracking-widest">{t(lang, acc.type as any)} • ${acc.price} / {t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')} {acc.maxWeightKg ? `• ${acc.maxWeightKg}kg` : ''}</p>
                             </div>
-                            <button onClick={() => { setEditingAccId(acc.id); setAccForm(acc); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white"><Edit2 size={16} /></button>
+                            <div className="flex gap-2">
+                                <button onClick={() => { setEditingAccId(acc.id); setAccForm(acc); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={16} /></button>
+                                {onDeleteAccessory && (
+                                    <button onClick={() => { if (window.confirm(lang === 'tr' ? 'Bu aksesuarı silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this accessory?')) onDeleteAccessory(acc.id); }} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={16} /></button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
