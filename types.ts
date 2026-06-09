@@ -120,9 +120,21 @@ export interface GlassType {
   pricePerSqm: number;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  status: 'active' | 'blocked';
+  notes?: string;
+  address?: string;
+}
+
 export interface AppData {
   projects: Project[];
   systems: ProfileSystem[];
   accessories: Accessory[];
   machines?: MachineConfig[];
+  customers?: Customer[];
 }

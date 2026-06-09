@@ -2,7 +2,7 @@
 // @ts-nocheck
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { Project, ProfileSystem, Accessory, MachineConfig } from "../types";
+import { Project, ProfileSystem, Accessory, MachineConfig, Customer } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAVmEk9hhNxdFm8CV3Zj7yJraH6KDVISLs",
@@ -98,6 +98,17 @@ export const cloud_saveMachines = async (licenseKey: string, machines: MachineCo
 
 export const cloud_getMachines = async (licenseKey: string): Promise<MachineConfig[] | null> => {
   const docRef = doc(db, "licenses", licenseKey, "settings", "machines");
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data().data : null;
+};
+
+export const cloud_saveCustomers = async (licenseKey: string, customers: Customer[]) => {
+  const docRef = doc(db, "licenses", licenseKey, "settings", "customers");
+  await setDoc(docRef, { data: customers });
+};
+
+export const cloud_getCustomers = async (licenseKey: string): Promise<Customer[] | null> => {
+  const docRef = doc(db, "licenses", licenseKey, "settings", "customers");
   const snap = await getDoc(docRef);
   return snap.exists() ? snap.data().data : null;
 };

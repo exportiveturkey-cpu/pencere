@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
-import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig } from '../types';
+import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
 import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
@@ -18,6 +18,7 @@ interface ProjectViewProps {
   project: Project;
   systems: ProfileSystem[];
   accessories?: Accessory[];
+  customers?: Customer[];
   lang: Language;
   onBack: () => void;
   onUpdateProject: (project: Project) => void;
@@ -85,8 +86,21 @@ const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: stri
   });
 };
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [] }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [] }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
+  const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
+    return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
+  });
+  
+  const handleToggleAppMode = () => {
+    const newMode = appMode === 'quoting' ? 'manufacturing' : 'quoting';
+    setAppMode(newMode);
+    localStorage.setItem('alucraft_app_mode', newMode);
+    if (newMode === 'quoting' && (activeTab === 'production' || activeTab === 'cnc')) {
+      setActiveTab('details');
+    }
+  };
+
   const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
@@ -110,6 +124,23 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const handleUpdateInfo = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if client is blocked
+    const selectedClient = tempProject.client.trim();
+    const blockedCustomer = customers.find(c => 
+      c.status === 'blocked' && 
+      (c.name.trim().toLowerCase() === selectedClient.toLowerCase() || 
+       (c.company && c.company.trim().toLowerCase() === selectedClient.toLowerCase()))
+    );
+    
+    if (blockedCustomer) {
+      alert(lang === 'tr' 
+        ? `⚠️ ENGELLENDİ: "${selectedClient}" isimli müşteri kara listededir (Teklif Engelli)!\nNot: ${blockedCustomer.notes || 'Belirtilmemiş'}\n\nBu müşteriye yeni teklif hazırlanamaz veya mevcut teklif güncellenemez!`
+        : `⚠️ BLOCKED: Client "${selectedClient}" is blacklisted (Quotes Blocked)!\nNote: ${blockedCustomer.notes || 'Unspecified'}\n\nYou cannot create or update quotes for this client!`
+      );
+      return;
+    }
+
     onUpdateProject(tempProject);
     setIsEditingInfo(false);
   };
@@ -321,19 +352,40 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             </div>
 
             <div className="flex items-center gap-4">
-                <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 mr-4">
+                <button
+                  onClick={handleToggleAppMode}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[11px] font-extrabold uppercase tracking-wider select-none ${
+                    appMode === 'quoting' 
+                      ? 'bg-slate-950/80 hover:bg-slate-950 border-white/5 text-blue-400 hover:text-blue-300' 
+                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                  }`}
+                  title={lang === 'tr' ? 'Çalışma Modunu Değiştir' : 'Toggle App Mode'}
+                >
+                  <Cpu size={14} className={appMode === 'manufacturing' ? 'text-emerald-400 animate-pulse' : 'text-blue-400'} />
+                  <span>
+                    {appMode === 'quoting' 
+                      ? (lang === 'tr' ? 'Hızlı Teklif' : 'Fast Quoting') 
+                      : (lang === 'tr' ? 'Üretim & CNC' : 'Production & CNC')}
+                  </span>
+                </button>
+
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5">
                     <button onClick={() => setActiveTab('details')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'details' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
                         {t(lang, 'detailsTab')}
                     </button>
                     <button onClick={() => setActiveTab('quote')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'quote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
                         {t(lang, 'quoteTab')}
                     </button>
-                    <button onClick={() => setActiveTab('production')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
-                        {t(lang, 'productionTab')}
-                    </button>
-                    <button onClick={() => setActiveTab('cnc')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'cnc' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
-                        {t(lang, 'cncSectionTab')}
-                    </button>
+                    {appMode === 'manufacturing' && (
+                      <>
+                        <button onClick={() => setActiveTab('production')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                            {t(lang, 'productionTab')}
+                        </button>
+                        <button onClick={() => setActiveTab('cnc')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'cnc' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                            {t(lang, 'cncSectionTab')}
+                        </button>
+                      </>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-2">

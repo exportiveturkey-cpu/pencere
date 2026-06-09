@@ -38,9 +38,31 @@ export const MOCK_ACCESSORIES: Accessory[] = [
 ];
 
 export const GLASS_TYPES: GlassType[] = [
-  { id: 'double24', name: '4+16+4 Low-E Double', uValue: 1.1, thickness: 24, pricePerSqm: 65 },
-  { id: 'triple36', name: '4+12+4+12+4 Triple', uValue: 0.6, thickness: 36, pricePerSqm: 110 },
-  { id: 'lam', name: '6.4mm Laminated Safety', uValue: 5.6, thickness: 6, pricePerSqm: 55 },
+  // --- SINGLE GLAZING (TEK CAMLAR) ---
+  { id: 'single4', name: '4mm Float Cam (Single)', uValue: 5.8, thickness: 4, pricePerSqm: 30 },
+  { id: 'single6', name: '6mm Float Cam (Single)', uValue: 5.7, thickness: 6, pricePerSqm: 40 },
+  { id: 'single8', name: '8mm Temperli Cam (Single)', uValue: 5.6, thickness: 8, pricePerSqm: 50 },
+  { id: 'single10', name: '10mm Temperli Cam (Single)', uValue: 5.5, thickness: 10, pricePerSqm: 65 },
+  { id: 'lam44', name: '4+4 Lamine Emniyet Camı (8.8mm)', uValue: 5.6, thickness: 8, pricePerSqm: 55 },
+  { id: 'lam55', name: '5+5 Lamine Emniyet Camı (10.10mm)', uValue: 5.5, thickness: 10, pricePerSqm: 65 },
+  { id: 'lam66', name: '6+6 Lamine Emniyet Camı (12.12mm)', uValue: 5.4, thickness: 12, pricePerSqm: 75 },
+
+  // --- DOUBLE GLAZING (ÇİFT CAMLAR) ---
+  { id: 'double20', name: '4+12+4 Isıcam Sinerji (20mm)', uValue: 1.3, thickness: 20, pricePerSqm: 60 },
+  { id: 'double24', name: '4+16+4 Isıcam Konfor (24mm)', uValue: 1.1, thickness: 24, pricePerSqm: 65 },
+  { id: 'double24_6', name: '6+12+6 Isıcam Sinerji (24mm)', uValue: 1.2, thickness: 24, pricePerSqm: 75 },
+  { id: 'double26_lam', name: '6+16+4 Lamine Çift Cam (26mm)', uValue: 1.2, thickness: 26, pricePerSqm: 85 },
+  { id: 'double28', name: '4+20+4 Isıcam Konfor (28mm)', uValue: 1.1, thickness: 28, pricePerSqm: 70 },
+  { id: 'double28_lam', name: '6+16+6 Lamine Çift Cam (28mm)', uValue: 1.1, thickness: 28, pricePerSqm: 95 },
+  { id: 'double30', name: '4+22+4 Ekstra Geniş (30mm)', uValue: 1.1, thickness: 30, pricePerSqm: 75 },
+  { id: 'double32', name: '4+24+4 Ekstra Geniş (32mm)', uValue: 1.0, thickness: 32, pricePerSqm: 80 },
+
+  // --- TRIPLE GLAZING (ÜÇLÜ CAMLAR) ---
+  { id: 'triple36', name: '4+12+4+12+4 Isıcam Üçlü K (36mm)', uValue: 0.7, thickness: 36, pricePerSqm: 110 },
+  { id: 'triple40', name: '4+14+4+14+4 Isıcam Üçlü K (40mm)', uValue: 0.65, thickness: 40, pricePerSqm: 120 },
+  { id: 'triple44', name: '4+16+4+16+4 Isıcam Üçlü K (44mm)', uValue: 0.6, thickness: 44, pricePerSqm: 130 },
+  { id: 'triple44_heavy', name: '6+14+4+14+6 Akustik Üçlü (44mm)', uValue: 0.6, thickness: 44, pricePerSqm: 150 },
+  { id: 'triple48', name: '4+18+4+18+4 Isıcam Üçlü K (48mm)', uValue: 0.55, thickness: 48, pricePerSqm: 140 },
 ];
 
 export const MOCK_PROJECTS: Project[] = [

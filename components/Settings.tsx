@@ -44,7 +44,10 @@ const Settings: React.FC<SettingsProps> = ({
     onExportData,
     onImportData
 }) => {
-  const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'cnc' | 'data' | 'general' | 'subscription'>('systems');
+  const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'cnc' | 'data' | 'general' | 'subscription' | any>('general');
+  const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
+    return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
+  });
   const session = getSessionInfo();
 
   const [currency, setCurrency] = useState(localStorage.getItem('alucraft_currency') || 'USD');
@@ -211,7 +214,7 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
 
         <div className="flex gap-4 mb-8 border-b border-white/5 pb-1 overflow-x-auto custom-scrollbar">
-            {['general', 'subscription', 'systems', 'accessories', 'cnc', 'data'].map(tab => (
+            {['general', 'subscription', 'systems', 'accessories', appMode === 'manufacturing' ? 'cnc' : null, 'data'].filter((t): t is string => t !== null).map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)} 
@@ -504,6 +507,29 @@ const Settings: React.FC<SettingsProps> = ({
         {activeTab === 'general' && (
             <div className="max-w-xl animate-in fade-in">
                 <div className="bg-slate-900 border border-white/5 p-8 rounded-2xl space-y-6">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">
+                            {lang === 'tr' ? 'Uygulama Çalışma Modu' : 'App Workflow Mode'}
+                        </label>
+                        <select 
+                            value={appMode} 
+                            onChange={e => {
+                                const val = e.target.value as 'quoting' | 'manufacturing';
+                                setAppMode(val);
+                                localStorage.setItem('alucraft_app_mode', val);
+                            }} 
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none font-bold text-xs"
+                        >
+                            <option value="quoting">{lang === 'tr' ? 'Hızlı Teklif & Satış Odaklı Mod (Önerilen)' : 'Fast Quoting & Sales Mode (Recommended)'}</option>
+                            <option value="manufacturing">{lang === 'tr' ? 'Gelişmiş Üretim & CNC Modülü' : 'Advanced Production & CNC Mode'}</option>
+                        </select>
+                        <p className="text-[10px] text-slate-500 mt-1.5 font-semibold leading-relaxed">
+                            {lang === 'tr' 
+                              ? 'Teklif modunda karmaşık üretim kesim listeleri ve CNC ayarları gizlenerek sade, hızlı bir teklif arayüzü sunulur.' 
+                              : 'In quoting mode, complex cutting lists and CNC settings are hidden for a streamlined presentation.'}
+                        </p>
+                    </div>
+
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{t(lang, 'currency')}</label>
                         <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none">

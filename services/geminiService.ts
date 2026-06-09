@@ -58,14 +58,19 @@ export const analyzeStructure = async (unit: Unit, system: ProfileSystem, lang: 
 export const analyzeDrawing = async (base64Data: string, mimeType: string, lang: Language): Promise<any[]> => {
   try {
     const prompt = `
-      Analyze this technical drawing/architectural plan (image or PDF). Extract all window and door units.
-      For each unit identified, provide:
-      - name: (e.g., W-01, D-02)
-      - width: (in mm, only number)
-      - height: (in mm, only number)
-      - type: (fixed, turn-left, turn-right, tilt, tilt-turn-left, tilt-turn-right, or sliding)
+      Perform an expert engineering extraction on this technical plan, joinery list, elevation or schedule.
+      Detect all window (pencere) and door (kapı) units. Follow these rules for maximum accuracy:
+      1. LOCATE NAME/LABEL: Scan for round/square tags or text labels nearby such as W-01, Poz-1, Poz-2, D-01, Door-2, K-1, P-1.
+      2. DETECT DIMENSIONS (WIDTH & HEIGHT):
+         - Find dimension markers or numbers (e.g. "90/220", "150 x 150", "1500x1600").
+         - Format is always Width x Height. Horizontal is width, vertical is height.
+         - CONVERT TO MILLIMETERS (mm): If numbers are in centimeters (like 90, 150, 220) or meters (like 1.5, 2.2), scale them to millimeters (e.g., convert 150 to 1500, 220 to 2200).
+      3. DETERMINE OPENING TYPE:
+         - Triangle drawing corner vertices/hinges -> 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', or 'tilt-turn-right'.
+         - Horizontal arrows -> 'sliding'.
+         - Empty/no icons inside panel -> 'fixed'.
 
-      Return ONLY a JSON array of objects. Example: [{"name": "W-01", "width": 1200, "height": 1500, "type": "tilt-turn-left"}]
+      Return a clean list of extracted items matching the required JSON schema.
     `;
 
     const response = await fetch("/api/ai/analyze-drawing", {

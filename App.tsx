@@ -5,7 +5,7 @@ import Editor from './components/Editor';
 import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
 import Login from './components/Login';
-import { Project, Unit, ProfileSystem, Language, Accessory, MachineConfig, AppData } from './types';
+import { Project, Unit, ProfileSystem, Language, Accessory, MachineConfig, AppData, Customer } from './types';
 import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from './translations';
@@ -20,7 +20,9 @@ import {
   cloud_getAccessories,
   cloud_saveAccessories,
   cloud_getMachines,
-  cloud_saveMachines
+  cloud_saveMachines,
+  cloud_getCustomers,
+  cloud_saveCustomers
 } from './services/authService';
 import { Cloud, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
 
@@ -40,6 +42,7 @@ const App: React.FC = () => {
   const [systems, setSystems] = useState<ProfileSystem[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
   const [machines, setMachines] = useState<MachineConfig[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   
   const [companyName, setCompanyName] = useState<string>(() => sessionStorage.getItem('alumetric_company') || 'Unknown');
 
@@ -59,6 +62,7 @@ const App: React.FC = () => {
       const cloudSystems = await cloud_getSystems(session.key);
       const cloudAccessories = await cloud_getAccessories(session.key);
       const cloudMachines = await cloud_getMachines(session.key);
+      const cloudCustomers = await cloud_getCustomers(session.key);
 
       let finalSystems = cloudSystems;
       if (cloudSystems) {
@@ -80,6 +84,7 @@ const App: React.FC = () => {
       setSystems(finalSystems);
       setAccessories(cloudAccessories || MOCK_ACCESSORIES);
       setMachines(cloudMachines || []);
+      setCustomers(cloudCustomers || []);
       setIsDataLoaded(true);
     } catch (e: any) {
       console.error("Bulut veri yükleme hatası:", e);
@@ -90,6 +95,7 @@ const App: React.FC = () => {
       setSystems(PROFILE_SYSTEMS);
       setAccessories(MOCK_ACCESSORIES);
       setMachines([]);
+      setCustomers([]);
       setIsDataLoaded(true);
     } finally {
       setIsSyncing(false);
@@ -260,8 +266,32 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
+  const handleAddCustomer = async (cust: Customer) => {
+    const updated = [...customers, cust];
+    setCustomers(updated);
+    setIsSyncing(true);
+    try { await cloud_saveCustomers(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
+  const handleUpdateCustomer = async (updatedCust: Customer) => {
+    const updated = customers.map(c => c.id === updatedCust.id ? updatedCust : c);
+    setCustomers(updated);
+    setIsSyncing(true);
+    try { await cloud_saveCustomers(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    const updated = customers.filter(c => c.id !== id);
+    setCustomers(updated);
+    setIsSyncing(true);
+    try { await cloud_saveCustomers(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
   const handleExportData = () => {
-    const data: AppData = { projects, systems, accessories, machines };
+    const data: AppData = { projects, systems, accessories, machines, customers };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -278,11 +308,13 @@ const App: React.FC = () => {
         if (data.systems) setSystems(data.systems);
         if (data.accessories) setAccessories(data.accessories);
         if (data.machines) setMachines(data.machines);
+        if (data.customers) setCustomers(data.customers);
 
         // Buluta kaydet
         if (data.systems) await cloud_saveSystems(session.key, data.systems);
         if (data.accessories) await cloud_saveAccessories(session.key, data.accessories);
         if (data.machines) await cloud_saveMachines(session.key, data.machines);
+        if (data.customers) await cloud_saveCustomers(session.key, data.customers);
         for (const p of (data.projects || [])) {
             await cloud_saveProject(session.key, p);
         }
@@ -346,6 +378,10 @@ const App: React.FC = () => {
           projects={projects}
           systems={systems}
           accessories={accessories}
+          customers={customers}
+          onAddCustomer={handleAddCustomer}
+          onUpdateCustomer={handleUpdateCustomer}
+          onDeleteCustomer={handleDeleteCustomer}
           lang={lang}
           setLang={setLang}
           onCreateProject={handleCreateProject}
@@ -384,6 +420,7 @@ const App: React.FC = () => {
           systems={systems}
           accessories={accessories}
           machines={machines}
+          customers={customers}
           lang={lang}
           onBack={() => setView('DASHBOARD')}
           onUpdateProject={handleUpdateProject}
