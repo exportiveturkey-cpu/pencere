@@ -66,6 +66,13 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
       roughness: 0.1,
     });
 
+    const thresholdMaterial = new THREE.MeshStandardMaterial({
+      color: 0xeab308, // Bright architectural amber/gold
+      metalness: 0.95,
+      roughness: 0.1,
+      emissive: 0x78350f, // Rich amber/bronze warm glow
+    });
+
     const glassMaterial = new THREE.MeshStandardMaterial({
       color: 0xbae6fd, 
       transparent: true,
@@ -96,11 +103,12 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
     const centerX = unit.width / 2;
     const centerY = unit.height / 2;
 
-    const createProfile = (w: number, h: number, d: number, x: number, y: number, z: number, isSash = false) => {
+    const createProfile = (w: number, h: number, d: number, x: number, y: number, z: number, isSash = false, isThresholdProfile = false) => {
       const pGroup = new THREE.Group();
       
+      const currentMat = isThresholdProfile ? thresholdMaterial : aluminumMaterial;
       const bodyGeo = new THREE.BoxGeometry(w, h, d);
-      const body = new THREE.Mesh(bodyGeo, aluminumMaterial);
+      const body = new THREE.Mesh(bodyGeo, currentMat);
       body.castShadow = true;
       body.receiveShadow = true;
       pGroup.add(body);
@@ -109,7 +117,7 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
       const stepW = isSash ? w - 10 : w - 20; 
       const stepH = isSash ? h - 10 : h - 20;
       const stepGeo = new THREE.BoxGeometry(stepW, stepH, stepD);
-      const step = new THREE.Mesh(stepGeo, aluminumMaterial);
+      const step = new THREE.Mesh(stepGeo, currentMat);
       step.position.z = d/2 + stepD/2 - 2; 
       pGroup.add(step);
 
@@ -200,10 +208,11 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
         buildModel(node.children[1], isVert ? xOffset + s1 + frameW : xOffset, isVert ? yOffset : yOffset + s1 + frameW, isVert ? s2 : w, isVert ? h : s2);
       } else {
         const isOpening = node.openingType && node.openingType !== 'fixed';
+        const currentBottomFw = (unit.hasThreshold && yOffset + h >= unit.height - 1) ? bottomFw : frameW;
         const daylightX = xOffset + frameW;
         const daylightY = yOffset + frameW;
         const daylightW = Math.max(0, w - 2 * frameW);
-        const daylightH = Math.max(0, h - 2 * frameW);
+        const daylightH = Math.max(0, h - frameW - currentBottomFw);
 
         if (isOpening) {
           const sashW = 65;
@@ -256,10 +265,23 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
 
     const frameW = system.frameWidth;
     const profileDepth = 65; 
+    const bottomFw = unit.hasThreshold ? 15 : frameW;
+
+    // Top profile
     group.add(createProfile(unit.width, frameW, profileDepth, 0, centerY - frameW/2, 0));
-    group.add(createProfile(unit.width, frameW, profileDepth, 0, -(centerY - frameW/2), 0));
-    group.add(createProfile(frameW, unit.height, profileDepth, -(centerX - frameW/2), 0, 0));
-    group.add(createProfile(frameW, unit.height, profileDepth, (centerX - frameW/2), 0, 0));
+
+    // Bottom profile (Standard or Threshold)
+    if (unit.hasThreshold) {
+      group.add(createProfile(unit.width, bottomFw, profileDepth, 0, -(centerY - bottomFw/2), 0, false, true));
+    } else {
+      group.add(createProfile(unit.width, frameW, profileDepth, 0, -(centerY - frameW/2), 0));
+    }
+
+    // Left & Right profiles sitting perfectly on bottom line
+    const lrHeight = unit.hasThreshold ? unit.height - bottomFw : unit.height;
+    const lrY = unit.hasThreshold ? (bottomFw / 2) : 0;
+    group.add(createProfile(frameW, lrHeight, profileDepth, -(centerX - frameW/2), lrY, 0));
+    group.add(createProfile(frameW, lrHeight, profileDepth, (centerX - frameW/2), lrY, 0));
 
     buildModel(unit.rootNode, 0, 0, unit.width, unit.height);
     scene.add(group);

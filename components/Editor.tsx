@@ -29,6 +29,11 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hasThreshold, setHasThreshold] = useState<boolean>(initialUnit?.hasThreshold || false);
+  const [includeGlass, setIncludeGlass] = useState<boolean>(initialUnit?.includeGlass !== false);
+  const [customGlassPriceInput, setCustomGlassPriceInput] = useState<string>(
+    initialUnit?.customGlassPrice !== undefined ? initialUnit.customGlassPrice.toString() : ''
+  );
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [showSection, setShowSection] = useState(false);
   
@@ -170,11 +175,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   const handleSave = () => {
     const glassObj = GLASS_TYPES.find(g => g.id === glassTypeId) || GLASS_TYPES[0];
+    const customPriceNum = customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined;
     onSave({
       id: initialUnit?.id || uuidv4(),
       name, width, height, system: systemId,
       color: 'RAL 7016', glassType: glassTypeId, glassThickness: glassObj.thickness,
       rootNode, quantity: Math.max(1, quantity), shape, archHeight,
+      hasThreshold,
+      includeGlass,
+      customGlassPrice: customPriceNum,
       selectedHandle, selectedHinge, selectedGasket, selectedLock, 
       selectedCorner, selectedAutomation, selectedKickplate, 
       selectedDoorCloser, selectedLockStriker, selectedOther
@@ -240,8 +249,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const currentUnitFor3D: Unit = {
     id: 'temp',
     name, width, height, system: systemId,
-    color: 'RAL 7016', glassType: 'double24', glassThickness: 24,
-    rootNode, quantity, shape, archHeight
+    color: 'RAL 7016', glassType: glassTypeId, glassThickness: 24,
+    rootNode, quantity, shape, archHeight, hasThreshold, includeGlass,
+    customGlassPrice: customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined
   };
 
   // Check if any part is openable for section view
@@ -330,6 +340,49 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                           {GLASS_TYPES.map(g => <option key={g.id} value={g.id}>{g.name} ({g.thickness}mm)</option>)}
                         </select>
                     </div>
+
+                    {/* Dynamic Glass Price and Inclusion Options */}
+                    <div className="p-3 bg-slate-950/70 border border-white/5 rounded-xl space-y-3 transition-colors">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={includeGlass} 
+                          onChange={e => setIncludeGlass(e.target.checked)} 
+                          className="rounded border-slate-800 bg-slate-950 text-blue-650 focus:ring-0 w-4 h-4 outline-none cursor-pointer"
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-xs text-slate-100">
+                            {lang === 'tr' ? 'Cam Dahil' : 'Include Glass'}
+                          </span>
+                          <span className="text-[9px] text-slate-500 font-medium leading-tight">
+                            {lang === 'tr' ? 'Cam fiyatını maliyet ve fiyat teklifine dahil eder' : 'Includes glass pricing in cost and quotation calculations'}
+                          </span>
+                        </div>
+                      </label>
+
+                      {includeGlass && (
+                        <div className="pt-2 border-t border-white/5 space-y-1.5 animate-in fade-in slide-in-from-top-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block">
+                            {lang === 'tr' ? 'Özel Cam m² Fiyatı (TL)' : 'Custom Glass Price per m² ($)'} 
+                            <span className="text-[9px] text-blue-400 normal-case ml-1 font-medium">
+                              ({lang === 'tr' ? 'Boş ise katalog fiyatı' : 'Leave empty for default catalog'})
+                            </span>
+                          </label>
+                          <input 
+                            type="number" 
+                            value={customGlassPriceInput} 
+                            placeholder={(() => {
+                              const selectedGlassObj = GLASS_TYPES.find(g => g.id === glassTypeId);
+                              return selectedGlassObj ? `${selectedGlassObj.pricePerSqm} TL` : '65';
+                            })()}
+                            onChange={e => setCustomGlassPriceInput(e.target.value)} 
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-blue-500/50"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'profileSystem')}</label>
                         <div className="flex gap-2">
@@ -340,10 +393,27 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 onClick={() => setShowSection(true)}
                                 className="p-2.5 bg-slate-800 hover:bg-blue-600/20 border border-white/5 rounded-xl text-blue-400 transition-all"
                                 title={t(lang, 'sectionDetail')}
-                            >
+                             >
                                 <Layers size={16} />
                             </button>
                         </div>
+                    </div>
+                    
+                    <div className="pt-1.5">
+                        <label className="flex items-center gap-2.5 cursor-pointer bg-slate-950 hover:bg-slate-900 border border-white/5 rounded-xl p-3 text-xs text-white select-none transition-all">
+                            <input 
+                              type="checkbox" 
+                              checked={hasThreshold} 
+                              onChange={e => setHasThreshold(e.target.checked)} 
+                              className="rounded border-slate-800 bg-slate-950 text-blue-650 focus:ring-0 w-4 h-4 outline-none cursor-pointer"
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-bold">{lang === 'tr' ? 'Alüminyum Eşik' : 'Aluminum Threshold'}</span>
+                              <span className="text-[10px] text-slate-500 font-medium leading-tight">
+                                {lang === 'tr' ? 'Kasa yerine alt kısma mini eşik profili uygulanır' : 'Low profile bottom threshold instead of standard frame'}
+                              </span>
+                            </div>
+                        </label>
                     </div>
                 </div>
             </section>
@@ -525,6 +595,8 @@ max="0.95"
                             selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId}
                             shape={shape} archHeight={archHeight}
                             theme="light"
+                            hasThreshold={hasThreshold}
+                            lang={lang}
                         />
                     </svg>
                   </div>

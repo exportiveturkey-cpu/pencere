@@ -41,7 +41,12 @@ export const calculateProjectCost = (
     const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
     const profileCost = perimeterM * (system.pricePerMeter || 85);
-    const glassCost = totalAreaM2 * (glassObj?.pricePerSqm || 65);
+    
+    let glassCost = 0;
+    if (unit.includeGlass !== false) {
+      const gPrice = unit.customGlassPrice !== undefined ? unit.customGlassPrice : (glassObj?.pricePerSqm || 65);
+      glassCost = totalAreaM2 * gPrice;
+    }
     
     let accCost = 0;
     const accIds = [

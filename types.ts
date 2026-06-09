@@ -38,6 +38,9 @@ export interface Unit {
   glassThickness: number;
   rootNode: WindowNode;
   quantity: number;
+  hasThreshold?: boolean;
+  includeGlass?: boolean;
+  customGlassPrice?: number;
   selectedHandle?: string;
   selectedGasket?: string;
   selectedHinge?: string;

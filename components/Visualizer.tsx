@@ -14,15 +14,18 @@ interface VisualizerProps {
   theme?: 'dark' | 'light';
   shape?: UnitShape;
   archHeight?: number;
+  hasThreshold?: boolean;
+  lang?: string;
 }
 
 const Visualizer: React.FC<VisualizerProps> = ({ 
-  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400
+  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr'
 }) => {
   const isSelected = node.id === selectedNodeId;
   const isRoot = x === 0 && y === 0;
   
   const frameWidth = system.frameWidth;
+  const bottomFw = (isRoot && hasThreshold) ? Math.min(15, frameWidth) : frameWidth;
   const sashWidth = 55; 
 
   const scaleFactor = Math.min(width, height);
@@ -156,7 +159,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
       const cosA = halfW / sideLen;
       const ix1 = fw * (1 + cosA) / sinA;
       const ix2 = w - ix1;
-      const iy = h - fw;
+      const iy = h - bottomFw;
       const topY = fw / (halfW / sideLen);
       return `M ${ix1},${iy} L ${w/2},${topY} L ${ix2},${iy} Z`;
     }
@@ -165,10 +168,10 @@ const Visualizer: React.FC<VisualizerProps> = ({
       if (!isInner) return `M 0,${h} L 0,${aH} A ${w/2},${aH} 0 0 1 ${w},${aH} L ${w},${h} Z`;
       const iw = w - 2*frameWidth;
       const iaH = aH - frameWidth;
-      return `M ${frameWidth},${h-frameWidth} L ${frameWidth},${aH} A ${iw/2},${iaH} 0 0 1 ${w-frameWidth},${aH} L ${w-frameWidth},${h-frameWidth} Z`;
+      return `M ${frameWidth},${h-bottomFw} L ${frameWidth},${aH} A ${iw/2},${iaH} 0 0 1 ${w-frameWidth},${aH} L ${w-frameWidth},${h-bottomFw} Z`;
     }
     if (!isInner) return `M 0,0 L ${w},0 L ${w},${h} L 0,${h} Z`;
-    return `M ${frameWidth},${frameWidth} L ${w-frameWidth},${frameWidth} L ${w-frameWidth},${h-frameWidth} L ${frameWidth},${h-frameWidth} Z`;
+    return `M ${frameWidth},${frameWidth} L ${w-frameWidth},${frameWidth} L ${w-frameWidth},${h-bottomFw} L ${frameWidth},${h-bottomFw} Z`;
   };
 
   const renderContent = () => {
@@ -188,11 +191,11 @@ const Visualizer: React.FC<VisualizerProps> = ({
             </>
           )}
           <g clipPath={isRoot ? `url(#${clipId})` : undefined}>
-            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" />
+            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} />
             <g onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }}>
                {renderProfileRect(isVerticalSplit ? x + firstSize : x, isVerticalSplit ? y : y + firstSize, isVerticalSplit ? frameWidth : width, isVerticalSplit ? height : frameWidth)}
             </g>
-            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" />
+            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} />
           </g>
         </g>
       );
@@ -202,7 +205,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
     const frameInnerX = x + frameWidth;
     const frameInnerY = y + frameWidth;
     const frameInnerW = Math.max(0, width - frameWidth * 2);
-    const frameInnerH = Math.max(0, height - frameWidth * 2);
+    const frameInnerH = Math.max(0, height - frameWidth - bottomFw);
 
     const glassX = isOpening ? frameInnerX + sashWidth : frameInnerX;
     const glassY = isOpening ? frameInnerY + sashWidth : frameInnerY;
@@ -215,6 +218,72 @@ const Visualizer: React.FC<VisualizerProps> = ({
             <>
                 <defs><clipPath id={clipId}><path d={getShapePath(true)} /></clipPath></defs>
                 <path d={getShapePath(false)} fill={isSelected ? profileSelectedFill : profileFill} stroke={strokeColor} strokeWidth={strokeBase} fillRule="evenodd" />
+                {hasThreshold && (
+                  <g>
+                    {/* Structural Aluminum Metallic Base */}
+                    <rect 
+                      x={0} 
+                      y={height - bottomFw} 
+                      width={width} 
+                      height={bottomFw} 
+                      fill={theme === 'dark' ? '#1e293b' : '#334155'} 
+                      stroke={strokeColor} 
+                      strokeWidth={1.5} 
+                    />
+                    
+                    {/* Highly Contrast Amber/Orange Warning Zone Strip */}
+                    <rect 
+                      x={0} 
+                      y={height - bottomFw + 1} 
+                      width={width} 
+                      height={Math.max(2, bottomFw - 2)} 
+                      fill="#eab308" 
+                      stroke="#d97706"
+                      strokeWidth={0.5}
+                    />
+                    
+                    {/* High-visibility safety hazard stripes across the threshold */}
+                    {Array.from({ length: Math.ceil(width / 30) }).map((_, i) => {
+                      const stripeX = i * 30;
+                      return (
+                        <path
+                          key={i}
+                          d={`M ${stripeX} ${height} L ${stripeX + 10} ${height - bottomFw} L ${stripeX + 18} ${height - bottomFw} L ${stripeX + 8} ${height} Z`}
+                          fill="#1e293b"
+                          opacity="0.25"
+                        />
+                      );
+                    })}
+
+                    {/* Proportional, bold centered overlay badge designed to survive high scale down */}
+                    <g className="select-none pointer-events-none">
+                      {/* Badge Background Card */}
+                      <rect 
+                        x={width / 2 - Math.max(160, width * 0.25)} 
+                        y={height - bottomFw - Math.max(45, height * 0.045)} 
+                        width={Math.max(320, width * 0.5)} 
+                        height={Math.max(40, height * 0.038)} 
+                        rx={6} 
+                        fill="#ca8a04" 
+                        stroke="#f59e0b" 
+                        strokeWidth={Math.max(1.5, height * 0.0015)} 
+                      />
+                      {/* Contrastive Text Label */}
+                      <text 
+                        x={width / 2} 
+                        y={height - bottomFw - Math.max(45, height * 0.045) + Math.max(25, height * 0.024)} 
+                        textAnchor="middle" 
+                        fill="#ffffff" 
+                        fontSize={Math.max(14, height * 0.0165)} 
+                        fontWeight="900" 
+                        letterSpacing="0.8px"
+                        fontFamily="system-ui, sans-serif"
+                      >
+                        ⚠️ {lang === 'tr' ? 'ALÜMİNYUM EŞİK' : 'ALU THRESHOLD'}
+                      </text>
+                    </g>
+                  </g>
+                )}
             </>
         ) : (
           renderProfileRect(x, y, width, height)

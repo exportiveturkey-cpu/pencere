@@ -278,7 +278,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
     const profileCost = perimeterM * (system.pricePerMeter || 85);
-    const glassCost = totalAreaM2 * (glassObj?.pricePerSqm || 65);
+    
+    let glassCost = 0;
+    if (unit.includeGlass !== false) {
+      const gPrice = unit.customGlassPrice !== undefined ? unit.customGlassPrice : (glassObj?.pricePerSqm || 65);
+      glassCost = totalAreaM2 * gPrice;
+    }
     
     let accCost = 0;
     const selectedAccs: any[] = [];
@@ -554,7 +559,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 className="w-full h-full max-h-full max-w-full p-2"
                                                 preserveAspectRatio="xMidYMid meet"
                                               >
-                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" />
+                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} />
                                               </svg>
                                             </div>
                                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
@@ -567,10 +572,25 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             <div className="flex justify-between items-start mb-3">
                                               <div className="flex flex-col min-w-0 flex-1">
                                                 <h3 className="font-bold text-white text-sm truncate pr-2 print:text-black">{unit.name}</h3>
-                                                <div className="flex items-center gap-2 mt-0.5">
+                                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                                   <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-tight print:text-slate-500 print:bg-slate-50 print:border-slate-200">
                                                       {GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}
                                                   </span>
+                                                  {unit.includeGlass === false ? (
+                                                    <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded border border-rose-500/20 font-bold uppercase tracking-tight print:text-rose-800 print:bg-rose-50 print:border-rose-200">
+                                                      {lang === 'tr' ? 'CAM HARİÇ' : 'GLASS EXCLUDED'}
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-tight print:text-emerald-800 print:bg-emerald-50 print:border-emerald-200">
+                                                      {lang === 'tr' ? 'CAM DAHİL' : 'GLASS INCLUDED'}
+                                                      {unit.customGlassPrice !== undefined && ` (${unit.customGlassPrice} TL/m²)`}
+                                                    </span>
+                                                  )}
+                                                  {unit.hasThreshold && (
+                                                    <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20 font-bold uppercase tracking-tight print:text-amber-800 print:bg-amber-50 print:border-amber-200">
+                                                      {lang === 'tr' ? 'EŞİKLİ' : 'THRESHOLD'}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </div>
                                               <span className="text-emerald-400 font-mono font-bold text-sm print:text-emerald-700 shrink-0">
@@ -668,7 +688,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                          className="w-full h-full max-h-full max-w-full"
                                                          preserveAspectRatio="xMidYMid meet"
                                                        >
-                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} />
+                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} />
                                                        </svg>
                                                     </div>
                                                 </td>
@@ -676,10 +696,26 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
                                                     <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
                                                     <div className="space-y-1 mb-4">
-                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
-                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
-                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
-                                                        <div className="text-xs text-slate-500 flex justify-between w-48 font-medium"><span>{t(lang, 'glassType')}:</span> <span className="font-bold text-slate-900">{GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'glassType')}:</span> <span className="font-bold text-slate-900">{GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                          <span>{lang === 'tr' ? 'Cam Dahil mi?' : 'Glass Included?'}:</span>
+                                                          <span className={`font-bold ${unit.includeGlass === false ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                            {unit.includeGlass === false ? (lang === 'tr' ? 'Hayır (Cam Hariç)' : 'No (Glass Excluded)') : (lang === 'tr' ? 'Evet (Cam Dahil)' : 'Yes (Glass Included)')}
+                                                          </span>
+                                                        </div>
+                                                        {unit.includeGlass !== false && (
+                                                          <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium border-b border-dashed border-slate-100 pb-0.5">
+                                                            <span>{lang === 'tr' ? 'Cam m² Fiyatı' : 'Glass m² Price'}:</span>
+                                                            <span className="font-bold font-mono text-slate-900">
+                                                              {unit.customGlassPrice !== undefined ? `${unit.customGlassPrice} TL` : `${GLASS_TYPES.find(g => g.id === unit.glassType)?.pricePerSqm || 65} TL`}
+                                                              {unit.customGlassPrice !== undefined ? (lang === 'tr' ? ' (Özel)' : ' (Custom)') : (lang === 'tr' ? ' (Standart)' : ' (Standard)')}
+                                                            </span>
+                                                          </div>
+                                                        )}
+                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{lang === 'tr' ? 'Eşik' : 'Threshold'}:</span> <span className={`font-bold ${unit.hasThreshold ? 'text-amber-600 dark:text-amber-500' : 'text-slate-400'}`}>{unit.hasThreshold ? (lang === 'tr' ? 'Evet (Alüminyum Eşik)' : 'Yes (Alu Threshold)') : (lang === 'tr' ? 'Hayır (Standart Kasa)' : 'No (Standard Frame)')}</span></div>
                                                     </div>
                                                     
                                                     {/* Accessory Listing in Quotation */}
