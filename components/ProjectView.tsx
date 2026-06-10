@@ -299,7 +299,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
     
     let colorPrice = getColorPricePerKg(unit.color, currency);
-    const profileCost = profileWeight * colorPrice;
+    const profileCost = (profileWeight * 1.10) * colorPrice; // 10% wastage increase for costing
     
     let glassCost = 0;
     if (unit.includeGlass !== false) {

@@ -208,11 +208,18 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
         buildModel(node.children[1], isVert ? xOffset + s1 + frameW : xOffset, isVert ? yOffset : yOffset + s1 + frameW, isVert ? s2 : w, isVert ? h : s2);
       } else {
         const isOpening = node.openingType && node.openingType !== 'fixed';
-        const currentBottomFw = (unit.hasThreshold && yOffset + h >= unit.height - 1) ? bottomFw : frameW;
-        const daylightX = xOffset + frameW;
-        const daylightY = yOffset + frameW;
-        const daylightW = Math.max(0, w - 2 * frameW);
-        const daylightH = Math.max(0, h - frameW - currentBottomFw);
+        
+        const leftFw = xOffset === 0 ? frameW : 0;
+        const rightFw = (xOffset + w >= unit.width - 1) ? frameW : 0;
+        const topFw = yOffset === 0 ? frameW : 0;
+        const currentBottomFw = (yOffset + h >= unit.height - 1) 
+          ? (unit.hasThreshold ? bottomFw : frameW) 
+          : 0;
+
+        const daylightX = xOffset + leftFw;
+        const daylightY = yOffset + topFw;
+        const daylightW = Math.max(0, w - leftFw - rightFw);
+        const daylightH = Math.max(0, h - topFw - currentBottomFw);
 
         if (isOpening) {
           const sashW = 65;
@@ -248,8 +255,8 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
             group.add(createHinge(gx + gw/2 + 20, gy - gh/2 + 40, gz));
           } else if (node.openingType === 'tilt') {
             group.add(createHandle(gx, gy - gh/2 + 10, gz + 15, false));
-            group.push(createHinge(gx - gw/2 + 40, gy - gh/2 - 20, gz));
-            group.push(createHinge(gx + gw/2 - 40, gy - gh/2 - 20, gz));
+            group.add(createHinge(gx - gw/2 + 40, gy - gh/2 - 20, gz));
+            group.add(createHinge(gx + gw/2 - 40, gy - gh/2 - 20, gz));
           }
         } else {
           const glassGeo = new THREE.BoxGeometry(daylightW + 5, daylightH + 5, 10);
