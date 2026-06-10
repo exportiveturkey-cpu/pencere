@@ -7,11 +7,12 @@ import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
-import { GLASS_TYPES } from '../constants';
+import { GLASS_TYPES, COLOR_GROUPS } from '../constants';
 import { analyzeDrawing, generateSalesPitch } from '../services/geminiService';
 import { generateCNCCSV } from '../services/cncService';
 import { generateDXF } from '../services/dxfService';
 import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
+import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ProjectViewProps {
@@ -111,6 +112,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [tempProject, setTempProject] = useState<Project>(project);
 
   const taxRate = Number(localStorage.getItem('alucraft_tax')) || 20;
+  const [currency, setCurrency] = useState('USD');
+  const [currencySymbol, setCurrencySymbol] = useState('$');
+
+  const reloadCurrencySettings = () => {
+    const activeCurr = getActiveCurrency();
+    setCurrency(activeCurr);
+    setCurrencySymbol(getCurrencySymbol(activeCurr));
+  };
+
+  useEffect(() => {
+    reloadCurrencySettings();
+    window.addEventListener('alucraft_settings_changed', reloadCurrencySettings);
+    return () => {
+      window.removeEventListener('alucraft_settings_changed', reloadCurrencySettings);
+    };
+  }, []);
 
   useEffect(() => {
     if (machines.length > 0 && !selectedMachineId) {
@@ -188,7 +205,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           width: Number(d.width) || 1000,
           height: Number(d.height) || 1000,
           system: systems[0].id,
-          color: 'RAL 7016',
+          color: 'group1',
           glassType: 'double24',
           glassThickness: 24,
           quantity: 1,
@@ -275,13 +292,21 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       profileWeight += lengthM * weightPerMeter * cut.quantity;
     });
 
+    const currency = getActiveCurrency();
+    const exchangeRate = getExchangeRate(currency);
+
     const glassObj = GLASS_TYPES.find(g => g.id === unit.glassType);
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
-    const profileCost = perimeterM * (system.pricePerMeter || 85);
+    
+    let colorPrice = getColorPricePerKg(unit.color, currency);
+    const profileCost = profileWeight * colorPrice;
     
     let glassCost = 0;
     if (unit.includeGlass !== false) {
-      const gPrice = unit.customGlassPrice !== undefined ? unit.customGlassPrice : (glassObj?.pricePerSqm || 65);
+      let gPrice = unit.customGlassPrice !== undefined ? unit.customGlassPrice : (glassObj?.pricePerSqm || 65);
+      if (currency !== 'TRY') {
+        gPrice = gPrice / exchangeRate;
+      }
       glassCost = totalAreaM2 * gPrice;
     }
     
@@ -305,8 +330,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       if (acc) {
         let qty = 1;
         if (acc.unit === 'meter') qty = perimeterM;
-        accCost += acc.price * qty;
-        selectedAccs.push({ id: acc.id, name: acc.name, type: acc.type, price: acc.price, qty, unit: acc.unit });
+        const convertedPrice = getConvertedAccessoryPrice(acc.price, currency);
+        accCost += convertedPrice * qty;
+        selectedAccs.push({ id: acc.id, name: acc.name, type: acc.type, price: convertedPrice, qty, unit: acc.unit });
       }
     });
 
@@ -373,6 +399,28 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                       : (lang === 'tr' ? 'Üretim & CNC' : 'Production & CNC')}
                   </span>
                 </button>
+
+                {/* Currency Switcher in Header */}
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 items-center select-none" title={lang === 'tr' ? 'Teklif Para Birimi' : 'Proposal Currency'}>
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem('alucraft_currency', 'TRY');
+                      window.dispatchEvent(new Event('alucraft_settings_changed'));
+                    }} 
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${currency === 'TRY' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    TL (₺)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem('alucraft_currency', 'USD');
+                      window.dispatchEvent(new Event('alucraft_settings_changed'));
+                    }} 
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${currency === 'USD' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    USD ($)
+                  </button>
+                </div>
 
                 <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5">
                     <button onClick={() => setActiveTab('details')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'details' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -541,7 +589,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             </div>
                             <div className="bg-slate-900/40 p-5 rounded-2xl border border-white/5 print:bg-slate-50 print:border-slate-200">
                                 <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-1 print:text-slate-400">{t(lang, 'grandTotal')}</span>
-                                <span className="text-2xl font-bold text-emerald-400 print:text-emerald-600">${projectTotalStats.grandTotal.toLocaleString()}</span>
+                                <span className="text-2xl font-bold text-emerald-400 print:text-emerald-600">{currencySymbol}{projectTotalStats.grandTotal.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
@@ -594,7 +642,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 </div>
                                               </div>
                                               <span className="text-emerald-400 font-mono font-bold text-sm print:text-emerald-700 shrink-0">
-                                                  ${(stats.cost * (unit.quantity || 1)).toLocaleString()}
+                                                  {currencySymbol}{(stats.cost * (unit.quantity || 1)).toLocaleString()}
                                               </span>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
@@ -699,6 +747,16 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
+                                                        {(() => {
+                                                            const colorObj = COLOR_GROUPS.find(c => c.id === unit.color);
+                                                            const colorLabel = colorObj ? (lang === 'tr' ? colorObj.nameTr : colorObj.nameEn) : (unit.color || 'Standard');
+                                                            return (
+                                                              <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                                <span>{lang === 'tr' ? 'Profil Renk Grubu:' : 'Profile Color Group:'}</span>
+                                                                <span className="font-bold text-slate-900">{colorLabel}</span>
+                                                              </div>
+                                                            );
+                                                        })()}
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'glassType')}:</span> <span className="font-bold text-slate-900">{GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
                                                           <span>{lang === 'tr' ? 'Cam Dahil mi?' : 'Glass Included?'}:</span>
@@ -710,7 +768,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                           <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium border-b border-dashed border-slate-100 pb-0.5">
                                                             <span>{lang === 'tr' ? 'Cam m² Fiyatı' : 'Glass m² Price'}:</span>
                                                             <span className="font-bold font-mono text-slate-900">
-                                                              {unit.customGlassPrice !== undefined ? `${unit.customGlassPrice} TL` : `${GLASS_TYPES.find(g => g.id === unit.glassType)?.pricePerSqm || 65} TL`}
+                                                              {(() => {
+                                                                const rawPrice = unit.customGlassPrice !== undefined ? unit.customGlassPrice : (GLASS_TYPES.find(g => g.id === unit.glassType)?.pricePerSqm || 65);
+                                                                if (currency === 'TRY') {
+                                                                  return `${rawPrice} TL`;
+                                                                } else {
+                                                                  return `${currencySymbol}${(rawPrice / getExchangeRate(currency)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                                                }
+                                                              })()}
                                                               {unit.customGlassPrice !== undefined ? (lang === 'tr' ? ' (Özel)' : ' (Custom)') : (lang === 'tr' ? ' (Standart)' : ' (Standard)')}
                                                             </span>
                                                           </div>
@@ -734,25 +799,25 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                     </div>
                                                                     <div className="text-slate-500 font-mono text-[11px] whitespace-nowrap text-right">
                                                                         <span>
-                                                                            {acc.qty.toFixed(1)} {acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce')} x ${acc.price.toLocaleString(undefined, { minimumFractionDigits: 2 })} = 
+                                                                            {acc.qty.toFixed(1)} {acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce')} x {currencySymbol}{acc.price.toLocaleString(undefined, { minimumFractionDigits: 2 })} = 
                                                                         </span>
                                                                         <span className="font-bold text-slate-900 ml-1">
-                                                                            ${(acc.price * acc.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                            {currencySymbol}{(acc.price * acc.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                                         </span>
                                                                     </div>
                                                                 </div>
                                                               ))}
                                                               <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 mt-1 text-[11px] text-slate-500 font-bold">
                                                                   <span>{t(lang, 'accessoryCost')}</span>
-                                                                  <span className="text-slate-900">${stats.accCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                                  <span className="text-slate-900">{currencySymbol}{stats.accCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
                                                 </td>
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top text-center font-black text-xl print:text-sm text-slate-800 w-[8%] print:w-[8%]">{unit.quantity || 1}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-lg print:text-xs text-slate-800 w-[11%] print:w-[11%] whitespace-nowrap">${stats.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-xl print:text-xs text-blue-600 w-[11%] print:w-[11%] whitespace-nowrap">${(stats.cost * (unit.quantity || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-lg print:text-xs text-slate-800 w-[11%] print:w-[11%] whitespace-nowrap">{currencySymbol}{stats.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-xl print:text-xs text-blue-600 w-[11%] print:w-[11%] whitespace-nowrap">{currencySymbol}{(stats.cost * (unit.quantity || 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                             </tr>
                                         );
                                     })}
@@ -815,29 +880,29 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <div className="w-full md:w-80 space-y-3">
                                 <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
                                     <span>{t(lang, 'subTotal')}</span>
-                                    <span className="text-base text-slate-800 font-black">${projectTotalStats.subTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-base text-slate-800 font-black">{currencySymbol}{projectTotalStats.subTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 {projectTotalStats.discountPercentage > 0 && (
                                     <>
                                         <div className="flex justify-between items-center text-rose-500 font-bold uppercase tracking-widest text-[10px]">
                                             <span>{lang === 'tr' ? `İSKONTO / İNDİRİM (%${projectTotalStats.discountPercentage})` : `DISCOUNT (${projectTotalStats.discountPercentage}%)`}</span>
-                                            <span className="text-base font-black">-${projectTotalStats.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            <span className="text-base font-black">-{currencySymbol}{projectTotalStats.discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px] pb-1 border-b border-dashed border-slate-300">
                                             <span>{lang === 'tr' ? 'İNDİRİMLİ ARA TOPLAM' : 'DISCOUNTED SUB-TOTAL'}</span>
-                                            <span className="text-base text-slate-800 font-bold">${projectTotalStats.discountedSubTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            <span className="text-base text-slate-800 font-bold">{currencySymbol}{projectTotalStats.discountedSubTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         </div>
                                     </>
                                 )}
                                 {!project.isExport && (
                                     <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
                                         <span>VAT ({taxRate}%)</span>
-                                        <span className="text-base text-slate-800 font-black">${projectTotalStats.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                        <span className="text-base text-slate-800 font-black">{currencySymbol}{projectTotalStats.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 )}
                                 <div className="flex justify-between items-center pt-4 border-t-2 border-slate-900">
                                     <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-600">{t(lang, 'grandTotal')}</span>
-                                    <span className="text-3xl font-black text-slate-900">${projectTotalStats.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-3xl font-black text-slate-900">{currencySymbol}{projectTotalStats.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         </div>

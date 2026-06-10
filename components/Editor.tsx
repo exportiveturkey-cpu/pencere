@@ -4,7 +4,7 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, U
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
-import { INITIAL_ROOT_NODE, GLASS_TYPES } from '../constants';
+import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
 import { t } from '../translations';
@@ -26,6 +26,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [color, setColor] = useState(initialUnit?.color || 'group1');
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -179,7 +180,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     onSave({
       id: initialUnit?.id || uuidv4(),
       name, width, height, system: systemId,
-      color: 'RAL 7016', glassType: glassTypeId, glassThickness: glassObj.thickness,
+      color, glassType: glassTypeId, glassThickness: glassObj.thickness,
       rootNode, quantity: Math.max(1, quantity), shape, archHeight,
       hasThreshold,
       includeGlass,
@@ -221,13 +222,31 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   const isVerticalSplit = selectedNode?.direction === 'vertical';
   const totalDim = isVerticalSplit ? width : height;
-  const size1 = selectedNode ? Math.round((selectedNode.splitRatio?.[0] || 0.5) * totalDim) : 0;
-  const size2 = selectedNode ? Math.round((selectedNode.splitRatio?.[1] || 0.5) * totalDim) : 0;
+  const size1 = selectedNode ? (selectedNode.splitRatio?.[0] || 0.5) * totalDim : 0;
+  const size2 = selectedNode ? (selectedNode.splitRatio?.[1] || 0.5) * totalDim : 0;
+
+  const formatSize = (num: number) => {
+    const rounded = Number(num.toFixed(2));
+    if (lang === 'tr') {
+      return rounded.toString().replace('.', ',');
+    }
+    return rounded.toString();
+  };
 
   useEffect(() => {
     if (selectedNode?.type === 'container') {
-      setInputVal1(String(size1));
-      setInputVal2(String(size2));
+      const parsed1 = parseFloat(inputVal1.replace(',', '.'));
+      const parsed2 = parseFloat(inputVal2.replace(',', '.'));
+      
+      const diff1 = Math.abs((isNaN(parsed1) ? 0 : parsed1) - size1);
+      const diff2 = Math.abs((isNaN(parsed2) ? 0 : parsed2) - size2);
+      
+      if (isNaN(parsed1) || diff1 > 0.02) {
+        setInputVal1(formatSize(size1));
+      }
+      if (isNaN(parsed2) || diff2 > 0.02) {
+        setInputVal2(formatSize(size2));
+      }
     }
   }, [selectedNodeId, size1, size2, selectedNode?.type]);
 
@@ -249,7 +268,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const currentUnitFor3D: Unit = {
     id: 'temp',
     name, width, height, system: systemId,
-    color: 'RAL 7016', glassType: glassTypeId, glassThickness: 24,
+    color, glassType: glassTypeId, glassThickness: 24,
     rootNode, quantity, shape, archHeight, hasThreshold, includeGlass,
     customGlassPrice: customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined
   };
@@ -334,6 +353,17 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                           <input type="number" value={archHeight} onChange={e => setArchHeight(Number(e.target.value))} className="bg-transparent text-white font-mono font-bold w-full outline-none text-sm" />
                       </div>
                     )}
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{lang === 'tr' ? 'Profil Renk Grubu' : 'Profile Color Group'}</label>
+                        <select value={color} onChange={e => setColor(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                          {COLOR_GROUPS.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {lang === 'tr' ? c.nameTr : c.nameEn}
+                            </option>
+                          ))}
+                        </select>
+                    </div>
+
                     <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'glassType')}</label>
                         <select value={glassTypeId} onChange={e => setGlassTypeId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
@@ -457,9 +487,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 type="text" 
                                 value={inputVal1} 
                                 onChange={e => {
-                                  const val = e.target.value.replace(/[^\d]/g, '');
-                                  setInputVal1(val);
-                                  const num = parseInt(val, 10);
+                                  const rawVal = e.target.value.replace(/[^\d.,]/g, '');
+                                  setInputVal1(rawVal);
+                                  const normalized = rawVal.replace(',', '.');
+                                  const num = parseFloat(normalized);
                                   if (!isNaN(num) && num > 0) {
                                     handleUpdateSplitSize(0, num);
                                   }
@@ -480,9 +511,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 type="text" 
                                 value={inputVal2} 
                                 onChange={e => {
-                                  const val = e.target.value.replace(/[^\d]/g, '');
-                                  setInputVal2(val);
-                                  const num = parseInt(val, 10);
+                                  const rawVal = e.target.value.replace(/[^\d.,]/g, '');
+                                  setInputVal2(rawVal);
+                                  const normalized = rawVal.replace(',', '.');
+                                  const num = parseFloat(normalized);
                                   if (!isNaN(num) && num > 0) {
                                     handleUpdateSplitSize(1, num);
                                   }

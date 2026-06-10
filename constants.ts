@@ -81,3 +81,70 @@ export const INITIAL_ROOT_NODE = {
   type: 'glass' as const,
   openingType: 'fixed' as const,
 };
+
+export const COLOR_GROUPS = [
+  {
+    id: 'pres',
+    nameTr: 'Pres (Ham Alüminyum)',
+    nameEn: 'Mill Finish (Raw)',
+    defaultPricePerKg: 160,
+    descriptionTr: 'Yüzey işlemsiz ham pres döküm alüminyum profiller',
+    descriptionEn: 'Untreated raw extruded aluminum profiles'
+  },
+  {
+    id: 'group1',
+    nameTr: '1. Grup Renkler (Standard Ral)',
+    nameEn: '1st Group Colors (Standard Ral)',
+    defaultPricePerKg: 185,
+    descriptionTr: 'RAL 9016 P/M, 9010 P/M, 8014 P/M, 7016 P/M, 9005 P/M',
+    descriptionEn: 'RAL 9016 G/M, 9010 G/M, 8014 G/M, 7016 G/M, 9005 G/M'
+  },
+  {
+    id: 'group2',
+    nameTr: '2. Grup Renkler (Özel Ral / Texture)',
+    nameEn: '2nd Group Colors (Special Ral / Texture)',
+    defaultPricePerKg: 205,
+    descriptionTr: 'RAL 9001, 7031, 5002, 7040, 9003, 7039, 1013, 1015, 5005, 7035, 7042, 8016, 3020, 9006, 9002, 7016 Texture',
+    descriptionEn: 'RAL 9001, 7031, 5002, 7040, 9003, 7039, 1013, 1015, 5005, 7035, 7042, 8016, 3020, 9006, 9002, 7016 Texture'
+  },
+  {
+    id: 'mat_eloxal',
+    nameTr: 'Mat Eloksallı',
+    nameEn: 'Matte Anodized',
+    defaultPricePerKg: 195,
+    descriptionTr: 'Naturel, Bronz, Kahve eloksallı mat kartela renkleri',
+    descriptionEn: 'Natural, Bronze, Brown anodized matte catalog colors'
+  },
+  {
+    id: 'parlak_eloxal',
+    nameTr: 'Parlak Eloksallı',
+    nameEn: 'Polished Anodized',
+    defaultPricePerKg: 215,
+    descriptionTr: 'Naturel, Bronz, Kahve eloksallı parlak kartela renkleri',
+    descriptionEn: 'Natural, Bronze, Brown anodized glossy catalog colors'
+  },
+  {
+    id: 'mat_siyah_eloxal',
+    nameTr: 'Mat Siyah Eloksallı',
+    nameEn: 'Matte Black Anodized',
+    defaultPricePerKg: 210,
+    descriptionTr: 'Mat eloksallı siyah renk kaplama',
+    descriptionEn: 'Matte anodized black color finish'
+  },
+  {
+    id: 'parlak_siyah_eloxal',
+    nameTr: 'Parlak Siyah Eloksallı',
+    nameEn: 'Polished Black Anodized',
+    defaultPricePerKg: 225,
+    descriptionTr: 'Parlak eloksallı parlak siyah kimyasal kaplama',
+    descriptionEn: 'Glossy anodized polished black glossy finish'
+  },
+  {
+    id: 'wood_transfer',
+    nameTr: 'Ahşap Transfer Kaplamalı',
+    nameEn: 'Wood Transfer Coated',
+    defaultPricePerKg: 250,
+    descriptionTr: 'Ahşap desen kaplamalı dekoratif transfer profiller',
+    descriptionEn: 'Decorative wood-pattern sublimation coated profiles'
+  }
+];

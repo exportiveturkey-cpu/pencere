@@ -134,6 +134,15 @@ export interface Customer {
   address?: string;
 }
 
+export interface ColorGroup {
+  id: string;
+  nameTr: string;
+  nameEn: string;
+  defaultPricePerKg: number;
+  descriptionTr?: string;
+  descriptionEn?: string;
+}
+
 export interface AppData {
   projects: Project[];
   systems: ProfileSystem[];

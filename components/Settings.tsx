@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language, AppData, MachineConfig } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
+import { COLOR_GROUPS } from '../constants';
 
 interface SettingsProps {
   systems: ProfileSystem[];
@@ -44,7 +45,7 @@ const Settings: React.FC<SettingsProps> = ({
     onExportData,
     onImportData
 }) => {
-  const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'cnc' | 'data' | 'general' | 'subscription' | any>('general');
+  const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'cnc' | 'data' | 'general' | any>('general');
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
@@ -52,6 +53,10 @@ const Settings: React.FC<SettingsProps> = ({
 
   const [currency, setCurrency] = useState(localStorage.getItem('alucraft_currency') || 'USD');
   const [taxRate, setTaxRate] = useState(Number(localStorage.getItem('alucraft_tax')) || 20);
+
+  const [usdRate, setUsdRate] = useState(localStorage.getItem('alucraft_usd_rate') || '33.0');
+  const [eurRate, setEurRate] = useState(localStorage.getItem('alucraft_eur_rate') || '35.5');
+  const [gbpRate, setGbpRate] = useState(localStorage.getItem('alucraft_gbp_rate') || '42.5');
 
   // System Form State
   // Added missing ProfileSystem properties: frameDepth, wallThickness, sashDepth, thermalBreakWidth
@@ -74,6 +79,53 @@ const Settings: React.FC<SettingsProps> = ({
   const [machForm, setMachForm] = useState<Partial<MachineConfig>>({
     name: '', brand: 'Generic', bladeThickness: 5, minWaste: 50, clampingOffset: 100
   });
+
+  const [colorPrices, setColorPrices] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('alucraft_color_prices');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Could not parse color prices:", e);
+      }
+    }
+    const defaults: Record<string, number> = {};
+    COLOR_GROUPS.forEach(g => {
+      defaults[g.id] = g.defaultPricePerKg;
+    });
+    return defaults;
+  });
+
+  const [colorPricesUsd, setColorPricesUsd] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('alucraft_color_prices_usd');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Could not parse USD color prices:", e);
+      }
+    }
+    const defaults: Record<string, number> = {};
+    COLOR_GROUPS.forEach(g => {
+      defaults[g.id] = parseFloat((g.defaultPricePerKg / 33.0).toFixed(2));
+    });
+    return defaults;
+  });
+
+  const handleColorPriceChange = (id: string, value: number) => {
+    const updated = { ...colorPrices, [id]: value };
+    setColorPrices(updated);
+    localStorage.setItem('alucraft_color_prices', JSON.stringify(updated));
+    window.dispatchEvent(new Event('alucraft_settings_changed'));
+  };
+
+  const handleColorPriceUsdChange = (id: string, value: number) => {
+    const updated = { ...colorPricesUsd, [id]: value };
+    setColorPricesUsd(updated);
+    localStorage.setItem('alucraft_color_prices_usd', JSON.stringify(updated));
+    window.dispatchEvent(new Event('alucraft_settings_changed'));
+  };
+
 
   const handleSaveSys = () => {
     if (!sysForm.name) return;
@@ -152,7 +204,12 @@ const Settings: React.FC<SettingsProps> = ({
   const handleSaveGeneral = () => {
     localStorage.setItem('alucraft_currency', currency);
     localStorage.setItem('alucraft_tax', taxRate.toString());
+    localStorage.setItem('alucraft_usd_rate', usdRate);
+    localStorage.setItem('alucraft_eur_rate', eurRate);
+    localStorage.setItem('alucraft_gbp_rate', gbpRate);
     alert(t(lang, 'systemUpdated'));
+    // Trigger window custom event or force state reload
+    window.dispatchEvent(new Event('alucraft_settings_changed'));
   };
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,14 +271,14 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
 
         <div className="flex gap-4 mb-8 border-b border-white/5 pb-1 overflow-x-auto custom-scrollbar">
-            {['general', 'subscription', 'systems', 'accessories', appMode === 'manufacturing' ? 'cnc' : null, 'data'].filter((t): t is string => t !== null).map(tab => (
+            {['general', 'colors', 'systems', 'accessories', appMode === 'manufacturing' ? 'cnc' : null, 'data'].filter((t): t is string => t !== null).map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)} 
                 className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap font-bold text-xs uppercase tracking-widest ${activeTab === tab ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-white'}`}
               >
                 {tab === 'general' && <SettingsIcon size={16} />}
-                {tab === 'subscription' && <Sparkles size={16} />}
+                {tab === 'colors' && <Palette size={16} />}
                 {tab === 'systems' && <Layers size={16} />}
                 {tab === 'accessories' && <Wrench size={16} />}
                 {tab === 'cnc' && <Cpu size={16} />}
@@ -485,21 +542,80 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
         )}
 
-        {activeTab === 'subscription' && (
-            <div className="space-y-10 animate-in fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <PricingCard 
-                        title={t(lang, 'planStandard')} price="49" icon={Zap} isCurrent={session.plan === 'Standard'}
-                        features={[t(lang, 'featureProjects5'), t(lang, 'featureBasicShapes'), t(lang, 'featureCuttingList'), t(lang, 'featureCloudBasic')]}
-                    />
-                    <PricingCard 
-                        title={t(lang, 'planPro')} price="149" icon={Sparkles} isPro={true} isCurrent={session.plan === 'Pro'}
-                        features={[t(lang, 'featureUnlimited'), t(lang, 'featureTriangleArch'), t(lang, 'featureAI'), t(lang, 'featureGlassOrder'), t(lang, 'featureDxf')]}
-                    />
-                    <PricingCard 
-                        title={t(lang, 'planEnterprise')} price="499" icon={Factory} isCurrent={session.plan === 'Enterprise'}
-                        features={[t(lang, 'featureEverythingInPro'), t(lang, 'featureCnc'), t(lang, 'featureMultiMachine'), t(lang, 'featureAdvancedOpt'), t(lang, 'featureSupport')]}
-                    />
+        {activeTab === 'colors' && (
+            <div className="max-w-4xl animate-in fade-in space-y-6">
+                <div className="bg-slate-900 border border-white/5 p-8 rounded-[2rem]">
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400">
+                            <Palette size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">
+                                {lang === 'tr' ? 'Renk Grubu Kilogram Fiyatları Veritabanı' : 'Color Group Kilogram Price Database'}
+                            </h2>
+                            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl mt-1">
+                                {lang === 'tr' 
+                                  ? 'Profilleri tekliflendirirken metre fiyatı yerine profil ağırlıklarına göre kilogram esaslı fiyatlandırma yapılması için renk bazlı Kg fiyatlarını ayarlayabilirsiniz.' 
+                                  : 'Configure color-based prices per kg. When quoting, profile costs will be calculated based on system weights and colors instead of linear meter prices.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="border border-white/5 bg-slate-900/50 rounded-2xl overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-white/5 bg-slate-950/45 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <th className="px-6 py-4">{lang === 'tr' ? 'Renk Grubu' : 'Color Group'}</th>
+                                    <th className="px-6 py-4 hidden md:table-cell">{lang === 'tr' ? 'Açıklama / Kapsam' : 'Description / Coverage'}</th>
+                                    <th className="px-6 py-4 w-36">{lang === 'tr' ? 'TL Fiyatı' : 'TL Price'}</th>
+                                    <th className="px-6 py-4 w-36">{lang === 'tr' ? 'USD Fiyatı' : 'USD Price'}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5 text-sm">
+                                {COLOR_GROUPS.map(group => {
+                                    const currentPrice = colorPrices[group.id] !== undefined ? colorPrices[group.id] : group.defaultPricePerKg;
+                                    const currentPriceUsd = colorPricesUsd[group.id] !== undefined ? colorPricesUsd[group.id] : parseFloat((group.defaultPricePerKg / 33.0).toFixed(2));
+                                    return (
+                                        <tr key={group.id} className="hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-white">{lang === 'tr' ? group.nameTr : group.nameEn}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono font-medium md:hidden mt-0.5">{lang === 'tr' ? group.descriptionTr : group.descriptionEn}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-450 leading-relaxed md:table-cell">
+                                                {lang === 'tr' ? group.descriptionTr : group.descriptionEn}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <input 
+                                                        type="number" 
+                                                        value={currentPrice} 
+                                                        onChange={e => handleColorPriceChange(group.id, parseFloat(e.target.value) || 0)}
+                                                        className="w-20 bg-slate-950 border border-slate-800 focus:border-blue-500/50 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 outline-none font-mono font-bold" 
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">TL</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <input 
+                                                        type="number" 
+                                                        value={currentPriceUsd} 
+                                                        onChange={e => handleColorPriceUsdChange(group.id, parseFloat(e.target.value) || 0)}
+                                                        className="w-20 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 outline-none font-mono font-bold" 
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">USD</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         )}
@@ -534,15 +650,48 @@ const Settings: React.FC<SettingsProps> = ({
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{t(lang, 'currency')}</label>
                         <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none">
                             <option value="USD">USD ($)</option>
-                            <option value="EUR">EUR (€)</option>
                             <option value="TRY">TRY (₺)</option>
-                            <option value="GBP">GBP (£)</option>
                         </select>
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{t(lang, 'taxRate')}</label>
                         <input type="number" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none" />
                     </div>
+
+                    <div className="pt-4 border-t border-white/5 space-y-4">
+                        <h3 className="text-sm font-bold text-slate-300">
+                            {lang === 'tr' ? 'Döviz Kurları (TL Karşılığı)' : 'Exchange Rates (in TRY)'}
+                        </h3>
+                        <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+                            {lang === 'tr'
+                              ? 'Renk kg fiyatları, cam m² fiyatları ve profil metre fiyatları TL olarak tanımlandığında, teklif para birimi USD/EUR/GBP seçildiğinde fiyatlar bu kurlar üzerinden otomatik olarak dövize çevrilir.'
+                              : 'When color prices, glass prices, and profile meter prices are defined in TRY, they will be automatically converted using these rates if the proposal currency is USD/EUR/GBP.'}
+                        </p>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 USD ($)</label>
+                                <div className="relative">
+                                    <input type="number" step="0.01" value={usdRate} onChange={e => setUsdRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="33.0" />
+                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 EUR (€)</label>
+                                <div className="relative">
+                                    <input type="number" step="0.01" value={eurRate} onChange={e => setEurRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="35.5" />
+                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 GBP (£)</label>
+                                <div className="relative">
+                                    <input type="number" step="0.01" value={gbpRate} onChange={e => setGbpRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="42.5" />
+                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button onClick={handleSaveGeneral} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all">
                         <Save size={18} /> {t(lang, 'saveSettings')}
                     </button>
