@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape } from '../types';
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
@@ -8,6 +8,7 @@ import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
 import { t } from '../translations';
+import { extractGlassPanes } from '../services/optimizationService';
 
 interface EditorProps {
   unit?: Unit;
@@ -94,6 +95,69 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     setSelectedLockStriker(prev => checkAcc(prev));
     setSelectedOther(prev => checkAcc(prev));
   }, [systemId, systems, accessories]);
+
+  const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
+
+  // Dynamically calculate unit glass weight!
+  const currentUnitDummy: Unit = useMemo(() => ({
+    id: initialUnit?.id || 'temp-unit',
+    name,
+    width: Number(width) || 0,
+    height: Number(height) || 0,
+    system: systemId,
+    color,
+    glassType: glassTypeId,
+    glassThickness: 24,
+    rootNode,
+    quantity: 1,
+    shape,
+    archHeight,
+    hasThreshold,
+  }), [initialUnit?.id, name, width, height, systemId, color, glassTypeId, rootNode, shape, archHeight, hasThreshold]);
+
+  // Try to calculate weights and recommended accessories
+  const { totalGlassWeight, recommendedHinge, recommendedRoller } = useMemo(() => {
+    let totalGlassWeight = 0;
+    try {
+      const glassPanesList = extractGlassPanes(currentUnitDummy, selectedSystem);
+      totalGlassWeight = glassPanesList.reduce((acc, p) => acc + (p.weight || 0), 0);
+    } catch (err) {
+      console.error("Error calculating glass panes:", err);
+    }
+
+    // Recommended Hinge
+    let recommendedHinge: Accessory | null = null;
+    if (selectedSystem.type === 'hinged') {
+      const compatibleHinges = accessories.filter(a => a.type === 'hinge' && (a.compatibility === 'both' || a.compatibility === 'hinged' || !a.compatibility));
+      if (compatibleHinges.length > 0) {
+        const sorted = [...compatibleHinges].sort((a, b) => (a.maxWeightKg || 999) - (b.maxWeightKg || 999));
+        const found = sorted.find(h => (h.maxWeightKg || 999) >= totalGlassWeight);
+        recommendedHinge = found || sorted[sorted.length - 1]; // highest as fallback
+      }
+    }
+
+    // Recommended Roller
+    let recommendedRoller: Accessory | null = null;
+    if (selectedSystem.type === 'sliding') {
+      const compatibleRollers = accessories.filter(a => a.type === 'other' && (a.compatibility === 'both' || a.compatibility === 'sliding' || !a.compatibility));
+      if (compatibleRollers.length > 0) {
+        const sorted = [...compatibleRollers].sort((a, b) => (a.maxWeightKg || 999) - (b.maxWeightKg || 999));
+        const found = sorted.find(h => (h.maxWeightKg || 999) >= totalGlassWeight);
+        recommendedRoller = found || sorted[sorted.length - 1]; // highest as fallback
+      }
+    }
+
+    return { totalGlassWeight, recommendedHinge, recommendedRoller };
+  }, [currentUnitDummy, selectedSystem, accessories]);
+
+  // Auto-select hinges/rollers on weight changes
+  useEffect(() => {
+    if (selectedSystem.type === 'hinged' && recommendedHinge) {
+      setSelectedHinge(recommendedHinge.id);
+    } else if (selectedSystem.type === 'sliding' && recommendedRoller) {
+      setSelectedOther(recommendedRoller.id);
+    }
+  }, [totalGlassWeight, selectedSystem.type, recommendedHinge?.id, recommendedRoller?.id]);
 
   const handleUpdateRootNode = useCallback((newNode: WindowNode) => {
     setHistory(prev => [...prev, rootNode]);
@@ -206,9 +270,35 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500/50 appearance-none"
           >
             <option value="">{t(lang, 'selectAccessories')}</option>
-            {filtered.map(acc => (
-              <option key={acc.id} value={acc.id}>{acc.name} (${acc.price})</option>
-            ))}
+            {filtered.map(acc => {
+              const isHingeType = acc.type === 'hinge';
+              const isRollerType = acc.type === 'other' && selectedSystem.type === 'sliding';
+              
+              let suffix = '';
+              let isInsufficient = false;
+              
+              if ((isHingeType || isRollerType) && acc.maxWeightKg) {
+                if (acc.maxWeightKg < totalGlassWeight) {
+                  isInsufficient = true;
+                  suffix = lang === 'tr' 
+                    ? ` - ⚠️ KAPASİTE Yetersiz (Max: ${acc.maxWeightKg} kg)` 
+                    : ` - ⚠️ CAPACITY Insufficient (Max: ${acc.maxWeightKg} kg)`;
+                } else {
+                  const isRec = isHingeType 
+                    ? recommendedHinge?.id === acc.id 
+                    : recommendedRoller?.id === acc.id;
+                  if (isRec) {
+                    suffix = lang === 'tr' ? ' - [⭐ ÖNERİLEN]' : ' - [⭐ RECOMMENDED]';
+                  }
+                }
+              }
+              const displayText = `${acc.name} (${acc.price} USD)${suffix}`;
+              return (
+                <option key={acc.id} value={acc.id} className={isInsufficient ? 'text-red-500 font-bold bg-red-950/20' : ''}>
+                  {displayText}
+                </option>
+              );
+            })}
           </select>
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
              <ChevronUp size={12} className="rotate-180" />
@@ -217,8 +307,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       </div>
     );
   };
-
-  const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
 
   const isVerticalSplit = selectedNode?.direction === 'vertical';
   const totalDim = isVerticalSplit ? width : height;
@@ -574,13 +662,51 @@ max="0.95"
                 )}
             </section>
             <section className="pt-6 border-t border-white/5 pb-10">
+                {/* Real-time Dynamic Glass Weight Info Card */}
+                <div className="mb-6 bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lang === 'tr' ? 'Hesaplanan Cam Ağırlığı' : 'Calculated Glass Weight'}</span>
+                    </div>
+                    <span className="text-lg font-black font-mono text-emerald-400">{totalGlassWeight.toFixed(2)} <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">KG</span></span>
+                  </div>
+
+                  <div className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 space-y-1.5 text-[10px]">
+                    <div className="flex justify-between items-center text-slate-400 font-medium">
+                      <span>{lang === 'tr' ? 'Etkin Cam Kalınlığı:' : 'Active Glass Thickness:'}</span>
+                      <span className="font-bold text-slate-200">{GLASS_TYPES.find(g => g.id === glassTypeId)?.thickness || 4} mm</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-400 font-medium">
+                      <span>{lang === 'tr' ? 'Sistem Tipi:' : 'System Type:'}</span>
+                      <span className="font-bold uppercase text-slate-200 tracking-wider text-[9px]">{selectedSystem.type === 'hinged' ? (lang === 'tr' ? 'Menteşeli / Devrilmeli' : 'Hinged / Tilt') : (lang === 'tr' ? 'Sürme' : 'Sliding')}</span>
+                    </div>
+                    {selectedSystem.type === 'hinged' && recommendedHinge && (
+                      <div className="flex justify-between items-start text-slate-400 pt-1.5 border-t border-white/5">
+                        <span className="mt-0.5">{lang === 'tr' ? 'Önerilen Menteşe:' : 'Recommended Hinge:'}</span>
+                        <span className="font-extrabold text-blue-400 text-right max-w-[150px] leading-tight block">{recommendedHinge.name}</span>
+                      </div>
+                    )}
+                    {selectedSystem.type === 'sliding' && recommendedRoller && (
+                      <div className="flex justify-between items-start text-slate-400 pt-1.5 border-t border-white/5">
+                        <span className="mt-0.5">{lang === 'tr' ? 'Önerilen Tekerlek:' : 'Recommended Roller:'}</span>
+                        <span className="font-extrabold text-blue-400 text-right max-w-[150px] leading-tight block">{recommendedRoller.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2 mb-4">
                   <Wrench size={14} className="text-blue-500" />
                   <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'accessories')}</h3>
                 </div>
                 <div className="space-y-4">
                     <AccessorySelect label={t(lang, 'handle')} type="handle" value={selectedHandle} onChange={setSelectedHandle} />
-                    <AccessorySelect label={t(lang, 'hinge')} type="hinge" value={selectedHinge} onChange={setSelectedHinge} />
+                    {selectedSystem.type === 'sliding' ? (
+                      <AccessorySelect label={lang === 'tr' ? 'Sürme Makaraları / Tekerlek' : 'Sliding Rollers / Wheels'} type="other" value={selectedOther} onChange={setSelectedOther} />
+                    ) : (
+                      <AccessorySelect label={t(lang, 'hinge')} type="hinge" value={selectedHinge} onChange={setSelectedHinge} />
+                    )}
                     <AccessorySelect label={t(lang, 'gasket')} type="gasket" value={selectedGasket} onChange={setSelectedGasket} />
                     <AccessorySelect label={t(lang, 'lock')} type="lock" value={selectedLock} onChange={setSelectedLock} />
                     <AccessorySelect label={t(lang, 'corner')} type="corner" value={selectedCorner} onChange={setSelectedCorner} />
