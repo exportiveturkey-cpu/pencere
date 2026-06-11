@@ -26,19 +26,21 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
 ];
 
 export const MOCK_ACCESSORIES: Accessory[] = [
-  { id: 'h1', name: 'Standard Handle (White)', type: 'handle', unit: 'pce', price: 12.0, compatibility: 'hinged' },
-  { id: 'h2', name: 'Security Handle (Keyed)', type: 'handle', unit: 'pce', price: 25.0, compatibility: 'hinged' },
-  { id: 'sh1', name: 'Sliding Sash Handle (Flush)', type: 'handle', unit: 'pce', price: 18.0, compatibility: 'sliding' },
-  { id: 'g1', name: 'EPDM Outer Gasket', type: 'gasket', unit: 'meter', price: 1.5, compatibility: 'both' },
-  { id: 'g2', name: 'EPDM Inner Gasket', type: 'gasket', unit: 'meter', price: 1.8, compatibility: 'both' },
-  { id: 'hi2', name: 'Standard Hinge (60kg)', type: 'hinge', unit: 'pce', price: 6.5, maxWeightKg: 60, compatibility: 'hinged' },
-  { id: 'hi1', name: 'Heavy Duty Hinge (120kg)', type: 'hinge', unit: 'pce', price: 14.0, maxWeightKg: 120, compatibility: 'hinged' },
-  { id: 'hi3', name: 'Super Duty Hinge (180kg)', type: 'hinge', unit: 'pce', price: 28.0, maxWeightKg: 180, compatibility: 'hinged' },
-  { id: 'sr2', name: 'Standard Sliding Roller (80kg)', type: 'other', unit: 'pce', price: 8.5, maxWeightKg: 80, compatibility: 'sliding' },
-  { id: 'sr1', name: 'Heavy Duty Sliding Roller (150kg)', type: 'other', unit: 'pce', price: 18.5, maxWeightKg: 150, compatibility: 'sliding' },
-  { id: 'sr3', name: 'Tandem Heavy Sliding Roller (300kg)', type: 'other', unit: 'pce', price: 34.0, maxWeightKg: 300, compatibility: 'sliding' },
-  { id: 'l1', name: 'Multi-Point Lock (3-Way)', type: 'lock', unit: 'pce', price: 45.0, compatibility: 'hinged' },
-  { id: 'c1', name: 'Aluminum Corner Cleat', type: 'corner', unit: 'pce', price: 3.5, compatibility: 'both' },
+  { id: 'sig-h1', name: 'Siegenia Globe Alüminyum Pencere Kolu (Sürme & Kasa)', type: 'handle', unit: 'pce', price: 18.5, compatibility: 'both' },
+  { id: 'sig-h2', name: 'Siegenia Titan AF Kilitlenebilir Kol (Güvenlikli, Tilt&Turn)', type: 'handle', unit: 'pce', price: 28.0, compatibility: 'hinged' },
+  { id: 'sig-h3', name: 'Siegenia HS Portal Kaldırmalı-Sürme Kolu (Lift-Slide)', type: 'handle', unit: 'pce', price: 95.0, compatibility: 'sliding' },
+  { id: 'sig-sh1', name: 'Siegenia Gömme Sürme Tutamak (Flush)', type: 'handle', unit: 'pce', price: 16.0, compatibility: 'sliding' },
+  { id: 'sig-g1', name: 'EPDM Dış Cam Fitili (Orijinal Siegenia/Kurtoğlu)', type: 'gasket', unit: 'meter', price: 1.6, compatibility: 'both' },
+  { id: 'sig-g2', name: 'EPDM İç Cam Fitili (Orijinal Siegenia/Kurtoğlu)', type: 'gasket', unit: 'meter', price: 1.9, compatibility: 'both' },
+  { id: 'sig-hi2', name: 'Siegenia Favorit Standart Kanat Menteşesi (80kg)', type: 'hinge', unit: 'pce', price: 9.5, maxWeightKg: 80, compatibility: 'hinged' },
+  { id: 'sig-hi1', name: 'Siegenia Titan AF Ağır İş Menteşesi (130kg)', type: 'hinge', unit: 'pce', price: 16.5, maxWeightKg: 130, compatibility: 'hinged' },
+  { id: 'sig-hi3', name: 'Siegenia Titan Axxent 24+ Gizli Kanat Menteşesi (150kg)', type: 'hinge', unit: 'pce', price: 42.0, maxWeightKg: 150, compatibility: 'hinged' },
+  { id: 'sig-sr1', name: 'Siegenia Eco Slide Sürme Makaraları (100kg)', type: 'other', unit: 'pce', price: 14.5, maxWeightKg: 100, compatibility: 'sliding' },
+  { id: 'sig-sr2', name: 'Siegenia HS Portal Tandem Sürme Tekerleği (150kg)', type: 'other', unit: 'pce', price: 38.0, maxWeightKg: 150, compatibility: 'sliding' },
+  { id: 'sig-sr3', name: 'Siegenia HS Portal Ağır Ray Makara Seti (300kg)', type: 'other', unit: 'pce', price: 74.0, maxWeightKg: 300, compatibility: 'sliding' },
+  { id: 'sig-sr4', name: 'Siegenia HS Portal Tandem Ağır Sürme Arabası (400kg)', type: 'other', unit: 'pce', price: 125.0, maxWeightKg: 400, compatibility: 'sliding' },
+  { id: 'sig-l1', name: 'Siegenia Titan AF Çift Açılım Kilit Takımı (3 Noktalı)', type: 'lock', unit: 'pce', price: 54.0, compatibility: 'hinged' },
+  { id: 'sig-c1', name: 'Kurtoğlu Köşe Birleştirme Takozu (Orijinal Alüminyum)', type: 'corner', unit: 'pce', price: 3.5, compatibility: 'both' }
 ];
 
 export const GLASS_TYPES: GlassType[] = [

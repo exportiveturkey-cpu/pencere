@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
-import { COLOR_GROUPS } from '../constants';
+import { COLOR_GROUPS, MOCK_ACCESSORIES } from '../constants';
 
 interface SettingsProps {
   systems: ProfileSystem[];
@@ -18,6 +18,7 @@ interface SettingsProps {
   onDeleteSystem?: (id: string) => void;
   onAddAccessory?: (acc: Accessory) => void;
   onUpdateAccessory?: (acc: Accessory) => void;
+  onSetAccessories?: (accessories: Accessory[]) => void;
   onDeleteAccessory?: (id: string) => void;
   onAddMachine?: (machine: MachineConfig) => void;
   onUpdateMachine?: (machine: MachineConfig) => void;
@@ -37,6 +38,7 @@ const Settings: React.FC<SettingsProps> = ({
     onDeleteSystem,
     onAddAccessory,
     onUpdateAccessory,
+    onSetAccessories,
     onDeleteAccessory,
     onAddMachine,
     onUpdateMachine,
@@ -183,6 +185,17 @@ const Settings: React.FC<SettingsProps> = ({
     else onAddAccessory?.(accData);
     setEditingAccId(null);
     setAccForm({ name: '', type: 'handle', unit: 'pce', price: 0, maxWeightKg: 0, compatibility: 'both' });
+  };
+
+  const handleLoadSiegeniaPack = () => {
+    if (!onSetAccessories) return;
+    const confirmMessage = lang === 'tr' 
+      ? "Tüm mevcut aksesuarlarınızı silmek ve Kurtoğlu Alüminyum profilleriyle %100 uyumlu orijinal Siegenia (Favorit, Titan AF, HS Portal) donanım paketini yüklemek istiyor musunuz?"
+      : "Do you want to clear your current accessories list and load the original Siegenia (Favorit, Titan AF, HS Portal) hardware pack that is 100% compatible with Kurtoğlu Aluminum profiles?";
+    if (window.confirm(confirmMessage)) {
+      onSetAccessories(MOCK_ACCESSORIES);
+      alert(lang === 'tr' ? "Siegenia Donanım Paketi başarıyla yüklenmiştir!" : "Siegenia Hardware Pack successfully loaded!");
+    }
   };
 
   const handleSaveMachine = () => {
@@ -432,6 +445,41 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                 </div>
                 <div className="lg:col-span-7 space-y-4">
+                    {/* Siegenia Entegrasyon Bolumu */}
+                    <div className="bg-gradient-to-br from-blue-900/30 via-slate-900 to-slate-905 border border-blue-500/20 p-5 rounded-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-500 pointer-events-none" />
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400 mt-1">
+                                <Sparkles size={22} className="animate-pulse" />
+                            </div>
+                            <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-base font-extrabold text-white">
+                                        {lang === 'tr' ? 'Kurtoğlu & Siegenia Donanım Entegrasyonu' : 'Kurtoğlu & Siegenia Hardware Integration'}
+                                    </h3>
+                                    <span className="text-[9px] font-black uppercase tracking-widest bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                        RECOMENDED
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-300 leading-relaxed">
+                                    {lang === 'tr' 
+                                      ? "Kurtoğlu Alüminyum profil serileriyle tam uyumlu çalışan Alman Siegenia (Favorit, Titan AF, HS Portal) donanım setlerini tek tıkla yükleyebilirsiniz. Bu işlem mevcut aksesuarlarınızı Siegenia sertifikalı ürünler ile değiştirir."
+                                      : "Quickly load the original German Siegenia (Favorit, Titan AF, HS Portal) hardware and accessory set, fully compatible with Kurtoğlu Aluminium systems. This replaces current accessories."
+                                    }
+                                </p>
+                                <div className="pt-2">
+                                    <button 
+                                        onClick={handleLoadSiegeniaPack} 
+                                        className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-900/40 flex items-center gap-1.5"
+                                    >
+                                        <Wrench size={13} />
+                                        {lang === 'tr' ? 'Orijinal Siegenia Donanım Paketini Aktif Et' : 'Activate Original Siegenia Hardware Pack'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {accessories.map(acc => (
                         <div key={acc.id} className="bg-slate-900/50 border border-white/5 p-4 rounded-2xl flex justify-between items-center group hover:border-blue-500/30 transition-all">
                             <div>

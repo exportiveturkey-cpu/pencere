@@ -226,6 +226,13 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
+  const handleSetAccessories = async (updatedAccs: Accessory[]) => {
+    setAccessories(updatedAccs);
+    setIsSyncing(true);
+    try { await cloud_saveAccessories(session.key, updatedAccs); } catch (e) {}
+    setIsSyncing(false);
+  };
+
   const handleAddMachine = async (mach: MachineConfig) => {
     const updated = [...machines, mach];
     setMachines(updated);
@@ -404,6 +411,7 @@ const App: React.FC = () => {
           onDeleteSystem={handleDeleteSystem}
           onAddAccessory={handleAddAccessory}
           onUpdateAccessory={handleUpdateAccessory}
+          onSetAccessories={handleSetAccessories}
           onDeleteAccessory={handleDeleteAccessory}
           onAddMachine={handleAddMachine}
           onUpdateMachine={handleUpdateMachine}
