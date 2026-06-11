@@ -788,7 +788,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 max-w-xl">
                                                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
                                                                 <span>{t(lang, 'accessories')}</span>
-                                                                <span>{t(lang, 'price')}</span>
+                                                                <span>{lang === 'tr' ? `FİYAT (${currencySymbol})` : `PRICE (${currencySymbol})`}</span>
                                                             </div>
                                                             <div className="grid grid-cols-1 gap-1.5">
                                                               {stats.selectedAccs.map((acc: any, aIdx: number) => (
@@ -1023,7 +1023,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         <tbody className="divide-y divide-slate-700 print:divide-slate-200">
                                             {accessorySummary.map((acc, idx) => {
                                                 const match = accessories.find(a => a.id === acc.id);
-                                                const unitPrice = match?.price || 0;
+                                                const rawPrice = match?.price || 0;
+                                                const unitPrice = getConvertedAccessoryPrice(rawPrice, currency);
                                                 const totalAccCost = unitPrice * acc.quantity;
 
                                                 return (
@@ -1043,10 +1044,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                             </div>
                                                         </td>
                                                         <td className="px-8 py-5 text-right font-mono font-bold text-slate-300 print:text-slate-700">
-                                                            ${unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            {currencySymbol}{unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </td>
                                                         <td className="px-8 py-5 text-right font-mono font-black text-blue-400 print:text-blue-700">
-                                                            ${totalAccCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            {currencySymbol}{totalAccCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </td>
                                                     </tr>
                                                 );

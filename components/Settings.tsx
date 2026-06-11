@@ -51,6 +51,8 @@ const Settings: React.FC<SettingsProps> = ({
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
+  const [showSiegeniaConfirm, setShowSiegeniaConfirm] = useState(false);
+  const [siegeniaSuccess, setSiegeniaSuccess] = useState(false);
   const session = getSessionInfo();
 
   const [currency, setCurrency] = useState(localStorage.getItem('alucraft_currency') || 'USD');
@@ -189,13 +191,12 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleLoadSiegeniaPack = () => {
     if (!onSetAccessories) return;
-    const confirmMessage = lang === 'tr' 
-      ? "Tüm mevcut aksesuarlarınızı silmek ve Kurtoğlu Alüminyum profilleriyle %100 uyumlu orijinal Siegenia (Favorit, Titan AF, HS Portal) donanım paketini yüklemek istiyor musunuz?"
-      : "Do you want to clear your current accessories list and load the original Siegenia (Favorit, Titan AF, HS Portal) hardware pack that is 100% compatible with Kurtoğlu Aluminum profiles?";
-    if (window.confirm(confirmMessage)) {
-      onSetAccessories(MOCK_ACCESSORIES);
-      alert(lang === 'tr' ? "Siegenia Donanım Paketi başarıyla yüklenmiştir!" : "Siegenia Hardware Pack successfully loaded!");
-    }
+    onSetAccessories(MOCK_ACCESSORIES);
+    setSiegeniaSuccess(true);
+    setShowSiegeniaConfirm(false);
+    setTimeout(() => {
+      setSiegeniaSuccess(false);
+    }, 4000);
   };
 
   const handleSaveMachine = () => {
@@ -467,15 +468,50 @@ const Settings: React.FC<SettingsProps> = ({
                                       : "Quickly load the original German Siegenia (Favorit, Titan AF, HS Portal) hardware and accessory set, fully compatible with Kurtoğlu Aluminium systems. This replaces current accessories."
                                     }
                                 </p>
-                                <div className="pt-2">
-                                    <button 
-                                        onClick={handleLoadSiegeniaPack} 
-                                        className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-900/40 flex items-center gap-1.5"
-                                    >
-                                        <Wrench size={13} />
-                                        {lang === 'tr' ? 'Orijinal Siegenia Donanım Paketini Aktif Et' : 'Activate Original Siegenia Hardware Pack'}
-                                    </button>
-                                </div>
+                                {siegeniaSuccess ? (
+                                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-emerald-400">
+                                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                            <Check size={14} className="stroke-[3px]" />
+                                        </div>
+                                        <span className="text-xs font-bold text-emerald-300">
+                                            {lang === 'tr' 
+                                                ? "Orijinal Siegenia donanım paketi başarıyla yüklendi!" 
+                                                : "Original Siegenia hardware package successfully loaded!"}
+                                        </span>
+                                    </div>
+                                ) : showSiegeniaConfirm ? (
+                                    <div className="mt-3 p-4 bg-slate-950/80 border border-amber-500/30 rounded-xl space-y-3">
+                                        <p className="text-xs text-amber-200 font-medium">
+                                            ⚠️ {lang === 'tr' 
+                                                ? "UYARI: Bu işlem tüm mevcut aksesuarlarınızı sıfırlayıp yerine orijinal Siegenia Favorit, Titan AF, ve HS Portal paketini kuracaktır. Devam etmek istiyor musunuz?" 
+                                                : "WARNING: This will clear all your current accessories and install the original Siegenia Favorit, Titan AF, and HS Portal package. Do you want to proceed?"}
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleLoadSiegeniaPack}
+                                                className="py-2 px-3 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white text-[11px] font-bold rounded-lg transition-all"
+                                            >
+                                                {lang === 'tr' ? 'Evet, Sıfırla ve Kur' : 'Yes, Reset & Install'}
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowSiegeniaConfirm(false)}
+                                                className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-lg transition-all"
+                                            >
+                                                {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="pt-2">
+                                        <button 
+                                            onClick={() => setShowSiegeniaConfirm(true)} 
+                                            className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-900/40 flex items-center gap-1.5"
+                                        >
+                                            <Wrench size={13} />
+                                            {lang === 'tr' ? 'Orijinal Siegenia Donanım Paketini Aktif Et' : 'Activate Original Siegenia Hardware Pack'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
