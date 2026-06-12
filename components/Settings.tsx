@@ -293,7 +293,7 @@ const Settings: React.FC<SettingsProps> = ({
                 >
                   {theme === 'light' ? <Moon size={16} className="text-slate-500 hover:text-indigo-500" /> : <Sun size={16} className="text-amber-400" />}
                 </button>
-                <Logo className="w-10 h-10" showText={false} />
+                <Logo className="w-10 h-10" showText={false} theme={theme} />
             </div>
         </div>
 

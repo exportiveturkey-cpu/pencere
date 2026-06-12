@@ -454,7 +454,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   <button 
                     onClick={() => fileInputRef.current?.click()} 
                     disabled={isScanning}
-                    className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-lg transition-all border border-white/5"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-indigo-500/10 transition-all border border-transparent"
                   >
                     {isScanning ? <Loader2 className="animate-spin" size={18} /> : <ScanSearch size={18} />}
                     <span className="hidden md:inline">{t(lang, 'scanDrawing')}</span>
@@ -579,10 +579,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <div className="flex items-center gap-2 print:hidden">
                                 <button onClick={() => {
                                     project.units.forEach(u => handleExportDXF(u));
-                                }} className="flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+                                }} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/10">
                                     <Download size={14} /> {t(lang, 'downloadDxf')} (All)
                                 </button>
-                                <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg">
+                                <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-sky-500/10">
                                     <Printer size={14} /> {t(lang, 'exportPdf')}
                                 </button>
                             </div>
@@ -620,9 +620,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                               </svg>
                                             </div>
                                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
-                                                <button onClick={() => onEditUnit(unit)} className="p-3 bg-blue-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'edit')}><Edit2 size={20}/></button>
-                                                <button onClick={() => handleExportDXF(unit)} className="p-3 bg-emerald-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'downloadDxf')}><Download size={20}/></button>
-                                                <button onClick={() => onDeleteUnit(unit.id)} className="p-3 bg-red-600 rounded-xl text-white hover:scale-110 transition-transform" title={t(lang, 'deleteUnit')}><Trash2 size={20}/></button>
+                                                <button onClick={() => onEditUnit(unit)} className="p-3 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" title={t(lang, 'edit')}><Edit2 size={20}/></button>
+                                                <button onClick={() => handleExportDXF(unit)} className="p-3 bg-emerald-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-emerald-500/20" title={t(lang, 'downloadDxf')}><Download size={20}/></button>
+                                                <button onClick={() => onDeleteUnit(unit.id)} className="p-3 bg-rose-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-rose-500/20" title={t(lang, 'deleteUnit')}><Trash2 size={20}/></button>
                                             </div>
                                         </div>
                                         <div className="p-5 print:p-3">
@@ -930,7 +930,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     </div>
 
                     <div className="flex justify-center mt-12 print:hidden">
-                        <button onClick={() => window.print()} className="flex items-center gap-3 px-10 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] font-black text-lg transition-all shadow-2xl shadow-blue-900/40">
+                        <button onClick={() => window.print()} className="flex items-center gap-3 px-10 py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-[1.5rem] font-black text-lg transition-all shadow-2xl shadow-sky-500/30">
                             <Printer size={24} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
                         </button>
                     </div>
@@ -941,11 +941,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div className="space-y-8 animate-in fade-in">
                     <div className="flex items-center justify-between print:hidden">
                         <div className="flex gap-4 p-1 bg-slate-950 rounded-2xl border border-white/5 w-fit">
-                            <button onClick={() => setProductionSubTab('bom')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'materialSummary')}</button>
-                            <button onClick={() => setProductionSubTab('cuts')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'cuts' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'cuttingList')}</button>
-                            <button onClick={() => setProductionSubTab('glass')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'glass' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>{t(lang, 'glassList')}</button>
+                            <button onClick={() => setProductionSubTab('bom')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'materialSummary')}</button>
+                            <button onClick={() => setProductionSubTab('cuts')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'cuts' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'cuttingList')}</button>
+                            <button onClick={() => setProductionSubTab('glass')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'glass' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'glassList')}</button>
                         </div>
-                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-white/5">
+                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent">
                             <Printer size={16} /> {t(lang, 'exportPdf')}
                         </button>
                     </div>

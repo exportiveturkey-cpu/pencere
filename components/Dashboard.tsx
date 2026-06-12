@@ -202,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="border-b border-white/5 bg-slate-900/40 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-3">
-                <Logo className="w-8 h-8" />
+                <Logo className="w-8 h-8" theme={theme} />
                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full animate-pulse-slow">
                     <Sparkles size={10} className="text-emerald-500" />
                     <span className="text-[9px] font-black text-emerald-500 tracking-tighter uppercase">{t(lang, 'version')} {t(lang, 'softwareUpdated')}</span>
@@ -633,7 +633,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </p>
                   <div className="flex items-center justify-between text-xs text-slate-500 border-t border-white/5 pt-4">
                       <div className="flex items-center gap-2"><Calendar size={14} /><span>{project.date}</span></div>
-                      <div className="flex items-center gap-2 px-2 py-1 bg-slate-800 rounded"><Logo className="w-4 h-4" showText={false} /><span className="text-slate-300 font-mono">{project.units.length} {t(lang, 'positions')}</span></div>
+                      <div className="flex items-center gap-2 px-2 py-1 bg-slate-800 rounded"><Logo className="w-4 h-4" showText={false} theme={theme} /><span className="text-slate-300 font-mono">{project.units.length} {t(lang, 'positions')}</span></div>
                   </div>
                 </div>
               ))}

@@ -6,10 +6,13 @@ interface LogoProps {
   theme?: 'dark' | 'light';
 }
 
-const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10", showText = true, theme = 'dark' }) => {
-  const primaryColor = theme === 'dark' ? '#3b82f6' : '#2563eb'; // Blue-500 : Blue-600
-  const secondaryColor = theme === 'dark' ? '#94a3b8' : '#475569'; // Slate-400 : Slate-600
-  const textColor = theme === 'dark' ? '#f8fafc' : '#0f172a'; // Slate-50 : Slate-900
+const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10", showText = true, theme }) => {
+  // Clever auto-detection: check if theme prop is passed or document body contains light-theme class
+  const isLight = theme === 'light' || (theme !== 'dark' && typeof document !== 'undefined' && document.body.classList.contains('light-theme'));
+  
+  const primaryColor = isLight ? '#2563eb' : '#3b82f6'; // Blue-600 : Blue-500
+  const secondaryColor = isLight ? '#475569' : '#94a3b8'; // Slate-600 : Slate-400
+  const textColor = isLight ? '#0f172a' : '#f8fafc'; // Slate-900 : Slate-50
 
   return (
     <div className="flex items-center gap-3 select-none">
