@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, Language, ProfileSystem, Accessory, Customer } from '../types';
-import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin } from 'lucide-react';
+import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
@@ -24,6 +24,8 @@ interface DashboardProps {
   onDeleteProject: (id: string) => void;
   onOpenSettings: () => void;
   forcedName?: string;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -41,7 +43,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   onUpdateProject,
   onDeleteProject,
   onOpenSettings, 
-  forcedName 
+  forcedName,
+  theme,
+  onToggleTheme
 }) => {
   const [activeTab, setActiveTab] = useState<'projects' | 'customers'>('projects');
   const [searchTerm, setSearchTerm] = useState('');
@@ -215,6 +219,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-4">
+                    <button 
+                      onClick={onToggleTheme} 
+                      className="p-1.5 text-slate-400 hover:text-white transition-colors border border-slate-800 rounded flex items-center justify-center p-2"
+                      title={theme === 'light' ? (lang === 'tr' ? 'Karanlık Tema' : 'Dark Theme') : (lang === 'tr' ? 'Aydınlık Tema' : 'Light Theme')}
+                    >
+                      {theme === 'light' ? <Moon size={16} className="text-slate-500 hover:text-indigo-500" /> : <Sun size={16} className="text-amber-400" />}
+                    </button>
                     <button onClick={onOpenSettings} className="p-2 text-slate-400 hover:text-white transition-colors">
                         <Settings size={20} />
                     </button>

@@ -6,7 +6,7 @@ import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -17,9 +17,11 @@ interface EditorProps {
   lang: Language;
   onSave: (unit: Unit) => void;
   onCancel: () => void;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
-const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel }) => {
+const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
   const [height, setHeight] = useState(initialUnit?.height || 1500);
@@ -54,6 +56,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedDoorCloser, setSelectedDoorCloser] = useState(initialUnit?.selectedDoorCloser || '');
   const [selectedLockStriker, setSelectedLockStriker] = useState(initialUnit?.selectedLockStriker || '');
   const [selectedOther, setSelectedOther] = useState(initialUnit?.selectedOther || '');
+  const [activePack, setActivePack] = useState<'standard' | 'premium' | 'heavyduty' | null>(null);
 
   useEffect(() => {
     const maxDim = Math.max(width, height);
@@ -255,6 +258,103 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     });
   };
 
+  const applyPresetPackage = (packType: 'standard' | 'premium' | 'heavyduty') => {
+    setActivePack(packType);
+    const systemType = selectedSystem.type;
+
+    // Gasket
+    const gasket = accessories.find(a => a.type === 'gasket' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+    if (gasket) setSelectedGasket(gasket.id);
+
+    // Corner
+    const corner = accessories.find(a => a.type === 'corner' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+    if (corner) setSelectedCorner(corner.id);
+
+    // Handle
+    let handle = null;
+    const handles = accessories.filter(a => a.type === 'handle' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+    if (handles.length > 0) {
+      if (systemType === 'sliding') {
+        if (packType === 'standard') {
+          handle = handles.find(h => h.name.toLowerCase().includes('gömme') || h.name.toLowerCase().includes('tutamak') || h.name.toLowerCase().includes('flush') || h.id.includes('sh1'));
+        } else {
+          handle = handles.find(h => h.name.toLowerCase().includes('kaldırma') || h.name.toLowerCase().includes('hs') || h.name.toLowerCase().includes('portal') || h.id.includes('h3'));
+        }
+      } else {
+        if (packType === 'standard') {
+          handle = handles.find(h => h.name.toLowerCase().includes('pencere') || h.name.toLowerCase().includes('globe') || h.name.toLowerCase().includes('standart') || h.id.includes('h1'));
+        } else {
+          handle = handles.find(h => h.name.toLowerCase().includes('kilit') || h.name.toLowerCase().includes('güvenlik') || h.name.toLowerCase().includes('titan') || h.id.includes('h2'));
+        }
+      }
+      if (!handle) handle = handles[0];
+      if (handle) setSelectedHandle(handle.id);
+    }
+
+    // Hinges or Rollers
+    if (systemType === 'hinged') {
+      const hinges = accessories.filter(a => a.type === 'hinge' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+      if (hinges.length > 0) {
+        let hinge = null;
+        if (packType === 'standard') {
+          hinge = hinges.find(h => h.name.toLowerCase().includes('standart') || h.name.toLowerCase().includes('favorit') || (h.maxWeightKg && h.maxWeightKg <= 80));
+        } else if (packType === 'premium') {
+          hinge = hinges.find(h => h.name.toLowerCase().includes('gizli') || h.name.toLowerCase().includes('axxent') || h.name.toLowerCase().includes('axxyent') || h.id.includes('hi3'));
+        } else {
+          hinge = [...hinges].sort((a,b) => (b.maxWeightKg || 0) - (a.maxWeightKg || 0))[0];
+        }
+        if (!hinge) hinge = hinges[0];
+        if (hinge) setSelectedHinge(hinge.id);
+      }
+    } else {
+      const rollers = accessories.filter(a => a.type === 'other' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+      if (rollers.length > 0) {
+        let roller = null;
+        if (packType === 'standard') {
+          roller = rollers.find(r => r.name.toLowerCase().includes('eco') || r.name.toLowerCase().includes('standart') || (r.maxWeightKg && r.maxWeightKg <= 100));
+        } else if (packType === 'premium') {
+          roller = rollers.find(r => r.name.toLowerCase().includes('tandem') || r.name.toLowerCase().includes('150') || r.name.toLowerCase().includes('200') || r.id.includes('sr2'));
+        } else {
+          roller = [...rollers].sort((a,b) => (b.maxWeightKg || 0) - (a.maxWeightKg || 0))[0];
+        }
+        if (!roller) roller = rollers[0];
+        if (roller) setSelectedOther(roller.id);
+      }
+    }
+
+    // Lock
+    const locks = accessories.filter(a => a.type === 'lock' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+    if (locks.length > 0) {
+      let lock = null;
+      if (packType === 'standard') {
+        lock = locks.find(l => !l.name.toLowerCase().includes('3 n') && !l.name.toLowerCase().includes('çok n') && !l.name.toLowerCase().includes('multi') && !l.name.toLowerCase().includes('titan'));
+      } else {
+        lock = locks.find(l => l.name.toLowerCase().includes('3') || l.name.toLowerCase().includes('kilit takımı') || l.name.toLowerCase().includes('multi') || l.name.toLowerCase().includes('titan') || l.id.includes('l1'));
+      }
+      if (!lock) lock = locks[0];
+      if (lock) setSelectedLock(lock.id);
+    }
+
+    // Automation
+    if (packType === 'heavyduty') {
+      const auto = accessories.find(a => a.type === 'automation' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+      if (auto) setSelectedAutomation(auto.id);
+    } else {
+      setSelectedAutomation('');
+    }
+
+    // Special door accessories
+    if (systemType === 'hinged' && packType === 'heavyduty') {
+      const closer = accessories.find(a => a.type === 'doorCloser' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+      if (closer) setSelectedDoorCloser(closer.id);
+      const kp = accessories.find(a => a.type === 'kickplate' && (a.compatibility === 'both' || a.compatibility === systemType || !a.compatibility));
+      if (kp) setSelectedKickplate(kp.id);
+    } else {
+      setSelectedDoorCloser('');
+      setSelectedKickplate('');
+    }
+  };
+
   const AccessorySelect = ({ label, type, value, onChange }: { label: string, type: Accessory['type'], value: string, onChange: (val: string) => void }) => {
     const filtered = accessories.filter(a => 
       a.type === type && 
@@ -266,7 +366,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         <div className="relative">
           <select 
             value={value} 
-            onChange={e => onChange(e.target.value)}
+            onChange={e => {
+              setActivePack(null);
+              onChange(e.target.value);
+            }}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500/50 appearance-none"
           >
             <option value="">{t(lang, 'selectAccessories')}</option>
@@ -379,6 +482,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             </div>
         </div>
         <div className="flex gap-3">
+            {onToggleTheme && (
+              <button 
+                onClick={onToggleTheme} 
+                className="p-1.5 text-slate-400 hover:text-white transition-colors border border-white/5 rounded flex items-center justify-center px-3"
+                title={theme === 'light' ? (lang === 'tr' ? 'Karanlık Tema' : 'Dark Theme') : (lang === 'tr' ? 'Aydınlık Tema' : 'Light Theme')}
+              >
+                {theme === 'light' ? <Moon size={16} className="text-slate-500 hover:text-indigo-500" /> : <Sun size={16} className="text-amber-400" />}
+              </button>
+            )}
             <div className="flex bg-slate-800 p-1 rounded-xl border border-white/5 mr-4">
               <button onClick={() => setViewMode('2d')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${viewMode === '2d' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
                 <Monitor size={14} /> 2D VIEW
@@ -696,6 +808,95 @@ max="0.95"
                   </div>
                 </div>
 
+                {/* Hızlı Aksesuar Paketi Seçimi */}
+                <div className="mb-6 bg-slate-950/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-amber-400 animate-pulse" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {lang === 'tr' ? 'Hızlı Aksesuar Paketi Seç' : 'Quick Accessory Presets'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => applyPresetPackage('standard')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        activePack === 'standard' 
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-extrabold shadow-sm shadow-emerald-950' 
+                          : 'bg-slate-900/60 border-white/5 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      <Zap size={14} className={activePack === 'standard' ? 'text-emerald-400 mb-1' : 'text-slate-500 mb-1'} />
+                      <span className="text-[10px] leading-tight font-bold">
+                        {lang === 'tr' ? 'Standart' : 'Standard'}
+                      </span>
+                      <span className="text-[8px] text-slate-500 mt-0.5 leading-none block">
+                        {selectedSystem.type === 'sliding' 
+                          ? (lang === 'tr' ? 'Sürme' : 'Slide') 
+                          : (lang === 'tr' ? 'Açılır' : 'Hinged')
+                        }
+                      </span>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => applyPresetPackage('premium')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        activePack === 'premium' 
+                          ? 'bg-blue-500/10 border-blue-500 text-blue-400 font-extrabold shadow-sm shadow-blue-950' 
+                          : 'bg-slate-900/60 border-white/5 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      <Sparkles size={14} className={activePack === 'premium' ? 'text-blue-400 mb-1' : 'text-slate-500 mb-1'} />
+                      <span className="text-[10px] leading-tight font-bold">
+                        {lang === 'tr' ? 'Lüks & VIP' : 'Premium VIP'}
+                      </span>
+                      <span className="text-[8px] text-slate-500 mt-0.5 leading-none block">
+                        {lang === 'tr' ? 'Kilitlemeli/Emniyet' : 'Max Security'}
+                      </span>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => applyPresetPackage('heavyduty')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        activePack === 'heavyduty' 
+                          ? 'bg-purple-500/10 border-purple-500 text-purple-400 font-extrabold shadow-sm shadow-purple-950' 
+                          : 'bg-slate-900/60 border-white/5 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      <Package size={14} className={activePack === 'heavyduty' ? 'text-purple-400 mb-1' : 'text-slate-500 mb-1'} />
+                      <span className="text-[10px] leading-tight font-bold">
+                        {lang === 'tr' ? 'Ağır Hizmet' : 'Heavy Duty'}
+                      </span>
+                      <span className="text-[8px] text-slate-500 mt-0.5 leading-none block">
+                        {lang === 'tr' ? 'Kapatıcı + Otomasyon' : 'Closer & Auto'}
+                      </span>
+                    </button>
+                  </div>
+                  
+                  {activePack && (
+                    <p className="text-[9px] text-slate-400 animate-fadeIn leading-relaxed border-t border-white/5 pt-2">
+                      💡 {activePack === 'standard' && (
+                        lang === 'tr' 
+                          ? 'Standart Paket: Temel pencere kolu, standart menteşeler/makaralar, EPDM fitil ve standart kilit takımı otomatik uygulandı.' 
+                          : 'Standard Package: Basic handle, standard hinges/rollers, EPDM gasket, and standard lock set applied.'
+                      )}
+                      {activePack === 'premium' && (
+                        lang === 'tr' 
+                          ? 'Lüks & VIP Paket: Siegenia Titan AF / emniyetli kilitlenebilir kollar, gizli/özel menteşeler, EPDM fitiller ve çok noktalı emniyet kilitleri uygulandı.' 
+                          : 'Premium VIP Package: Siegenia Titan AF / high security lockable handles, heavy/concealed hinges, EPDM gaskets, and multi-point secure locks applied.'
+                      )}
+                      {activePack === 'heavyduty' && (
+                        lang === 'tr' 
+                          ? 'Ağır Hizmet Paketi: Maksimum taşıma gücüne sahip takviyeli menteşeler/makaralar, kapı kapatıcı pompalar, darbe plakaları ve otomasyon setleri uygulandı.' 
+                          : 'Heavy Duty Package: Heavyweight reinforced hinges/rollers, door closers, kickplates, and smart automation units applied.'
+                      )}
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 mb-4">
                   <Wrench size={14} className="text-blue-500" />
                   <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'accessories')}</h3>
@@ -752,7 +953,7 @@ max="0.95"
                             system={selectedSystem}
                             selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId}
                             shape={shape} archHeight={archHeight}
-                            theme="light"
+                            theme={theme}
                             hasThreshold={hasThreshold}
                             lang={lang}
                         />

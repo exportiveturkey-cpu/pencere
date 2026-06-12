@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language, AppData, MachineConfig } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
@@ -26,6 +26,8 @@ interface SettingsProps {
   onBack: () => void;
   onExportData: () => void;
   onImportData: (data: AppData) => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -45,7 +47,9 @@ const Settings: React.FC<SettingsProps> = ({
     onDeleteMachine,
     onBack,
     onExportData,
-    onImportData
+    onImportData,
+    theme,
+    onToggleTheme
 }) => {
   const [activeTab, setActiveTab] = useState<'systems' | 'accessories' | 'cnc' | 'data' | 'general' | any>('general');
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
@@ -281,7 +285,16 @@ const Settings: React.FC<SettingsProps> = ({
                 <button onClick={onBack} className="p-2 hover:bg-slate-900 rounded-full transition-colors"><ArrowLeft size={24} /></button>
                 <h1 className="text-3xl font-bold text-white flex items-center gap-3"><SettingsIcon className="text-blue-500" />{t(lang, 'sysConfig')}</h1>
             </div>
-            <Logo className="w-10 h-10" showText={false} />
+            <div className="flex items-center gap-4">
+                <button 
+                  onClick={onToggleTheme} 
+                  className="p-1.5 text-slate-400 hover:text-white transition-colors border border-slate-800 rounded flex items-center justify-center p-2"
+                  title={theme === 'light' ? (lang === 'tr' ? 'Karanlık Tema' : 'Dark Theme') : (lang === 'tr' ? 'Aydınlık Tema' : 'Light Theme')}
+                >
+                  {theme === 'light' ? <Moon size={16} className="text-slate-500 hover:text-indigo-500" /> : <Sun size={16} className="text-amber-400" />}
+                </button>
+                <Logo className="w-10 h-10" showText={false} />
+            </div>
         </div>
 
         <div className="flex gap-4 mb-8 border-b border-white/5 pb-1 overflow-x-auto custom-scrollbar">

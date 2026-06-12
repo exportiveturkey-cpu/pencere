@@ -37,6 +37,24 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('tr');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeUnit, setActiveUnit] = useState<Unit | undefined>(undefined);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('alucraft_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    if (theme === 'light') {
+      root.classList.add('light-theme');
+      body.classList.add('light-theme');
+    } else {
+      root.classList.remove('light-theme');
+      body.classList.remove('light-theme');
+    }
+    localStorage.setItem('alucraft_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [systems, setSystems] = useState<ProfileSystem[]>([]);
@@ -397,6 +415,8 @@ const App: React.FC = () => {
           onDeleteProject={handleDeleteProject}
           onOpenSettings={() => setView('SETTINGS')}
           forcedName={companyName} 
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       )}
       
@@ -419,6 +439,8 @@ const App: React.FC = () => {
           onBack={() => setView('DASHBOARD')}
           onExportData={handleExportData} 
           onImportData={handleImportData} 
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       )}
       
@@ -435,6 +457,8 @@ const App: React.FC = () => {
           onAddUnit={() => { setActiveUnit(undefined); setView('EDITOR'); }}
           onEditUnit={(unit) => { setActiveUnit(unit); setView('EDITOR'); }}
           onDeleteUnit={handleDeleteUnit}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       )}
 
@@ -447,6 +471,8 @@ const App: React.FC = () => {
                 lang={lang}
                 onSave={handleSaveUnit}
                 onCancel={() => setView('PROJECT_VIEW')}
+                theme={theme}
+                onToggleTheme={toggleTheme}
             />
         </div>
       )}

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -27,6 +27,8 @@ interface ProjectViewProps {
   onEditUnit: (unit: Unit) => void;
   onDeleteUnit: (unitId: string) => void;
   machines?: MachineConfig[];
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
@@ -87,7 +89,7 @@ const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: stri
   });
 };
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [] }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
@@ -383,6 +385,13 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             </div>
 
             <div className="flex items-center gap-4">
+                <button 
+                  onClick={onToggleTheme} 
+                  className="p-1.5 text-slate-400 hover:text-white transition-colors border border-white/5 rounded flex items-center justify-center p-2"
+                  title={theme === 'light' ? (lang === 'tr' ? 'Karanlık Tema' : 'Dark Theme') : (lang === 'tr' ? 'Aydınlık Tema' : 'Light Theme')}
+                >
+                  {theme === 'light' ? <Moon size={16} className="text-slate-500 hover:text-indigo-500" /> : <Sun size={16} className="text-amber-400" />}
+                </button>
                 <button
                   onClick={handleToggleAppMode}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-[11px] font-extrabold uppercase tracking-wider select-none ${
