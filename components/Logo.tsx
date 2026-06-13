@@ -7,7 +7,7 @@ interface LogoProps {
 }
 
 const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10", showText = true, theme }) => {
-  // Clever auto-detection: check if theme prop is passed or document body contains light-theme class
+  // Vercel build trigger touch: Optimized Auto-detection of Light and Dark active theme profiles
   const isLight = theme === 'light' || (theme !== 'dark' && typeof document !== 'undefined' && document.body.classList.contains('light-theme'));
   
   const primaryColor = isLight ? '#2563eb' : '#3b82f6'; // Blue-600 : Blue-500

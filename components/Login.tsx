@@ -64,7 +64,8 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
         
         <div className="flex flex-col items-center mb-10">
-            <Logo className="w-16 h-16 mb-4" />
+            {/* Forced dark theme for the login screen logo to keep contrast high over the dark canvas */}
+            <Logo className="w-16 h-16 mb-4" theme="dark" />
             <h1 className="text-2xl font-bold text-white tracking-tight text-center">
               {t(lang, 'welcomeTitle')}
             </h1>
