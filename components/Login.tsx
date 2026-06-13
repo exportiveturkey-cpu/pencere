@@ -8,9 +8,10 @@ import Logo from './Logo';
 interface LoginProps {
   lang: Language;
   onLogin: (licenseKey: string) => Promise<boolean>; 
+  theme?: 'light' | 'dark';
 }
 
-const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
+const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
   const [key, setKey] = useState('');
   const [error, setError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,8 +65,8 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin }) => {
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
         
         <div className="flex flex-col items-center mb-10">
-            {/* Forced dark theme for the login screen logo to keep contrast high over the dark canvas */}
-            <Logo className="w-16 h-16 mb-4" theme="dark" />
+            {/* Dynamic theme for the login screen logo to stay matching with custom wrappers */}
+            <Logo className="w-16 h-16 mb-4" theme={theme} />
             <h1 className="text-2xl font-bold text-white tracking-tight text-center">
               {t(lang, 'welcomeTitle')}
             </h1>

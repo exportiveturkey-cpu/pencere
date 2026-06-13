@@ -363,7 +363,7 @@ const App: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-      return <Login lang={lang} onLogin={handleLogin} />;
+      return <Login lang={lang} onLogin={handleLogin} theme={theme} />;
   }
 
   const activeProject = projects.find(p => p.id === activeProjectId);
