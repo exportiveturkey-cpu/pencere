@@ -94,6 +94,9 @@ const Settings: React.FC<SettingsProps> = ({
     name: '', brand: 'Generic', bladeThickness: 5, minWaste: 50, clampingOffset: 100
   });
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'system' | 'accessory' | 'import', id?: string } | null>(null);
+  const [pendingImportData, setPendingImportData] = useState<any | null>(null);
+
   const [colorPrices, setColorPrices] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('alucraft_color_prices');
     if (saved) {
@@ -271,11 +274,10 @@ const Settings: React.FC<SettingsProps> = ({
     reader.onload = (event) => {
         try {
             const data = JSON.parse(event.target?.result as string);
-            if (window.confirm(t(lang, 'importConfirm'))) {
-                onImportData(data);
-            }
+            setPendingImportData(data);
+            setDeleteConfirm({ type: 'import' });
         } catch (err) {
-            alert("Hatalı dosya formatı.");
+            alert(lang === 'tr' ? "Hatalı dosya formatı." : "Invalid file format.");
         }
     };
     reader.readAsText(file);
@@ -431,7 +433,7 @@ const Settings: React.FC<SettingsProps> = ({
                             <div className="flex gap-2">
                                 <button onClick={() => { setEditingSysId(sys.id); setSysForm(sys); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={18} /></button>
                                 {onDeleteSystem && (
-                                    <button onClick={() => { if (window.confirm(lang === 'tr' ? 'Bu sistemi silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this system?')) onDeleteSystem(sys.id); }} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={18} /></button>
+                                    <button onClick={() => setDeleteConfirm({ type: 'system', id: sys.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={18} /></button>
                                 )}
                             </div>
                         </div>
@@ -573,7 +575,7 @@ const Settings: React.FC<SettingsProps> = ({
                             <div className="flex gap-2">
                                 <button onClick={() => { setEditingAccId(acc.id); setAccForm(acc); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={16} /></button>
                                 {onDeleteAccessory && (
-                                    <button onClick={() => { if (window.confirm(lang === 'tr' ? 'Bu aksesuarı silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this accessory?')) onDeleteAccessory(acc.id); }} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={16} /></button>
+                                    <button onClick={() => setDeleteConfirm({ type: 'accessory', id: acc.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-100 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={16} /></button>
                                 )}
                             </div>
                         </div>
@@ -1008,6 +1010,62 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                 </div>
             </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800/80 w-full max-w-sm rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 border border-red-500/20">
+                <AlertTriangle size={22} className="animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-base font-bold text-white">
+                  {deleteConfirm.type === 'import'
+                    ? (lang === 'tr' ? 'Verileri İçe Aktar' : 'Import Data')
+                    : (lang === 'tr' ? 'Öğeyi Sil' : 'Delete Item')}
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed px-2">
+                  {deleteConfirm.type === 'import'
+                    ? (lang === 'tr' ? 'Mevcut tüm ayarlarınız ve sistemleriniz silinip yüklenen dosyadaki yeni veriler ile değiştirilecektir. Devam etmek istiyor musunuz?' : 'All current settings, profiles, and accessories will be replaced with the data from the imported file. This action cannot be undone. Continue?')
+                    : deleteConfirm.type === 'system'
+                    ? (lang === 'tr' ? 'Bu sistem yapılandırmasını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.' : 'Are you sure you want to delete this system? This action cannot be undone.')
+                    : (lang === 'tr' ? 'Bu aksesuarı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.' : 'Are you sure you want to delete this accessory? This action cannot be undone.')}
+                </p>
+              </div>
+
+              <div className="flex gap-3 w-full pt-2">
+                <button 
+                  onClick={() => {
+                    setDeleteConfirm(null);
+                    setPendingImportData(null);
+                  }}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold py-2.5 rounded-xl transition-all"
+                >
+                  {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+                </button>
+                <button 
+                  onClick={() => {
+                    if (deleteConfirm.type === 'system' && deleteConfirm.id && onDeleteSystem) {
+                      onDeleteSystem(deleteConfirm.id);
+                    } else if (deleteConfirm.type === 'accessory' && deleteConfirm.id && onDeleteAccessory) {
+                      onDeleteAccessory(deleteConfirm.id);
+                    } else if (deleteConfirm.type === 'import' && pendingImportData) {
+                      onImportData(pendingImportData);
+                    }
+                    setDeleteConfirm(null);
+                    setPendingImportData(null);
+                  }}
+                  className="flex-1 bg-red-650 hover:bg-red-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg shadow-red-500/20 transition-all cursor-pointer"
+                >
+                  {deleteConfirm.type === 'import' 
+                    ? (lang === 'tr' ? 'İçe Aktar' : 'Import')
+                    : (lang === 'tr' ? 'Evet, Sil' : 'Yes, Delete')}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
