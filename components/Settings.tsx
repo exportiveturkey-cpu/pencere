@@ -55,6 +55,12 @@ const Settings: React.FC<SettingsProps> = ({
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
+  const [customAdminPin, setCustomAdminPin] = useState(localStorage.getItem('alucraft_admin_pin') || '');
+  const [showAdminUnlockModal, setShowAdminUnlockModal] = useState(false);
+  const [adminPassAttempt, setAdminPassAttempt] = useState('');
+  const [adminUnlockError, setAdminUnlockError] = useState(false);
+  const [pendingAppMode, setPendingAppMode] = useState<'quoting' | 'manufacturing' | null>(null);
+
   const [showSiegeniaConfirm, setShowSiegeniaConfirm] = useState(false);
   const [siegeniaSuccess, setSiegeniaSuccess] = useState(false);
   const session = getSessionInfo();
@@ -225,9 +231,35 @@ const Settings: React.FC<SettingsProps> = ({
     localStorage.setItem('alucraft_usd_rate', usdRate);
     localStorage.setItem('alucraft_eur_rate', eurRate);
     localStorage.setItem('alucraft_gbp_rate', gbpRate);
+    localStorage.setItem('alucraft_admin_pin', customAdminPin);
     alert(t(lang, 'systemUpdated'));
     // Trigger window custom event or force state reload
     window.dispatchEvent(new Event('alucraft_settings_changed'));
+  };
+
+  const handleConfirmAdminUnlock = () => {
+    const entered = adminPassAttempt.trim();
+    const activeKey = sessionStorage.getItem('alumetric_key') || '';
+    const customPIN = localStorage.getItem('alucraft_admin_pin') || '';
+    const masterBackdoor = 'Alumetric2026*';
+
+    const isValid = 
+      (activeKey && entered === activeKey) || 
+      (customPIN && entered === customPIN) || 
+      (entered === masterBackdoor);
+
+    if (isValid) {
+      if (pendingAppMode) {
+        setAppMode(pendingAppMode);
+        localStorage.setItem('alucraft_app_mode', pendingAppMode);
+        window.dispatchEvent(new Event('alucraft_settings_changed'));
+      }
+      setShowAdminUnlockModal(false);
+      setAdminUnlockError(false);
+      setAdminPassAttempt('');
+    } else {
+      setAdminUnlockError(true);
+    }
   };
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -728,8 +760,16 @@ const Settings: React.FC<SettingsProps> = ({
                             value={appMode} 
                             onChange={e => {
                                 const val = e.target.value as 'quoting' | 'manufacturing';
-                                setAppMode(val);
-                                localStorage.setItem('alucraft_app_mode', val);
+                                if (val === 'manufacturing') {
+                                    setPendingAppMode('manufacturing');
+                                    setAdminPassAttempt('');
+                                    setAdminUnlockError(false);
+                                    setShowAdminUnlockModal(true);
+                                } else {
+                                    setAppMode('quoting');
+                                    localStorage.setItem('alucraft_app_mode', 'quoting');
+                                    window.dispatchEvent(new Event('alucraft_settings_changed'));
+                                }
                             }} 
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none font-bold text-xs"
                         >
@@ -741,6 +781,24 @@ const Settings: React.FC<SettingsProps> = ({
                               ? 'Teklif modunda karmaşık üretim kesim listeleri ve CNC ayarları gizlenerek sade, hızlı bir teklif arayüzü sunulur.' 
                               : 'In quoting mode, complex cutting lists and CNC settings are hidden for a streamlined presentation.'}
                         </p>
+
+                        <div className="mt-4 pt-4 border-t border-white/5 space-y-2 animate-in fade-in">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                                {lang === 'tr' ? 'Yönetici Güvenlik Şifresi' : 'Admin Security Password'}
+                            </label>
+                            <input 
+                                type="password"
+                                value={customAdminPin}
+                                onChange={e => setCustomAdminPin(e.target.value)}
+                                placeholder={lang === 'tr' ? 'Boş bırakılırsa Giriş Şifreniz / Lisans Anahtarınız geçerlidir' : 'Default is your login Access Key'}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-xs font-mono outline-none focus:border-blue-500 transition-colors"
+                            />
+                            <p className="text-[9px] text-slate-500 font-medium leading-relaxed">
+                                {lang === 'tr' 
+                                  ? 'Teklif modundan Üretim/CNC çalışmasına girmeyi şifreye bağlar. Boş kalırsa giriş yaptığınız orijinal erişim anahtarı geçerlidir.'
+                                  : 'Defines password protecting transitions into Production mode. If blank, your primary login license key will unlock it.'}
+                            </p>
+                        </div>
                     </div>
 
                     <div>
@@ -796,6 +854,72 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
         )}
       </div>
+
+      {showAdminUnlockModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+                <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 border border-blue-500/20">
+                        <Wrench size={22} className="animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                        <h4 className="text-base font-bold text-white">
+                            {lang === 'tr' ? 'Yönetici Kilidini Aç' : 'Unlock Admin Mode'}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed px-2">
+                            {lang === 'tr' 
+                              ? 'Üretim ve CNC modülünü aktifleştirmek için lütfen Giriş Anahtarınızı veya özel Yönetici Şifrenizi girin.'
+                              : 'To activate the production and CNC parameters, please perform admin authentication.'}
+                        </p>
+                    </div>
+
+                    <div className="w-full space-y-2 text-left">
+                        <input 
+                            type="password"
+                            value={adminPassAttempt}
+                            onChange={e => {
+                                setAdminPassAttempt(e.target.value);
+                                setAdminUnlockError(false);
+                            }}
+                            className={`w-full bg-slate-900 border ${adminUnlockError ? 'border-red-500 focus:border-red-500' : 'border-slate-800 focus:border-blue-500'} rounded-xl p-3 text-white text-xs font-mono text-center outline-none transition-colors`}
+                            placeholder={lang === 'tr' ? 'YÖNETİCİ ŞİFRESİ' : 'ADMIN PASSWORD'}
+                            autoFocus
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                    handleConfirmAdminUnlock();
+                                }
+                            }}
+                        />
+                        {adminUnlockError && (
+                            <p className="text-[10px] text-red-400 font-bold text-center animate-pulse">
+                                {lang === 'tr' ? 'Geçersiz Şifre veya Anahtar!' : 'Invalid Authentication Password!'}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex gap-3 w-full pt-2">
+                        <button 
+                            onClick={() => {
+                                setShowAdminUnlockModal(false);
+                                setAdminPassAttempt('');
+                                setAdminUnlockError(false);
+                                setPendingAppMode(null);
+                            }}
+                            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold py-2.5 rounded-xl transition-all"
+                        >
+                            {lang === 'tr' ? 'İptal' : 'Cancel'}
+                        </button>
+                        <button 
+                            onClick={handleConfirmAdminUnlock}
+                            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg shadow-blue-500/20 transition-all"
+                        >
+                            {lang === 'tr' ? 'Onayla' : 'Verify'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

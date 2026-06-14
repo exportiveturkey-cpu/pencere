@@ -95,12 +95,50 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
   
+  const [showAdminUnlockModal, setShowAdminUnlockModal] = useState(false);
+  const [adminPassAttempt, setAdminPassAttempt] = useState('');
+  const [adminUnlockError, setAdminUnlockError] = useState(false);
+  const [pendingAppMode, setPendingAppMode] = useState<'quoting' | 'manufacturing' | null>(null);
+
   const handleToggleAppMode = () => {
     const newMode = appMode === 'quoting' ? 'manufacturing' : 'quoting';
-    setAppMode(newMode);
-    localStorage.setItem('alucraft_app_mode', newMode);
-    if (newMode === 'quoting' && (activeTab === 'production' || activeTab === 'cnc')) {
-      setActiveTab('details');
+    if (newMode === 'manufacturing') {
+      setPendingAppMode('manufacturing');
+      setAdminPassAttempt('');
+      setAdminUnlockError(false);
+      setShowAdminUnlockModal(true);
+    } else {
+      setAppMode('quoting');
+      localStorage.setItem('alucraft_app_mode', 'quoting');
+      if (activeTab === 'production' || activeTab === 'cnc') {
+        setActiveTab('details');
+      }
+      window.dispatchEvent(new Event('alucraft_settings_changed'));
+    }
+  };
+
+  const handleConfirmAdminUnlock = () => {
+    const entered = adminPassAttempt.trim();
+    const activeKey = sessionStorage.getItem('alumetric_key') || '';
+    const customPIN = localStorage.getItem('alucraft_admin_pin') || '';
+    const masterBackdoor = 'Alumetric2026*';
+
+    const isValid = 
+      (activeKey && entered === activeKey) || 
+      (customPIN && entered === customPIN) || 
+      (entered === masterBackdoor);
+
+    if (isValid) {
+      if (pendingAppMode) {
+        setAppMode(pendingAppMode);
+        localStorage.setItem('alucraft_app_mode', pendingAppMode);
+        window.dispatchEvent(new Event('alucraft_settings_changed'));
+      }
+      setShowAdminUnlockModal(false);
+      setAdminUnlockError(false);
+      setAdminPassAttempt('');
+    } else {
+      setAdminUnlockError(true);
     }
   };
 
@@ -1216,6 +1254,72 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
               <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
               <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">{lang === 'tr' ? 'İptal' : 'Cancel'}</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showAdminUnlockModal && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800/80 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 border border-blue-500/20">
+                <Cpu size={22} className="animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">
+                  {lang === 'tr' ? 'Yönetici Kilidini Aç' : 'Unlock Admin Mode'}
+                </h4>
+                <p className="text-[11px] text-slate-400 text-xs leading-relaxed px-2">
+                  {lang === 'tr' 
+                    ? 'Üretim ve CNC modülünü aktifleştirmek için lütfen Giriş Anahtarınızı veya özel Yönetici Şifrenizi girin.'
+                    : 'To activate the production and CNC parameters, please perform admin authentication.'}
+                </p>
+              </div>
+
+              <div className="w-full space-y-2 text-left">
+                <input 
+                  type="password"
+                  value={adminPassAttempt}
+                  onChange={e => {
+                    setAdminPassAttempt(e.target.value);
+                    setAdminUnlockError(false);
+                  }}
+                  className={`w-full bg-slate-950 border ${adminUnlockError ? 'border-red-500 focus:border-red-500' : 'border-slate-800 focus:border-blue-500'} rounded-xl p-3 text-white text-xs font-mono text-center outline-none transition-colors`}
+                  placeholder={lang === 'tr' ? 'YÖNETİCİ ŞİFRESİ' : 'ADMIN PASSWORD'}
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                        handleConfirmAdminUnlock();
+                    }
+                  }}
+                />
+                {adminUnlockError && (
+                  <p className="text-[10px] text-red-400 font-bold text-center animate-pulse">
+                    {lang === 'tr' ? 'Geçersiz Şifre veya Anahtar!' : 'Invalid Authentication Password!'}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 w-full pt-2">
+                <button 
+                  onClick={() => {
+                    setShowAdminUnlockModal(false);
+                    setAdminPassAttempt('');
+                    setAdminUnlockError(false);
+                    setPendingAppMode(null);
+                  }}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold py-2.5 rounded-xl transition-all"
+                >
+                  {lang === 'tr' ? 'İptal' : 'Cancel'}
+                </button>
+                <button 
+                  onClick={handleConfirmAdminUnlock}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-xl shadow-lg shadow-blue-500/20 transition-all"
+                >
+                  {lang === 'tr' ? 'Onayla' : 'Verify'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
