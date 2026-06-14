@@ -174,7 +174,9 @@ const Settings: React.FC<SettingsProps> = ({
             glassClearance: Number(sysForm.correctionConfig?.glassClearance || 0),
             mullionCorrection: Number(sysForm.correctionConfig?.mullionCorrection || 0),
             frameCornerWelding: Number(sysForm.correctionConfig?.frameCornerWelding || 0)
-        }
+        },
+        laborPricePerKg: sysForm.laborPricePerKg !== undefined ? Number(sysForm.laborPricePerKg) : undefined,
+        laborPricePerKgUsd: sysForm.laborPricePerKgUsd !== undefined ? Number(sysForm.laborPricePerKgUsd) : undefined,
     };
     if (editingSysId) onUpdateSystem(sysData);
     else onAddSystem(sysData);
@@ -330,7 +332,7 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
 
         <div className="flex gap-4 mb-8 border-b border-white/5 pb-1 overflow-x-auto custom-scrollbar">
-            {['general', 'colors', 'systems', 'accessories', appMode === 'manufacturing' ? 'cnc' : null, 'data'].filter((t): t is string => t !== null).map(tab => (
+            {['general', 'colors', 'labor', 'systems', 'accessories', appMode === 'manufacturing' ? 'cnc' : null, 'data'].filter((t): t is string => t !== null).map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab as any)} 
@@ -338,6 +340,7 @@ const Settings: React.FC<SettingsProps> = ({
               >
                 {tab === 'general' && <SettingsIcon size={16} />}
                 {tab === 'colors' && <Palette size={16} />}
+                {tab === 'labor' && <Factory size={16} />}
                 {tab === 'systems' && <Layers size={16} />}
                 {tab === 'accessories' && <Wrench size={16} />}
                 {tab === 'cnc' && <Cpu size={16} />}
@@ -733,6 +736,93 @@ const Settings: React.FC<SettingsProps> = ({
                                                         value={currentPriceUsd} 
                                                         onChange={e => handleColorPriceUsdChange(group.id, parseFloat(e.target.value) || 0)}
                                                         className="w-20 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 outline-none font-mono font-bold" 
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">USD</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {activeTab === 'labor' && (
+            <div className="max-w-4xl animate-in fade-in space-y-6">
+                <div className="bg-slate-900 border border-white/5 p-8 rounded-[2rem]">
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400">
+                            <Factory size={24} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-white">
+                                {lang === 'tr' ? 'Profil Sistemleri İşçilik Kg Fiyatları' : 'Profile Systems Labor Prices per kg'}
+                            </h2>
+                            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl mt-1">
+                                {lang === 'tr' 
+                                  ? 'Alüminyum profillerin işlenmesi için profil ağırlığı (kg) üzerinden hesaplanacak işçilik prim ve maliyetlerini belirleyin. Belirlediğiniz işçilikler tekliflerde her pozun profil birim maliyetine otomatik olarak ilave edilecektir.' 
+                                  : 'Specify labor and processing costs based on aluminum profile weight (kg). These workmanship rates will be automatically factored into each unit\'s profile pricing breakdown.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="border border-white/5 bg-slate-900/50 rounded-2xl overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-white/5 bg-slate-950/45 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <th className="px-6 py-4">{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}</th>
+                                    <th className="px-6 py-4 hidden md:table-cell">{lang === 'tr' ? 'Sistem Tipi' : 'System Type'}</th>
+                                    <th className="px-6 py-4 w-40">{lang === 'tr' ? 'TL İşçilik (Kg)' : 'TL Labor Price (Kg)'}</th>
+                                    <th className="px-6 py-4 w-40">{lang === 'tr' ? 'USD İşçilik (Kg)' : 'USD Labor Price (Kg)'}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5 text-sm">
+                                {systems.map(system => {
+                                    const currentLabor = system.laborPricePerKg !== undefined ? system.laborPricePerKg : 0;
+                                    const currentLaborUsd = system.laborPricePerKgUsd !== undefined ? system.laborPricePerKgUsd : 0;
+                                    return (
+                                        <tr key={system.id} className="hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-white">{system.name}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-400 md:table-cell">
+                                                {system.type === 'sliding' 
+                                                  ? (lang === 'tr' ? 'Sürme' : 'Sliding') 
+                                                  : (lang === 'tr' ? 'Menteşeli' : 'Hinged')}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <input 
+                                                        type="number" 
+                                                        value={currentLabor || ''} 
+                                                        onChange={e => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            onUpdateSystem({ ...system, laborPricePerKg: val });
+                                                        }}
+                                                        placeholder="0.00"
+                                                        className="w-24 bg-slate-950 border border-slate-800 focus:border-blue-500/50 rounded-xl px-2.5 py-1.5 text-xs text-blue-400 outline-none font-mono font-bold" 
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">TL</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <input 
+                                                        type="number" 
+                                                        value={currentLaborUsd || ''} 
+                                                        onChange={e => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            onUpdateSystem({ ...system, laborPricePerKgUsd: val });
+                                                        }}
+                                                        placeholder="0.00"
+                                                        className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 outline-none font-mono font-bold" 
                                                         min="0"
                                                         step="0.01"
                                                     />

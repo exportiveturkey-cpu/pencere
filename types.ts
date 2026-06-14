@@ -34,6 +34,7 @@ export interface Unit {
   archHeight?: number;
   system: string;
   color: string;
+  specificColor?: string;
   glassType: string;
   glassThickness: number;
   rootNode: WindowNode;
@@ -113,6 +114,8 @@ export interface ProfileSystem {
   defaultCornerCleat?: string;
   profileCodes?: ProfileCodes;
   profileWeights?: ProfileWeights;
+  laborPricePerKg?: number;
+  laborPricePerKgUsd?: number;
 }
 
 export interface GlassType {

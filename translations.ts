@@ -33,7 +33,7 @@ type TranslationKey =
   | 'editProjectInfo' | 'projectName' | 'clientName' | 'projectDate' | 'saveChanges'
   | 'shape' | 'rect' | 'triangle' | 'arch' | 'archHeight' | 'projectNamePlaceholder'
   | 'cncIntegration' | 'cncBrand' | 'bladeThickness' | 'cncExport' | 'generateNC' | 'cncSettings' | 'addMachine' | 'machineName' | 'cncProfileCode' | 'leftAngle' | 'rightAngle'
-  | 'generalTab' | 'systemsTab' | 'accessoriesTab' | 'cncTab' | 'dataTab' | 'colorsTab' | 'currency' | 'taxRate' | 'saveSettings' | 'machineAlias' | 'minWaste' | 'clampingOffset'
+  | 'generalTab' | 'systemsTab' | 'accessoriesTab' | 'cncTab' | 'dataTab' | 'colorsTab' | 'laborTab' | 'currency' | 'taxRate' | 'saveSettings' | 'machineAlias' | 'minWaste' | 'clampingOffset'
   | 'detailsTab' | 'productionTab' | 'cncSectionTab' | 'quoteTab' | 'noMachines'
   | 'glassList' | 'glassOrder' | 'totalWeight' | 'assemblySheet' | 'paneDimensions' | 'weight' | 'glassType' | 'netSize' | 'kg'
   | 'download' | 'generate' | 'printAssembly' | 'searchPlaceholder' | 'noMachinesFound'
@@ -290,6 +290,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cncTab: 'Machines',
     dataTab: 'Data',
     colorsTab: 'Color Prices (kg)',
+    laborTab: 'Labor Prices (kg)',
     currency: 'Currency',
     taxRate: 'Tax %',
     saveSettings: 'Save',
@@ -561,6 +562,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cncTab: 'CNC Makineleri',
     dataTab: 'Veritabanı',
     colorsTab: 'Renk Kg Fiyatları',
+    laborTab: 'İşçilik Fiyatları (kg)',
     currency: 'Para Birimi',
     taxRate: 'KDV Oranı (%)',
     saveSettings: 'Ayarları Kaydet',

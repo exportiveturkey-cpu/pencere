@@ -30,6 +30,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
   const [color, setColor] = useState(initialUnit?.color || 'group1');
+  const [specificColor, setSpecificColor] = useState(initialUnit?.specificColor || '');
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
   const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -109,6 +110,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     height: Number(height) || 0,
     system: systemId,
     color,
+    specificColor,
     glassType: glassTypeId,
     glassThickness: 24,
     rootNode,
@@ -116,7 +118,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     shape,
     archHeight,
     hasThreshold,
-  }), [initialUnit?.id, name, width, height, systemId, color, glassTypeId, rootNode, shape, archHeight, hasThreshold]);
+  }), [initialUnit?.id, name, width, height, systemId, color, specificColor, glassTypeId, rootNode, shape, archHeight, hasThreshold]);
 
   // Try to calculate weights and recommended accessories
   const { totalGlassWeight, recommendedHinge, recommendedRoller } = useMemo(() => {
@@ -247,7 +249,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     onSave({
       id: initialUnit?.id || uuidv4(),
       name, width, height, system: systemId,
-      color, glassType: glassTypeId, glassThickness: glassObj.thickness,
+      color,
+      specificColor,
+      glassType: glassTypeId, glassThickness: glassObj.thickness,
       rootNode, quantity: Math.max(1, quantity), shape, archHeight,
       hasThreshold,
       includeGlass,
@@ -459,7 +463,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const currentUnitFor3D: Unit = {
     id: 'temp',
     name, width, height, system: systemId,
-    color, glassType: glassTypeId, glassThickness: 24,
+    color, specificColor, glassType: glassTypeId, glassThickness: 24,
     rootNode, quantity, shape, archHeight, hasThreshold, includeGlass,
     customGlassPrice: customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined
   };
@@ -562,6 +566,19 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             </option>
                           ))}
                         </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">
+                          {lang === 'tr' ? 'Proje Renk Kodu (Teklifte Görünür)' : 'Project Color Code (Visible on Quote)'}
+                        </label>
+                        <input 
+                          type="text" 
+                          value={specificColor} 
+                          onChange={e => setSpecificColor(e.target.value)} 
+                          placeholder={lang === 'tr' ? 'Örn: RAL 7016' : 'e.g. RAL 7016'} 
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500 transition-colors"
+                        />
                     </div>
 
                     <div className="space-y-1">

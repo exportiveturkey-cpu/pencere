@@ -133,7 +133,17 @@ export const calculateProjectCost = (
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
     
     let colorPrice = getColorPricePerKg(unit.color, currency);
-    const profileCost = (profileWeight * 1.10) * colorPrice; // 10% wastage increase for costing
+    
+    const laborPerKgTry = system?.laborPricePerKg || 0;
+    const laborPerKgUsd = system?.laborPricePerKgUsd || 0;
+    let systemLaborRate = 0;
+    if (currency === 'TRY') {
+      systemLaborRate = laborPerKgTry || (laborPerKgUsd * exchangeRate);
+    } else {
+      systemLaborRate = laborPerKgUsd || (laborPerKgTry / exchangeRate);
+    }
+
+    const profileCost = (profileWeight * 1.10) * (colorPrice + systemLaborRate); // 10% wastage increase for costing included with labor per kg
     
     let glassCost = 0;
     if (unit.includeGlass !== false) {

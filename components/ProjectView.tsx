@@ -339,7 +339,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const totalAreaM2 = (unit.width * unit.height) / 1000000;
     
     let colorPrice = getColorPricePerKg(unit.color, currency);
-    const profileCost = (profileWeight * 1.10) * colorPrice; // 10% wastage increase for costing
+    
+    const laborPerKgTry = system.laborPricePerKg || 0;
+    const laborPerKgUsd = system.laborPricePerKgUsd || 0;
+    let systemLaborRate = 0;
+    if (currency === 'TRY') {
+      systemLaborRate = laborPerKgTry || (laborPerKgUsd * exchangeRate);
+    } else {
+      systemLaborRate = laborPerKgUsd || (laborPerKgTry / exchangeRate);
+    }
+
+    const profileCost = (profileWeight * 1.10) * (colorPrice + systemLaborRate); // 10% wastage increase for costing included with labor per kg
     
     let glassCost = 0;
     if (unit.includeGlass !== false) {
@@ -376,7 +386,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       }
     });
 
-    return { cost: profileCost + glassCost + accCost, weight: profileWeight, selectedAccs, accCost };
+    return { 
+      cost: profileCost + glassCost + accCost, 
+      weight: profileWeight, 
+      selectedAccs, 
+      accCost,
+      laborRate: systemLaborRate,
+      colorPrice
+    };
   };
 
   const projectTotalStats = useMemo(() => {
@@ -797,12 +814,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         {(() => {
                                                             const colorObj = COLOR_GROUPS.find(c => c.id === unit.color);
                                                             const colorLabel = colorObj ? (lang === 'tr' ? colorObj.nameTr : colorObj.nameEn) : (unit.color || 'Standard');
-                                                            return (
+                                                            return (<>
                                                               <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
-                                                                <span>{lang === 'tr' ? 'Profil Renk Grubu:' : 'Profile Color Group:'}</span>
-                                                                <span className="font-bold text-slate-900">{colorLabel}</span>
+                                                                <span>{unit.specificColor ? (lang === 'tr' ? 'Renk / Boya Kodu:' : 'Color / Powder Code:') : (lang === 'tr' ? 'Profil Renk Grubu:' : 'Profile Color Group:')}</span>
+                                                                <span className="font-bold text-slate-900">{unit.specificColor || colorLabel}</span>
                                                               </div>
-                                                            );
+                                                              {stats.laborRate > 0 && (
+                                                                <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                                  <span>{lang === 'tr' ? 'Sistem İşçiliği (Kg):' : 'System Labor (Kg):'}</span>
+                                                                  <span className="font-bold text-slate-900 font-mono">
+                                                                    {currency === 'TRY' ? `${stats.laborRate.toFixed(2)} TL/kg` : `${currencySymbol}${stats.laborRate.toFixed(2)}/kg`}
+                                                                  </span>
+                                                                </div>
+                                                              )}
+                                                           </>);
                                                         })()}
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'glassType')}:</span> <span className="font-bold text-slate-900">{GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
