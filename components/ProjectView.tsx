@@ -968,7 +968,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 )}
                                 {!project.isExport && (
                                     <div className="flex justify-between items-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                                        <span>VAT ({taxRate}%)</span>
+                                        <span>{lang === 'tr' ? 'KDV' : 'VAT'} ({taxRate}%)</span>
                                         <span className="text-base text-slate-800 font-black">{currencySymbol}{projectTotalStats.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 )}
