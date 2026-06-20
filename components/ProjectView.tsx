@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -153,6 +153,125 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     } else {
       setAdminUnlockError(true);
     }
+  };
+
+  // Bulk Edit States & Options
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkCheckedUnitIds, setBulkCheckedUnitIds] = useState<string[]>([]);
+  const [bulkSystemId, setBulkSystemId] = useState<string>('');
+  const [bulkColor, setBulkColor] = useState<string>('');
+  const [bulkSpecificColor, setBulkSpecificColor] = useState<string>('');
+  const [bulkGlassType, setBulkGlassType] = useState<string>('');
+  const [bulkIncludeGlass, setBulkIncludeGlass] = useState<'keep' | 'yes' | 'no'>('keep');
+  const [bulkHasThreshold, setBulkHasThreshold] = useState<'keep' | 'yes' | 'no'>('keep');
+  const [bulkWidthOp, setBulkWidthOp] = useState<'relative' | 'absolute' | 'none'>('none');
+  const [bulkWidthValue, setBulkWidthValue] = useState<number>(0);
+  const [bulkHeightOp, setBulkHeightOp] = useState<'relative' | 'absolute' | 'none'>('none');
+  const [bulkHeightValue, setBulkHeightValue] = useState<number>(0);
+  const [bulkHandleId, setBulkHandleId] = useState<string>('');
+  const [bulkLockId, setBulkLockId] = useState<string>('');
+  const [bulkQuantity, setBulkQuantity] = useState<number>(0);
+
+  const handleApplyBulkEdit = () => {
+    if (bulkCheckedUnitIds.length === 0) {
+      alert(lang === 'tr' ? "Lütfen düzenleme yapmak istediğiniz en az bir poz seçin." : "Please select at least one unit/position to modify.");
+      return;
+    }
+
+    const updatedUnits = project.units.map(unit => {
+      if (!bulkCheckedUnitIds.includes(unit.id)) {
+        return unit;
+      }
+
+      const updatedUnit = { ...unit };
+
+      // Apply System Profile
+      if (bulkSystemId) {
+        updatedUnit.system = bulkSystemId;
+      }
+
+      // Apply Color Finish
+      if (bulkColor) {
+        updatedUnit.color = bulkColor as any;
+        if (bulkColor !== 'custom') {
+          updatedUnit.specificColor = '';
+        }
+      }
+      if (bulkSpecificColor) {
+        updatedUnit.specificColor = bulkSpecificColor;
+      }
+
+      // Apply Glass configuration
+      if (bulkGlassType) {
+        updatedUnit.glassType = bulkGlassType;
+      }
+      if (bulkIncludeGlass === 'yes') {
+        updatedUnit.includeGlass = true;
+      } else if (bulkIncludeGlass === 'no') {
+        updatedUnit.includeGlass = false;
+      }
+
+      // Apply Threshold Option
+      if (bulkHasThreshold === 'yes') {
+        updatedUnit.hasThreshold = true;
+      } else if (bulkHasThreshold === 'no') {
+        updatedUnit.hasThreshold = false;
+      }
+
+      // Apply dimension updates
+      if (bulkWidthOp === 'absolute' && bulkWidthValue > 0) {
+        updatedUnit.width = bulkWidthValue;
+      } else if (bulkWidthOp === 'relative' && bulkWidthValue !== 0) {
+        updatedUnit.width = Math.max(200, updatedUnit.width + bulkWidthValue);
+      }
+
+      if (bulkHeightOp === 'absolute' && bulkHeightValue > 0) {
+        updatedUnit.height = bulkHeightValue;
+      } else if (bulkHeightOp === 'relative' && bulkHeightValue !== 0) {
+        updatedUnit.height = Math.max(200, updatedUnit.height + bulkHeightValue);
+      }
+
+      // Set quantity
+      if (bulkQuantity > 0) {
+        updatedUnit.quantity = bulkQuantity;
+      }
+
+      // Apply Accessories (if selected handle/lock)
+      if (bulkHandleId === 'clear') {
+        updatedUnit.selectedHandle = '';
+      } else if (bulkHandleId) {
+        updatedUnit.selectedHandle = bulkHandleId;
+      }
+
+      if (bulkLockId === 'clear') {
+        updatedUnit.selectedLock = '';
+      } else if (bulkLockId) {
+        updatedUnit.selectedLock = bulkLockId;
+      }
+
+      return updatedUnit;
+    });
+
+    onUpdateProject({ ...project, units: updatedUnits });
+    
+    // Close and reset
+    setShowBulkEditModal(false);
+    setBulkCheckedUnitIds([]);
+    setBulkSystemId('');
+    setBulkColor('');
+    setBulkSpecificColor('');
+    setBulkGlassType('');
+    setBulkIncludeGlass('keep');
+    setBulkHasThreshold('keep');
+    setBulkWidthOp('none');
+    setBulkWidthValue(0);
+    setBulkHeightOp('none');
+    setBulkHeightValue(0);
+    setBulkQuantity(0);
+    setBulkHandleId('');
+    setBulkLockId('');
+
+    alert(lang === 'tr' ? `${bulkCheckedUnitIds.length} poz başarıyla güncellendi!` : `${bulkCheckedUnitIds.length} units successfully updated in bulk!`);
   };
 
   const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
@@ -678,10 +797,18 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             )}
                         </div>
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] p-8 shadow-inner print:bg-white print:border-slate-200 print:rounded-none print:p-4 print:shadow-none">
-                        <div className="flex items-center justify-between mb-6">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-[2rem] p-8 shadow-inner print:bg-white print:border-slate-200 print:rounded-none print:p-4 print:shadow-none font-sans">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                             <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'summary')}</h2>
-                            <div className="flex items-center gap-2 print:hidden">
+                            <div className="flex flex-wrap items-center gap-2 print:hidden">
+                                {project.units.length > 0 && (
+                                  <button onClick={() => {
+                                      setBulkCheckedUnitIds(project.units.map(u => u.id));
+                                      setShowBulkEditModal(true);
+                                  }} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/10 hover:scale-[1.02] active:scale-[0.98]">
+                                      <Layers size={14} /> {lang === 'tr' ? 'Akıllı Toplu Düzenleme' : 'Smart Bulk Edit'}
+                                  </button>
+                                )}
                                 <button onClick={() => {
                                     project.units.forEach(u => handleExportDXF(u));
                                 }} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/10">
@@ -1548,6 +1675,387 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
               >
                 <FileCheck size={14} />
                 {lang === 'tr' ? 'Doğrulanmış Pozları Projeye Ekle' : 'Add Calibrated Units to Project'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {showBulkEditModal && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800/80 w-full max-w-5xl rounded-3xl p-6 md:p-8 shadow-2xl relative my-8 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] font-sans">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                  <Layers size={22} className="animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">
+                    {lang === 'tr' ? 'Akıllı Toplu Düzenleme & Kalibrasyon' : 'Smart Bulk Editing & Calibration'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {lang === 'tr' 
+                      ? 'Birden fazla pozu seçerek sistem profilini, boyutlarını, cam ve aksesuar kombinasyonlarını tek tıkla değiştirebilirsiniz.' 
+                      : 'Select multiple positions to change system profiles, dimensions, glass packages, and accessory specifications in one click.'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowBulkEditModal(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Split Area */}
+            <div className="flex flex-col lg:flex-row gap-6 overflow-hidden flex-1 min-h-0 text-left">
+              
+              {/* Left Box: Position Selection */}
+              <div className="w-full lg:w-1/3 bg-slate-950/40 border border-white/5 rounded-2xl p-4 flex flex-col max-h-[40vh] lg:max-h-none">
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <span className="text-xs font-black text-indigo-400 tracking-wider uppercase">
+                    {lang === 'tr' ? 'Düzenlenecek Pozlar' : 'Target Positions'}
+                  </span>
+                  
+                  {/* Select Actions */}
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setBulkCheckedUnitIds(project.units.map(u => u.id))}
+                      className="text-[10px] text-indigo-300 font-bold hover:underline"
+                    >
+                      {lang === 'tr' ? 'Tümünü Seç' : 'Select All'}
+                    </button>
+                    <span className="text-slate-600 text-xs">|</span>
+                    <button 
+                      onClick={() => setBulkCheckedUnitIds([])}
+                      className="text-[10px] text-rose-400 font-bold hover:underline"
+                    >
+                      {lang === 'tr' ? 'Temizle' : 'Clear'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Checklist Body */}
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {project.units.map((unit) => {
+                    const isChecked = bulkCheckedUnitIds.includes(unit.id);
+                    const sys = systems.find(s => s.id === unit.system) || systems[0];
+                    return (
+                      <div 
+                        key={unit.id}
+                        onClick={() => {
+                          if (isChecked) {
+                            setBulkCheckedUnitIds(bulkCheckedUnitIds.filter(id => id !== unit.id));
+                          } else {
+                            setBulkCheckedUnitIds([...bulkCheckedUnitIds, unit.id]);
+                          }
+                        }}
+                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                          isChecked 
+                            ? 'bg-indigo-500/10 border-indigo-500/30 text-white' 
+                            : 'bg-slate-900/40 border-slate-800/40 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}} // handled by parent div click
+                          className="w-4 h-4 rounded border-slate-800 text-indigo-600 focus:ring-indigo-500 bg-slate-950 cursor-pointer mt-0.5 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-black truncate">{unit.name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            {unit.width}x{unit.height} mm • {sys.name} • adet: {unit.quantity}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Selected Counters Summary */}
+                <div className="mt-3 pt-3 border-t border-white/5 flex justify-between text-xs shrink-0 font-medium">
+                  <span className="text-slate-400">{lang === 'tr' ? 'Seçilen Poz Sayısı:' : 'Total Selected:'}</span>
+                  <span className="text-indigo-400 font-black font-mono">{bulkCheckedUnitIds.length} / {project.units.length}</span>
+                </div>
+              </div>
+
+              {/* Right Box: Operations configurations */}
+              <div className="flex-1 bg-slate-950/20 border border-white/5 rounded-2xl p-5 overflow-y-auto custom-scrollbar space-y-6">
+                
+                {/* Row 1: System and Color finish */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-indigo-400 tracking-wider uppercase block mb-1.5">
+                      {lang === 'tr' ? '1. SİSTEM PROFİLİNİ DEĞİŞTİR' : '1. CHOOSE SYSTEM PROFILE'}
+                    </label>
+                    <select
+                      value={bulkSystemId}
+                      onChange={e => setBulkSystemId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="">{lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}</option>
+                      {systems.map(sys => (
+                        <option key={sys.id} value={sys.id}>{sys.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-indigo-400 tracking-wider uppercase block mb-1.5">
+                      {lang === 'tr' ? '2. RENK SEÇENEĞİ VE GRUBU' : '2. CHOOSE FINISH & COLOR'}
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={bulkColor}
+                        onChange={e => setBulkColor(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
+                      >
+                        <option value="">{lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}</option>
+                        <option value="group1">{lang === 'tr' ? 'Grup 1 (Beyaz / Standart)' : 'Group 1 (White / Standard)'}</option>
+                        <option value="group2">{lang === 'tr' ? 'Grup 2 (Antrasit / Renkli)' : 'Group 2 (Anthracite / Texture)'}</option>
+                        <option value="custom">{lang === 'tr' ? 'Özel RAL Kodu' : 'Custom RAL Finish'}</option>
+                      </select>
+                      {bulkColor === 'custom' && (
+                        <input 
+                          type="text"
+                          value={bulkSpecificColor}
+                          onChange={e => setBulkSpecificColor(e.target.value)}
+                          placeholder="e.g. RAL 7016"
+                          className="w-28 bg-slate-900 border border-indigo-500/30 rounded-xl px-3 py-2 text-xs text-indigo-400 outline-none text-center font-bold"
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Dimensions adjustments */}
+                <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl space-y-4">
+                  <span className="text-[10px] font-black text-emerald-400 tracking-wider uppercase block">
+                    📐 {lang === 'tr' ? '3. BOYUT KONTROLLERI VE RE-SIZE' : '3. DIMENSION CALIBRATION (RE-SIZE)'}
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                    
+                    {/* Width Action */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-400 text-xs font-bold block">{lang === 'tr' ? 'Genişlik İşlemi' : 'Width Action'}</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={bulkWidthOp}
+                          onChange={e => {
+                            setBulkWidthOp(e.target.value as any);
+                            if (e.target.value === 'none') setBulkWidthValue(0);
+                          }}
+                          className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-emerald-500"
+                        >
+                          <option value="none">{lang === 'tr' ? 'Değişiklik Yok' : 'No Action'}</option>
+                          <option value="absolute">{lang === 'tr' ? 'Sabit Değer Gir' : 'Set Absolute'}</option>
+                          <option value="relative">{lang === 'tr' ? 'Ekle (+) / Çıkar (-)' : 'Relative Offset'}</option>
+                        </select>
+                        {bulkWidthOp !== 'none' && (
+                          <input 
+                            type="number"
+                            value={bulkWidthValue || ''}
+                            onChange={e => setBulkWidthValue(Number(e.target.value) || 0)}
+                            placeholder={bulkWidthOp === 'relative' ? '+20 / -50' : '1200'}
+                            className="w-1/2 bg-slate-900 border border-indigo-500/30 rounded-xl px-3 py-2 text-xs text-indigo-400 text-center font-mono font-bold outline-none"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Height Action */}
+                    <div className="space-y-1.5">
+                      <label className="text-slate-400 text-xs font-bold block">{lang === 'tr' ? 'Yükseklik İşlemi' : 'Height Action'}</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={bulkHeightOp}
+                          onChange={e => {
+                            setBulkHeightOp(e.target.value as any);
+                            if (e.target.value === 'none') setBulkHeightValue(0);
+                          }}
+                          className="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-emerald-500"
+                        >
+                          <option value="none">{lang === 'tr' ? 'Değişiklik Yok' : 'No Action'}</option>
+                          <option value="absolute">{lang === 'tr' ? 'Sabit Değer Gir' : 'Set Absolute'}</option>
+                          <option value="relative">{lang === 'tr' ? 'Ekle (+) / Çıkar (-)' : 'Relative Offset'}</option>
+                        </select>
+                        {bulkHeightOp !== 'none' && (
+                          <input 
+                            type="number"
+                            value={bulkHeightValue || ''}
+                            onChange={e => setBulkHeightValue(Number(e.target.value) || 0)}
+                            placeholder={bulkHeightOp === 'relative' ? '+20 / -50' : '1500'}
+                            className="w-1/2 bg-slate-900 border border-indigo-500/30 rounded-xl px-3 py-2 text-xs text-indigo-400 text-center font-mono font-bold outline-none"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Row 3: Glass and hardware accessories */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                  {/* Glass options */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-indigo-400 tracking-wider uppercase block">
+                      {lang === 'tr' ? '4. CAM SİSTEMİ & ENTEGRASYONU' : '4. GLASS CONFIGURATION'}
+                    </label>
+                    <select
+                      value={bulkGlassType}
+                      onChange={e => setBulkGlassType(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                    >
+                      <option value="">{lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}</option>
+                      {GLASS_TYPES.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+
+                    <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                      <button 
+                        type="button"
+                        onClick={() => setBulkIncludeGlass('keep')}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkIncludeGlass === 'keep' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        {lang === 'tr' ? 'Koru' : 'Keep Current'}
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setBulkIncludeGlass('yes')}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkIncludeGlass === 'yes' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        {lang === 'tr' ? 'Dahil' : 'Include'}
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setBulkIncludeGlass('no')}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkIncludeGlass === 'no' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                      >
+                        {lang === 'tr' ? 'Hariç' : 'Exclude'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Threshold and Quantity */}
+                  <div className="space-y-2.5">
+                    <label className="text-[10px] font-black text-indigo-400 tracking-wider uppercase block">
+                      {lang === 'tr' ? '5. DURUM SEÇENEKLERİ & MİKTAR' : '5. OPTIONS & POSITION QUANTITY'}
+                    </label>
+                    
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs text-slate-400 font-bold">{lang === 'tr' ? 'Eşik Tercihi:' : 'Threshold Profile:'}</span>
+                      <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs w-48">
+                        <button 
+                          type="button"
+                          onClick={() => setBulkHasThreshold('keep')}
+                          className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkHasThreshold === 'keep' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          {lang === 'tr' ? 'Koru' : 'Keep'}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setBulkHasThreshold('yes')}
+                          className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkHasThreshold === 'yes' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          {lang === 'tr' ? 'Eşikli' : 'With'}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setBulkHasThreshold('no')}
+                          className={`flex-1 py-1 rounded-lg text-[10px] font-bold ${bulkHasThreshold === 'no' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          {lang === 'tr' ? 'Yalın' : 'Flat'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs text-slate-400 font-bold">{lang === 'tr' ? 'Toplam Poz Adeti:' : 'Order Quantity:'}</span>
+                      <input 
+                        type="number"
+                        min="0"
+                        value={bulkQuantity || ''}
+                        onChange={e => setBulkQuantity(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder={lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}
+                        className="w-48 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white text-center font-bold outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional custom accessories integration */}
+                <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-2xl space-y-3 text-left">
+                  <span className="text-[10px] font-black text-indigo-400 tracking-wider uppercase block">
+                    🔧 {lang === 'tr' ? '6. DONANIM VE KOL / KİLİT AKSESUARLARI' : '6. HARDWARE & HANDLE / LOCK EXTRAS'}
+                  </span>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Handles */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        {lang === 'tr' ? 'Tutamak / Kol' : 'Handle Grip'}
+                      </label>
+                      <select
+                        value={bulkHandleId}
+                        onChange={e => setBulkHandleId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-indigo-500"
+                      >
+                        <option value="">{lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}</option>
+                        <option value="clear">{lang === 'tr' ? '❌ Kolu Komple Çıkar' : '❌ Remove Installed Handle'}</option>
+                        {accessories.filter(a => a.type === 'handle').map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name} ({currencySymbol}{acc.price})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Locks */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        {lang === 'tr' ? 'Kilit Donanımı' : 'Safety Lock System'}
+                      </label>
+                      <select
+                        value={bulkLockId}
+                        onChange={e => setBulkLockId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none cursor-pointer focus:border-indigo-500"
+                      >
+                        <option value="">{lang === 'tr' ? '-- Değişiklik Yok --' : '-- No Changes --'}</option>
+                        <option value="clear">{lang === 'tr' ? '❌ Kilidi Komple Çıkar' : '❌ Remove Security Lock'}</option>
+                        {accessories.filter(a => a.type === 'lock').map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name} ({currencySymbol}{acc.price})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 border-t border-white/5 pt-5 mt-5">
+              <button 
+                type="button" 
+                onClick={() => setShowBulkEditModal(false)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                {lang === 'tr' ? 'Vazgeç / Kapat' : 'Discard / Close'}
+              </button>
+              <button 
+                type="button" 
+                disabled={bulkCheckedUnitIds.length === 0}
+                onClick={handleApplyBulkEdit}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/15 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <ClipboardCheck size={14} />
+                {lang === 'tr' ? 'Seçili Pozları Toplu Güncelle' : 'Apply Bulk Edits to Checked Positions'}
               </button>
             </div>
 
