@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2 } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -29,6 +29,7 @@ interface ProjectViewProps {
   machines?: MachineConfig[];
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  licenseKey?: string;
 }
 
 const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
@@ -89,8 +90,20 @@ const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: stri
   });
 };
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme, licenseKey }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyShareLink = () => {
+    if (!licenseKey) {
+      alert(lang === 'tr' ? "Bulut lisans anahtarı bulunamadı." : "Cloud license key is missing.");
+      return;
+    }
+    const shareUrl = `${window.location.origin}?bid=${licenseKey}:${project.id}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
@@ -1017,22 +1030,42 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         </div>
 
                         {/* Footer */}
-                        <div className="mt-20 pt-10 border-t border-slate-100 flex justify-between">
-                             <div className="w-48 text-center border-t border-slate-300 pt-4">
+                        <div className="mt-20 pt-10 border-t border-slate-100 flex flex-col md:flex-row justify-between gap-6">
+                             <div className="w-56 text-center border-t border-slate-300 pt-4 flex flex-col items-center">
                                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t(lang, 'approve')}</div>
-                                <div className="text-[10px] text-slate-500 font-bold mt-1">{project.client}</div>
+                                <div className="text-[11px] text-slate-800 font-extrabold mt-1 uppercase">{project.clientSignatureName || project.client}</div>
+                                {project.clientSignatureData && (
+                                  <div className="bg-slate-100/60 rounded-xl p-2.5 mt-2 flex items-center justify-center border border-slate-200/40">
+                                    <img src={project.clientSignatureData} alt="Client Sign" className="max-h-12 object-contain" />
+                                  </div>
+                                )}
                              </div>
-                             <div className="w-48 text-center border-t border-slate-300 pt-4">
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t(lang, 'signature')} / {t(lang, 'date')}</div>
-                                <div className="text-[10px] text-slate-500 font-bold mt-1">Alumetric Suite</div>
+                             <div className="w-56 text-center border-t border-slate-300 pt-4 flex flex-col items-center justify-start">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{project.clientApprovalStatus === 'Approved' ? (lang === 'tr' ? 'ONAY TARİHİ' : 'APPROVAL DATE') : `${t(lang, 'signature')} / ${t(lang, 'date')}`}</div>
+                                <div className="text-[11px] text-slate-600 font-bold mt-1 font-mono">{project.clientSignatureDate || new Date().toISOString().split('T')[0]}</div>
                              </div>
                         </div>
                     </div>
 
-                    <div className="flex justify-center mt-12 print:hidden">
-                        <button onClick={() => window.print()} className="flex items-center gap-3 px-10 py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-[1.5rem] font-black text-lg transition-all shadow-2xl shadow-sky-500/30">
-                            <Printer size={24} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-12 print:hidden animate-in fade-in duration-200">
+                        <button onClick={() => window.print()} className="flex items-center gap-3 px-8 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-[1.25rem] font-black text-base transition-all shadow-xl shadow-sky-500/20 w-full sm:w-auto justify-center">
+                            <Printer size={20} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
                         </button>
+                        {licenseKey && (
+                          <button 
+                            onClick={handleCopyShareLink} 
+                            className={`flex items-center gap-3 px-8 py-4 text-white rounded-[1.25rem] font-black text-base transition-all shadow-xl w-full sm:w-auto justify-center ${
+                              copiedLink 
+                                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20' 
+                                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'
+                            }`}
+                          >
+                            <Share2 size={20} />
+                            {copiedLink 
+                              ? (lang === 'tr' ? 'Bağlantı Kopyalandı!' : 'Link Copied!') 
+                              : (lang === 'tr' ? 'Müşteri Dijital Onay Linki' : 'Customer Digital Approval Link')}
+                          </button>
+                        )}
                     </div>
                 </div>
             )}

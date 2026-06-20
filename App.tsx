@@ -5,6 +5,7 @@ import Editor from './components/Editor';
 import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
 import Login from './components/Login';
+import { ClientPortal } from './components/ClientPortal';
 import { Project, Unit, ProfileSystem, Language, Accessory, MachineConfig, AppData, Customer } from './types';
 import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -40,6 +41,53 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('alucraft_theme') as 'light' | 'dark') || 'light';
   });
+
+  // Client interactive portal share states
+  const [portalBidData, setPortalBidData] = useState<{
+    licenseKey: string;
+    projectId: string;
+    project: Project;
+    systems: ProfileSystem[];
+    accessories: Accessory[];
+  } | null>(null);
+  const [loadingPortal, setLoadingPortal] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bidParam = params.get('bid');
+    if (bidParam) {
+      const parts = bidParam.split(':');
+      if (parts.length === 2) {
+        const [licenseKey, projectId] = parts;
+        setLoadingPortal(true);
+        const fetchPortalData = async () => {
+          try {
+            const allProjects = await cloud_getProjects(licenseKey);
+            const foundProj = allProjects.find(p => p.id === projectId);
+            const fetchedSystems = await cloud_getSystems(licenseKey);
+            const fetchedAccs = await cloud_getAccessories(licenseKey);
+            if (foundProj) {
+              setPortalBidData({
+                licenseKey,
+                projectId,
+                project: foundProj,
+                systems: fetchedSystems || PROFILE_SYSTEMS,
+                accessories: fetchedAccs || MOCK_ACCESSORIES
+              });
+            } else {
+              alert("Teklif bulunamadı / Customer quotation could not be reached.");
+            }
+          } catch (err) {
+            console.error("Portal retrieval failed", err);
+            alert("Bağlantı veya yetkilendirme hatası!");
+          } finally {
+            setLoadingPortal(false);
+          }
+        };
+        fetchPortalData();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -352,6 +400,34 @@ const App: React.FC = () => {
     }
   };
 
+  if (loadingPortal) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
+          <Loader2 className="text-indigo-500 animate-spin mb-4" size={48} />
+          <h2 className="text-white text-xl font-bold">Teklif Detayları Yükleniyor</h2>
+          <p className="text-slate-400 mt-2">Canlı bağlantı üzerinden güncel veriler çekiliyor...</p>
+      </div>
+    );
+  }
+
+  if (portalBidData) {
+    return (
+      <ClientPortal 
+        licenseKey={portalBidData.licenseKey}
+        projectId={portalBidData.projectId}
+        project={portalBidData.project}
+        systems={portalBidData.systems}
+        accessories={portalBidData.accessories}
+        lang={lang}
+        onBackToApp={isAuthenticated ? () => {
+          // Clear query param and go back
+          window.history.pushState({}, '', window.location.origin);
+          setPortalBidData(null);
+        } : undefined}
+      />
+    );
+  }
+
   if (isAuthenticated && !isDataLoaded) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
@@ -452,6 +528,7 @@ const App: React.FC = () => {
           machines={machines}
           customers={customers}
           lang={lang}
+          licenseKey={session.key}
           onBack={() => setView('DASHBOARD')}
           onUpdateProject={handleUpdateProject}
           onAddUnit={() => { setActiveUnit(undefined); setView('EDITOR'); }}

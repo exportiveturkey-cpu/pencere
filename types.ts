@@ -11,6 +11,11 @@ export interface Project {
   quoteText?: string;
   isExport?: boolean;
   discountPercentage?: number;
+  clientApprovalStatus?: 'Pending' | 'Approved' | 'ChangesRequested';
+  clientApprovalNotes?: string;
+  clientSignatureName?: string;
+  clientSignatureDate?: string;
+  clientSignatureData?: string;
 }
 
 export interface Accessory {
