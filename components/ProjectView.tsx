@@ -145,6 +145,15 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
+  const [scannedReviewUnits, setScannedReviewUnits] = useState<{
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    type: 'fixed' | 'turn-left' | 'turn-right' | 'tilt' | 'tilt-turn-left' | 'tilt-turn-right' | 'sliding';
+    system: string;
+    selected: boolean;
+  }[] | null>(null);
   const [selectedMachineId, setSelectedMachineId] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -239,33 +248,61 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       const detectedUnits = await analyzeDrawing(base64, type, lang);
       
       if (detectedUnits.length > 0) {
-        const newUnits: Unit[] = detectedUnits.map(d => ({
+        const reviewItems = detectedUnits.map((d, index) => ({
           id: uuidv4(),
-          name: d.name || 'AI Poz',
-          width: Number(d.width) || 1000,
-          height: Number(d.height) || 1000,
-          system: systems[0].id,
-          color: 'group1',
-          glassType: 'double24',
-          glassThickness: 24,
-          quantity: 1,
-          rootNode: {
-            id: uuidv4(),
-            type: 'glass',
-            openingType: d.type || 'fixed'
-          }
+          name: d.name || `Poz-${index + 1}`,
+          width: Number(d.width) || 1200,
+          height: Number(d.height) || 1400,
+          type: (d.type && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(d.type)) 
+            ? (d.type as any) 
+            : 'fixed',
+          system: systems[0]?.id || '',
+          selected: true
         }));
-        
-        onUpdateProject({
-          ...project,
-          units: [...project.units, ...newUnits]
-        });
+        setScannedReviewUnits(reviewItems);
+      } else {
+        alert(lang === 'tr'
+          ? "Çizimde herhangi bir doğrama detayı tespit edilemedi. Lütfen çözünürlüğü yüksek, temiz bir çizim yükleyin."
+          : "No doors or windows were detected in the drawing sheet. Please try again with a cleaner or higher-contrast drawing image.");
       }
     } catch (error: any) {
       alert(lang === 'tr' ? "Çizim analizi başarısız oldu: " + error.message : "Drawing analysis failed: " + error.message);
     } finally {
       setIsScanning(false);
+      if (e.target) e.target.value = '';
     }
+  };
+
+  const handleConfirmReviewUnits = () => {
+    if (!scannedReviewUnits) return;
+    const selectedUnits = scannedReviewUnits.filter(u => u.selected);
+    if (selectedUnits.length === 0) {
+      alert(lang === 'tr' ? "Lütfen projeye kaydetmek için en az bir poz seçin." : "Please select at least one item to import.");
+      return;
+    }
+
+    const newUnits: Unit[] = selectedUnits.map(u => ({
+      id: uuidv4(),
+      name: u.name || 'AI Poz',
+      width: Number(u.width) || 1200,
+      height: Number(u.height) || 1400,
+      system: u.system,
+      color: 'group1',
+      glassType: 'double24',
+      glassThickness: 24,
+      quantity: 1,
+      rootNode: {
+        id: uuidv4(),
+        type: 'glass',
+        openingType: u.type
+      }
+    }));
+
+    onUpdateProject({
+      ...project,
+      units: [...project.units, ...newUnits]
+    });
+    setScannedReviewUnits(null);
   };
 
   const handleExportCNC = () => {
@@ -1279,6 +1316,208 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
               <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
               <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">{lang === 'tr' ? 'İptal' : 'Cancel'}</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {scannedReviewUnits && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800/80 w-full max-w-5xl rounded-3xl p-6 md:p-8 shadow-2xl relative my-8 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="flex items-center gap-3 border-b border-white/5 pb-5 mb-5">
+              <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                <Sparkles size={22} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  {lang === 'tr' ? 'Yapay Zeka Keşif Sonuçları Onay & Düzenleme' : 'AI Scan Results Review & Calibration'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {lang === 'tr' 
+                    ? 'Tarama sonucunda bulunan doğramaların açılım tiplerini, boyutlarını ve profillerini kontrol edebilir ve hatalı olanları düzeltebilirsiniz.' 
+                    : 'Review and adjust the opening types, dimensions, and profile systems identified by the AI scanner before importing.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Bulk Actions and Summary Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-950/40 rounded-2xl border border-white/5 mb-5 text-xs">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="font-bold text-slate-400">
+                  {lang === 'tr' ? 'Toplu Sistem Değiştir:' : 'Bulk Change System:'}
+                </span>
+                <select 
+                  onChange={e => {
+                    const sysId = e.target.value;
+                    if (!sysId) return;
+                    const updated = scannedReviewUnits.map(u => ({ ...u, system: sysId }));
+                    setScannedReviewUnits(updated);
+                  }}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none cursor-pointer focus:border-indigo-500"
+                >
+                  <option value="">{lang === 'tr' ? '--- Sistem Seçin ---' : '--- Choose System ---'}</option>
+                  {systems.map(sys => (
+                    <option key={sys.id} value={sys.id}>{sys.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="text-slate-400 font-medium">
+                {lang === 'tr' ? 'Seçilen Pozlar:' : 'Selected Units:'} <span className="text-indigo-400 font-bold font-mono text-sm">{scannedReviewUnits.filter(u => u.selected).length} / {scannedReviewUnits.length}</span>
+              </div>
+            </div>
+
+            {/* Table/List Container */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-6 max-h-[50vh] custom-scrollbar">
+              {scannedReviewUnits.map((u, idx) => (
+                <div 
+                  key={u.id} 
+                  className={`flex flex-col lg:flex-row lg:items-center gap-4 p-4 rounded-2xl border transition-all ${
+                    u.selected 
+                      ? 'bg-slate-950/40 border-indigo-500/30' 
+                      : 'bg-slate-950/10 border-slate-850/50 opacity-50'
+                  }`}
+                >
+                  {/* Select Checkbox */}
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      id={`chk-${u.id}`}
+                      checked={u.selected} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].selected = e.target.checked;
+                        setScannedReviewUnits(updated);
+                      }}
+                      className="w-4 h-4 rounded border-slate-800 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 bg-slate-950 cursor-pointer"
+                    />
+                    <label htmlFor={`chk-${u.id}`} className="text-xs font-mono text-slate-500 select-none cursor-pointer">#{idx + 1}</label>
+                  </div>
+
+                  {/* Poz Name */}
+                  <div className="flex-1 min-w-[120px]">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Poz Adı' : 'Unit Label'}
+                    </span>
+                    <input 
+                      type="text" 
+                      value={u.name} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].name = e.target.value;
+                        setScannedReviewUnits(updated);
+                      }}
+                      disabled={!u.selected}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 disabled:opacity-50"
+                      placeholder="e.g. W-01"
+                    />
+                  </div>
+
+                  {/* Width (mm) */}
+                  <div className="w-full lg:w-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Genişlik (mm)' : 'Width (mm)'}
+                    </span>
+                    <input 
+                      type="number" 
+                      value={u.width} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].width = Number(e.target.value) || 0;
+                        setScannedReviewUnits(updated);
+                      }}
+                      disabled={!u.selected}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-center text-emerald-400 font-mono outline-none focus:border-indigo-500 disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* Height (mm) */}
+                  <div className="w-full lg:w-28">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Yükseklik (mm)' : 'Height (mm)'}
+                    </span>
+                    <input 
+                      type="number" 
+                      value={u.height} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].height = Number(e.target.value) || 0;
+                        setScannedReviewUnits(updated);
+                      }}
+                      disabled={!u.selected}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-center text-emerald-400 font-mono outline-none focus:border-indigo-500 disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* System Profile */}
+                  <div className="flex-1 min-w-[150px]">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Sistem Profili' : 'System Profile'}
+                    </span>
+                    <select 
+                      value={u.system} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].system = e.target.value;
+                        setScannedReviewUnits(updated);
+                      }}
+                      disabled={!u.selected}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
+                    >
+                      {systems.map(sys => (
+                        <option key={sys.id} value={sys.id}>{sys.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Opening Type */}
+                  <div className="flex-1 min-w-[180px]">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+                      ⚡ {lang === 'tr' ? 'Açılım Tipi (Değiştir)' : 'Opening Type (Calibrate)'}
+                    </span>
+                    <select 
+                      value={u.type} 
+                      onChange={e => {
+                        const updated = [...scannedReviewUnits];
+                        updated[idx].type = e.target.value as any;
+                        setScannedReviewUnits(updated);
+                      }}
+                      disabled={!u.selected}
+                      className="w-full bg-slate-950 border border-indigo-500/30 font-bold rounded-xl px-3 py-1.5 text-xs text-indigo-300 outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
+                    >
+                      <option value="fixed">{t(lang, 'fixed')}</option>
+                      <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                      <option value="turn-right">{t(lang, 'turnRight')}</option>
+                      <option value="tilt">{t(lang, 'tilt')}</option>
+                      <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                      <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                      <option value="sliding">{t(lang, 'sliding')}</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 border-t border-white/5 pt-5">
+              <button 
+                type="button" 
+                onClick={() => setScannedReviewUnits(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all cursor-pointer"
+              >
+                {lang === 'tr' ? 'Vazgeç / İptal' : 'Discard / Cancel'}
+              </button>
+              <button 
+                type="button" 
+                onClick={handleConfirmReviewUnits}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-500/15 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <FileCheck size={14} />
+                {lang === 'tr' ? 'Doğrulanmış Pozları Projeye Ekle' : 'Add Calibrated Units to Project'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

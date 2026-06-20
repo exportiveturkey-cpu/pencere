@@ -43,6 +43,76 @@ async function startServer() {
   }) : null;
 
   // API Routes for Gemini AI Features
+  app.get("/api/tcmb-rates", async (req, res) => {
+    try {
+      // Fetch directly from T.C. Merkez Bankası XML endpoint
+      const rawTcmbResponse = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
+        headers: {
+          'Accept': 'application/xml, text/xml',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        }
+      });
+      
+      if (!rawTcmbResponse.ok) {
+        throw new Error(`TCMB server returned status: ${rawTcmbResponse.status}`);
+      }
+      
+      const xml = await rawTcmbResponse.text();
+      
+      const getRate = (code: string) => {
+        const regex = new RegExp(`<Currency[^>]*?(?:CurrencyCode|Kod)="${code}"[^>]*?>([\\s\\S]*?)<\\/Currency>`, 'i');
+        const match = xml.match(regex);
+        if (match) {
+          const forexBuyingMatch = match[1].match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i);
+          if (forexBuyingMatch) {
+            return parseFloat(forexBuyingMatch[1]);
+          }
+        }
+        return null;
+      };
+
+      const usd = getRate("USD");
+      const eur = getRate("EUR");
+      const gbp = getRate("GBP");
+
+      if (usd && eur && gbp) {
+        return res.json({
+          source: "tcmb",
+          rates: { USD: usd, EUR: eur, GBP: gbp }
+        });
+      } else {
+        throw new Error("Could not parse all rates (USD, EUR, GBP) from TCMB XML.");
+      }
+    } catch (err: any) {
+      console.warn("TCMB fetch failed, falling back to global API:", err.message);
+      // Fallback to global interbank API
+      try {
+        const response = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (!response.ok) {
+          throw new Error('Fallback API failed');
+        }
+        const data = await response.json();
+        if (data && data.rates && data.rates.TRY) {
+          const tryRate = data.rates.TRY;
+          const usdRate = tryRate;
+          const eurRate = tryRate / (data.rates.EUR || 0.92);
+          const gbpRate = tryRate / (data.rates.GBP || 0.79);
+          return res.json({
+            source: "global",
+            rates: {
+              USD: parseFloat(usdRate.toFixed(4)),
+              EUR: parseFloat(eurRate.toFixed(4)),
+              GBP: parseFloat(gbpRate.toFixed(4))
+            }
+          });
+        }
+        throw new Error("Invalid fallback rates");
+      } catch (fallbackErr: any) {
+        res.status(500).json({ error: "Failed to retrieve rates from TCMB and global backup." });
+      }
+    }
+  });
+
   app.post("/api/ai/analyze-structure", async (req, res) => {
     if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {

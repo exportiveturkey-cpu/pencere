@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language, AppData, MachineConfig } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon, RefreshCw } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
@@ -96,6 +96,41 @@ const Settings: React.FC<SettingsProps> = ({
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'system' | 'accessory' | 'import', id?: string } | null>(null);
   const [pendingImportData, setPendingImportData] = useState<any | null>(null);
+
+  const [fetchingRates, setFetchingRates] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
+  const [rateSuccess, setRateSuccess] = useState(false);
+  const [rateSource, setRateSource] = useState<'tcmb' | 'global' | null>(null);
+
+  const fetchLiveRates = async () => {
+    setFetchingRates(true);
+    setRateError(null);
+    setRateSuccess(false);
+    setRateSource(null);
+    try {
+      const response = await fetch('/api/tcmb-rates');
+      if (!response.ok) {
+        throw new Error('Failed to fetch rates from server proxy');
+      }
+      
+      const data = await response.json();
+      if (data && data.rates && data.rates.USD && data.rates.EUR && data.rates.GBP) {
+        setUsdRate(data.rates.USD.toString());
+        setEurRate(data.rates.EUR.toString());
+        setGbpRate(data.rates.GBP.toString());
+        setRateSource(data.source || 'tcmb');
+        setRateSuccess(true);
+        setTimeout(() => setRateSuccess(false), 8000);
+      } else {
+        throw new Error('Invalid rate format received');
+      }
+    } catch (err: any) {
+      console.error('Error fetching live rates:', err);
+      setRateError(lang === 'tr' ? 'Kurlar güncellenemedi. Lütfen internet bağlantınızı kontrol edin.' : 'Failed to retrieve rates. Please check your internet connection.');
+    } finally {
+      setFetchingRates(false);
+    }
+  };
 
   const [colorPrices, setColorPrices] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('alucraft_color_prices');
@@ -906,33 +941,60 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
 
                     <div className="pt-4 border-t border-white/5 space-y-4">
-                        <h3 className="text-sm font-bold text-slate-300">
-                            {lang === 'tr' ? 'Döviz Kurları (TL Karşılığı)' : 'Exchange Rates (in TRY)'}
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <h3 className="text-sm font-bold text-slate-300">
+                                {lang === 'tr' ? 'Döviz Kurları (TL Karşılığı)' : 'Exchange Rates (in TRY)'}
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={fetchLiveRates}
+                                disabled={fetchingRates}
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-600 rounded-xl transition-all border border-blue-500/20 disabled:opacity-50 disabled:bg-blue-500/5 disabled:text-blue-400/50 cursor-pointer"
+                            >
+                                <RefreshCw size={12} className={`${fetchingRates ? 'animate-spin' : ''}`} />
+                                {fetchingRates 
+                                  ? (lang === 'tr' ? 'Güncelleniyor...' : 'Updating...') 
+                                  : (lang === 'tr' ? 'Canlı Kur Güncelle' : 'Update Live Rates')}
+                            </button>
+                        </div>
                         <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
                             {lang === 'tr'
                               ? 'Renk kg fiyatları, cam m² fiyatları ve profil metre fiyatları TL olarak tanımlandığında, teklif para birimi USD/EUR/GBP seçildiğinde fiyatlar bu kurlar üzerinden otomatik olarak dövize çevrilir.'
                               : 'When color prices, glass prices, and profile meter prices are defined in TRY, they will be automatically converted using these rates if the proposal currency is USD/EUR/GBP.'}
                         </p>
+
+                        {rateSuccess && (
+                            <p className="text-[11px] text-emerald-500 font-semibold bg-emerald-500/10 border border-emerald-500/20 rounded-lg py-2 px-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                {lang === 'tr' 
+                                  ? `✓ Canlı döviz kurları ${rateSource === 'tcmb' ? 'T.C. Merkez Bankası (TCMB) Döviz Alış' : 'küresel piyasalar (yedek)'} üzerinden başarıyla çekildi! Değişiklikler için "Ayarları Kaydet" butonuna tıklayınız.` 
+                                  : `✓ Live exchange rates loaded successfully from ${rateSource === 'tcmb' ? 'T.C. Merkez Bankası (TCMB) Buying Rates' : 'global backup feed'}! Click "Save Settings" below to apply changes.`}
+                            </p>
+                        )}
+                        {rateError && (
+                            <p className="text-[11px] text-red-400 font-semibold bg-red-500/10 border border-red-500/20 rounded-lg py-2 px-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                ⚠ {rateError}
+                            </p>
+                        )}
+
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 USD ($)</label>
                                 <div className="relative">
-                                    <input type="number" step="0.01" value={usdRate} onChange={e => setUsdRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="33.0" />
+                                    <input type="number" step="0.0001" value={usdRate} onChange={e => setUsdRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="33.0" />
                                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 EUR (€)</label>
                                 <div className="relative">
-                                    <input type="number" step="0.01" value={eurRate} onChange={e => setEurRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="35.5" />
+                                    <input type="number" step="0.0001" value={eurRate} onChange={e => setEurRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="35.5" />
                                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 GBP (£)</label>
                                 <div className="relative">
-                                    <input type="number" step="0.01" value={gbpRate} onChange={e => setGbpRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="42.5" />
+                                    <input type="number" step="0.0001" value={gbpRate} onChange={e => setGbpRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="42.5" />
                                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
                                 </div>
                             </div>
