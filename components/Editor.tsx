@@ -4,7 +4,7 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, U
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
-import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS } from '../constants';
+import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon } from 'lucide-react';
 import { t } from '../translations';
@@ -319,6 +319,215 @@ const TYPOLOGIES_LIST = [
   }
 ];
 
+const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mullion' }> = ({ code, type }) => {
+  const isThermal = code.includes('TH');
+  
+  if (type === 'frame') {
+    return (
+      <svg className="w-14 h-14 text-sky-400 stroke-current bg-slate-950 border border-slate-800 p-1 rounded-xl shrink-0" viewBox="0 0 100 100" fill="none">
+        {/* Background Grid Lines for CAD feel */}
+        <line x1="10" y1="50" x2="90" y2="50" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+        <line x1="50" y1="10" x2="50" y2="90" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+        
+        {isThermal ? (
+          <>
+            {/* Outer Chamber (Left Side) */}
+            <path d="M 12 78 L 36 78 L 36 28 L 22 28 L 22 40 L 12 40 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            <path d="M 18 78 L 18 45" strokeWidth="0.8" strokeOpacity="0.5" />
+            
+            {/* Inner Chamber (Right Side with rebate) */}
+            <path d="M 64 78 L 88 78 L 88 18 L 76 18 L 76 42 L 64 42 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            <path d="M 82 78 L 82 30" strokeWidth="0.8" strokeOpacity="0.5" />
+            <path d="M 76 42 L 88 42" strokeWidth="0.8" strokeOpacity="0.5" strokeDasharray="2 1" />
+            
+            {/* Polyamide Thermal Break Bars */}
+            <g className="text-amber-500">
+              {/* Upper polyamide bar */}
+              <path d="M 36 34 L 64 34" strokeWidth="2" strokeLinecap="square" />
+              {/* Lower polyamide bar */}
+              <path d="M 36 70 L 64 70" strokeWidth="2" strokeLinecap="square" />
+              {/* Inter-bar insulation core */}
+              <rect x="36.5" y="38" width="27" height="28" fill="#f97316" fillOpacity="0.1" stroke="#f97316" strokeWidth="0.8" strokeDasharray="1 1.5" />
+              <text x="50" y="54" fill="#f97316" fontSize="5" fontWeight="bold" textAnchor="middle" stroke="none" letterSpacing="0.5">THERMAL</text>
+            </g>
+          </>
+        ) : (
+          <>
+            {/* Non-Thermal Solid Multi-Chamber Frame */}
+            <path d="M 15 78 L 85 78 L 85 18 L 72 18 L 72 40 L 15 40 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            {/* Inner Chambers division lines */}
+            <line x1="15" y1="58" x2="85" y2="58" strokeWidth="1" strokeOpacity="0.7" />
+            <line x1="50" y1="40" x2="50" y2="78" strokeWidth="1" strokeOpacity="0.7" />
+            <line x1="72" y1="18" x2="72" y2="40" strokeWidth="1" strokeOpacity="0.5" strokeDasharray="1 1" />
+            {/* Screw Ports & Details */}
+            <circle cx="32" cy="49" r="2.5" strokeWidth="0.8" strokeOpacity="0.8" />
+            <circle cx="68" cy="49" r="2.5" strokeWidth="0.8" strokeOpacity="0.8" />
+          </>
+        )}
+        
+        {/* CAD Dimension tick marks in corner for extra blueprint feeling */}
+        <path d="M 8 8 L 14 8 M 8 8 L 8 14" stroke="#475569" strokeWidth="0.8" />
+        <path d="M 92 92 L 86 92 M 92 92 L 92 86" stroke="#475569" strokeWidth="0.8" />
+      </svg>
+    );
+  }
+  
+  if (type === 'sash') {
+    return (
+      <svg className="w-14 h-14 text-orange-400 stroke-current bg-slate-950 border border-slate-800 p-1 rounded-xl shrink-0" viewBox="0 0 100 100" fill="none">
+        {/* Background Grid Lines for CAD feel */}
+        <line x1="10" y1="50" x2="90" y2="50" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+        <line x1="50" y1="10" x2="50" y2="90" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+        
+        {isThermal ? (
+          <>
+            {/* Outer Chamber (Left Half facing outside) */}
+            {/* Z-shape step overlay */}
+            <path d="M 12 28 L 36 28 L 36 78 L 24 78 L 24 44 L 12 44 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            <line x1="24" y1="28" x2="24" y2="44" strokeWidth="0.8" strokeOpacity="0.5" />
+            
+            {/* Inner Chamber (Right Half facing inside with Eurogroove) */}
+            <path d="M 64 28 L 88 28 L 88 44 L 76 44 L 76 78 L 64 78 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            {/* Eurogroove C-channel detail */}
+            <path d="M 88 34 L 82 34 L 82 38 L 88 38" strokeWidth="1" strokeOpacity="0.8" />
+            
+            {/* Polyamide Thermal Break Bars */}
+            <g className="text-amber-500">
+              <path d="M 36 34 L 64 34" strokeWidth="2" strokeLinecap="square" />
+              <path d="M 36 70 L 64 70" strokeWidth="2" strokeLinecap="square" />
+              <rect x="36.5" y="38" width="27" height="28" fill="#f97316" fillOpacity="0.1" stroke="#f97316" strokeWidth="0.8" strokeDasharray="1 1.5" />
+              <text x="50" y="54" fill="#f97316" fontSize="5" fontWeight="bold" textAnchor="middle" stroke="none" letterSpacing="0.5">THERMAL</text>
+            </g>
+          </>
+        ) : (
+          <>
+            {/* Non-Thermal Sash with step rebate and glazing pocket */}
+            <path d="M 15 28 L 85 28 L 85 45 L 72 45 L 72 78 L 15 78 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+            {/* Eurogroove detail */}
+            <path d="M 85 34 L 79 34 L 79 38 L 85 38" strokeWidth="1" strokeOpacity="0.8" />
+            {/* Inner chamber lines */}
+            <line x1="15" y1="52" x2="72" y2="52" strokeWidth="1" strokeOpacity="0.7" />
+            <line x1="42" y1="28" x2="42" y2="78" strokeWidth="1" strokeOpacity="0.7" />
+            <circle cx="28" cy="40" r="2.5" strokeWidth="0.8" strokeOpacity="0.8" />
+          </>
+        )}
+        
+        {/* CAD Dimension tick marks */}
+        <path d="M 8 8 L 14 8 M 8 8 L 8 14" stroke="#475569" strokeWidth="0.8" />
+        <path d="M 92 92 L 86 92 M 92 92 L 92 86" stroke="#475569" strokeWidth="0.8" />
+      </svg>
+    );
+  }
+  
+  return (
+    <svg className="w-14 h-14 text-emerald-400 stroke-current bg-slate-950 border border-slate-800 p-1 rounded-xl shrink-0" viewBox="0 0 100 100" fill="none">
+      {/* Background Grid Lines for CAD feel */}
+      <line x1="10" y1="50" x2="90" y2="50" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+      <line x1="50" y1="10" x2="50" y2="90" stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 2" />
+      
+      {isThermal ? (
+        <>
+          {/* Left Chamber (Outer/Glass Pocket symmetric left) */}
+          <path d="M 12 34 L 36 34 L 36 66 L 12 66 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+          {/* Screws channel flange */}
+          <path d="M 12 42 L 18 42 L 18 58 L 12 58" strokeWidth="1" strokeOpacity="0.8" />
+          
+          {/* Right Chamber (Inner/Glass Pocket symmetric right) */}
+          <path d="M 64 34 L 88 34 L 88 66 L 64 66 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+          <path d="M 88 42 L 82 42 L 82 58 L 88 58" strokeWidth="1" strokeOpacity="0.8" />
+          
+          {/* Polyamide Thermal Break Bars */}
+          <g className="text-amber-500">
+            <path d="M 36 40 L 64 40" strokeWidth="2" strokeLinecap="square" />
+            <path d="M 36 60 L 64 60" strokeWidth="2" strokeLinecap="square" />
+            <rect x="36.5" y="42" width="27" height="16" fill="#f97316" fillOpacity="0.1" stroke="#f97316" strokeWidth="0.8" strokeDasharray="1 1.5" />
+            <text x="50" y="52" fill="#f97316" fontSize="5" fontWeight="bold" textAnchor="middle" stroke="none" letterSpacing="0.5">THERMAL</text>
+          </g>
+        </>
+      ) : (
+        <>
+          {/* Non-Thermal T-shaped/I-shaped Symmetric Mullion Section */}
+          <path d="M 15 34 L 85 34 L 85 46 L 72 46 L 72 54 L 85 54 L 85 66 L 15 66 L 15 54 L 28 54 L 28 46 L 15 46 Z" strokeWidth="1.5" strokeLinejoin="miter" />
+          {/* Inner reinforcing partition webs */}
+          <line x1="38" y1="34" x2="38" y2="66" strokeWidth="1" strokeOpacity="0.7" />
+          <line x1="62" y1="34" x2="62" y2="66" strokeWidth="1" strokeOpacity="0.7" />
+          <line x1="38" y1="50" x2="62" y2="50" strokeWidth="1" strokeOpacity="0.7" />
+          <circle cx="50" cy="50" r="3" strokeWidth="0.8" strokeOpacity="0.8" />
+        </>
+      )}
+      
+      {/* CAD Dimension tick marks */}
+      <path d="M 8 8 L 14 8 M 8 8 L 8 14" stroke="#475569" strokeWidth="0.8" />
+      <path d="M 92 92 L 86 92 M 92 92 L 92 86" stroke="#475569" strokeWidth="0.8" />
+    </svg>
+  );
+};
+
+const ProfilePreviewAndUpload: React.FC<{
+  code: string;
+  type: 'frame' | 'sash' | 'mullion';
+  imageUrl: string;
+  onImageUploaded: (base64: string) => void;
+  onImageCleared: () => void;
+  lang: 'tr' | 'en';
+}> = ({ code, type, imageUrl, onImageUploaded, onImageCleared, lang }) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          onImageUploaded(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  return (
+    <div className="relative group cursor-pointer shrink-0" onClick={triggerUpload} title={lang === 'tr' ? 'Katalog Kesit Resmi Yükle' : 'Upload Catalog Profile Drawing'}>
+      {imageUrl ? (
+        <div className="relative w-14 h-14 bg-white rounded-xl border border-slate-750 p-1 overflow-hidden flex items-center justify-center shadow-lg transition-all hover:border-blue-500">
+          <img src={imageUrl} alt={code} className="w-full h-full object-contain transition-transform group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+            <span className="text-[9px] font-bold uppercase tracking-wider">{lang === 'tr' ? 'Değiş' : 'Change'}</span>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onImageCleared();
+            }}
+            className="absolute top-0 right-0 w-4 h-4 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center rounded-bl-lg transition-colors border-l border-b border-red-500 z-10 text-[10px] font-bold"
+            title={lang === 'tr' ? 'Resmi Kaldır' : 'Remove Image'}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <ProfileCadDrawing code={code} type={type} />
+          <div className="absolute inset-0 bg-slate-900/80 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-blue-400 border border-dotted border-blue-500/40">
+            <span className="text-[9px] font-bold uppercase tracking-wider">{lang === 'tr' ? 'Resim Ekle' : 'Add Image'}</span>
+          </div>
+        </div>
+      )}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
+      />
+    </div>
+  );
+};
+
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
@@ -327,6 +536,12 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(initialUnit?.selectedFrameProfile || '70T-102-18');
+  const [selectedSashProfile, setSelectedSashProfile] = useState<string>(initialUnit?.selectedSashProfile || '70T-201-18');
+  const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(initialUnit?.selectedMullionProfile || '70T-301-18');
+  const [selectedFrameProfileImage, setSelectedFrameProfileImage] = useState<string>(initialUnit?.selectedFrameProfileImage || '');
+  const [selectedSashProfileImage, setSelectedSashProfileImage] = useState<string>(initialUnit?.selectedSashProfileImage || '');
+  const [selectedMullionProfileImage, setSelectedMullionProfileImage] = useState<string>(initialUnit?.selectedMullionProfileImage || '');
   const [selectedTypology, setSelectedTypology] = useState<string>(() => {
     if (initialUnit?.typology) return initialUnit.typology;
     const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
@@ -591,7 +806,13 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedHandle, selectedHinge, selectedGasket, selectedLock, 
       selectedCorner, selectedAutomation, selectedKickplate, 
       selectedDoorCloser, selectedLockStriker, selectedOther,
-      typology: selectedTypology
+      typology: selectedTypology,
+      selectedFrameProfile,
+      selectedSashProfile,
+      selectedMullionProfile,
+      selectedFrameProfileImage,
+      selectedSashProfileImage,
+      selectedMullionProfileImage
     });
   };
 
@@ -1020,6 +1241,117 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                 <Layers size={16} />
                             </button>
                         </div>
+
+                        {/* DETAYLI PROFİL KOD SEÇİMİ (SEÇİLEN SİSTEM KURTOĞLU 70T-TH İSE) */}
+                        {systemId === 'kurt-70t-th' && (
+                          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 mt-3 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Sparkles className="text-amber-500 w-4 h-4 animate-pulse" />
+                              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                                {lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection'}
+                              </h4>
+                            </div>
+                            
+                            {/* KASA SEÇİMİ */}
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                                {lang === 'tr' ? 'Kasa Profili' : 'Frame Profile'}
+                              </label>
+                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                                <ProfilePreviewAndUpload 
+                                  code={selectedFrameProfile} 
+                                  type="frame" 
+                                  imageUrl={selectedFrameProfileImage} 
+                                  onImageUploaded={setSelectedFrameProfileImage} 
+                                  onImageCleared={() => setSelectedFrameProfileImage('')} 
+                                  lang={lang} 
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <select 
+                                    value={selectedFrameProfile} 
+                                    onChange={e => setSelectedFrameProfile(e.target.value)} 
+                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                  >
+                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'frame').map(item => (
+                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedFrameProfile)?.weight} kg/m
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* KANAT SEÇİMİ */}
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                                {lang === 'tr' ? 'Kanat Profili' : 'Sash Profile'}
+                              </label>
+                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                                <ProfilePreviewAndUpload 
+                                  code={selectedSashProfile} 
+                                  type="sash" 
+                                  imageUrl={selectedSashProfileImage} 
+                                  onImageUploaded={setSelectedSashProfileImage} 
+                                  onImageCleared={() => setSelectedSashProfileImage('')} 
+                                  lang={lang} 
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <select 
+                                    value={selectedSashProfile} 
+                                    onChange={e => setSelectedSashProfile(e.target.value)} 
+                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                  >
+                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'sash').map(item => (
+                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedSashProfile)?.weight} kg/m
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ORTA KAYIT SEÇİMİ */}
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                                {lang === 'tr' ? 'Orta Kayıt Profili' : 'Mullion Profile'}
+                              </label>
+                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                                <ProfilePreviewAndUpload 
+                                  code={selectedMullionProfile} 
+                                  type="mullion" 
+                                  imageUrl={selectedMullionProfileImage} 
+                                  onImageUploaded={setSelectedMullionProfileImage} 
+                                  onImageCleared={() => setSelectedMullionProfileImage('')} 
+                                  lang={lang} 
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <select 
+                                    value={selectedMullionProfile} 
+                                    onChange={e => setSelectedMullionProfile(e.target.value)} 
+                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                  >
+                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'mullion').map(item => (
+                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedMullionProfile)?.weight} kg/m
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                     </div>
                     
                     <div className="pt-1.5">

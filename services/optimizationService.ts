@@ -1,6 +1,6 @@
 
 import { Unit, ProfileSystem, WindowNode, GlassType, UnitShape, Accessory } from '../types';
-import { GLASS_TYPES, PROFILE_SYSTEMS } from '../constants';
+import { GLASS_TYPES, PROFILE_SYSTEMS, KURTOGLU_70T_CATALOG } from '../constants';
 
 export interface OptimizedBar {
   barLength: number;
@@ -63,8 +63,39 @@ const findSystem = (systemId: string, systems: ProfileSystem[]): ProfileSystem |
 const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label: string, code?: string, weightPerMeter?: number }[] => {
   const cuts: { length: number, label: string, code?: string, weightPerMeter?: number }[] = [];
   const config = system.correctionConfig || { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 };
-  const codes = system.profileCodes;
-  const weights = system.profileWeights;
+  
+  // Custom weights/codes support
+  let frameCode = system.profileCodes?.frame;
+  let frameWeight = system.profileWeights?.frame || 0;
+  let sashCode = system.profileCodes?.sash;
+  let sashWeight = system.profileWeights?.sash || 0;
+  let mullionCode = system.profileCodes?.mullion;
+  let mullionWeight = system.profileWeights?.mullion || 0;
+
+  if (system.id === 'kurt-70t-th') {
+    if (unit.selectedFrameProfile) {
+      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedFrameProfile);
+      if (match) {
+        frameCode = match.code;
+        frameWeight = match.weight;
+      }
+    }
+    if (unit.selectedSashProfile) {
+      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedSashProfile);
+      if (match) {
+        sashCode = match.code;
+        sashWeight = match.weight;
+      }
+    }
+    if (unit.selectedMullionProfile) {
+      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedMullionProfile);
+      if (match) {
+        mullionCode = match.code;
+        mullionWeight = match.weight;
+      }
+    }
+  }
+
   const frameWidth = system.frameWidth;
 
   const isSliding = system.name.toLowerCase().includes('sürme') || system.name.toLowerCase().includes('sliding');
@@ -73,11 +104,10 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
   const frameH = unit.height + (2 * config.frameCornerWelding);
 
   // Kasa Kesimleri
-  const frameWeight = weights?.frame || 0;
-  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: codes?.frame, weightPerMeter: frameWeight });
-  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: codes?.frame, weightPerMeter: frameWeight });
-  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: codes?.frame, weightPerMeter: frameWeight });
-  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: codes?.frame, weightPerMeter: frameWeight });
+  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
+  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
+  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
+  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
 
   const traverse = (node: WindowNode, w: number, h: number) => {
     if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
@@ -88,8 +118,8 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
           cuts.push({ 
             length: Math.round(mullionCutLen), 
             label: isVert ? 'Mullion (Vertical)' : 'Transom (Horizontal)', 
-            code: codes?.mullion, 
-            weightPerMeter: weights?.mullion 
+            code: mullionCode, 
+            weightPerMeter: mullionWeight 
           });
       }
       const avail = isVert ? w - frameWidth : h - frameWidth;
@@ -109,12 +139,11 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
         // Kanat Kesimleri
         const sashCutW = (daylightW + (2 * config.sashOverlap)) + (2 * config.frameCornerWelding);
         const sashCutH = (daylightH + (2 * config.sashOverlap)) + (2 * config.frameCornerWelding);
-        const sashWeight = weights?.sash || 0;
         if (sashCutW > 0 && sashCutH > 0) {
-            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: codes?.sash, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: codes?.sash, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: codes?.sash, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: codes?.sash, weightPerMeter: sashWeight });
+            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
+            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
+            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
+            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
         }
         const sashProfileWidth = 55;
         beadW = sashCutW - (2 * sashProfileWidth);
@@ -123,11 +152,11 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
 
       // Cam Çıtası Kesimleri
       if (beadW > 0 && beadH > 0 && !isSliding) {
-          const beadWeight = weights?.glazingBead || 0;
-          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: codes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: codes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: codes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: codes?.glazingBead, weightPerMeter: beadWeight });
+          const beadWeight = system.profileWeights?.glazingBead || 0;
+          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
+          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
+          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
+          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
       }
     }
   };

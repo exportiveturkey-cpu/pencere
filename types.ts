@@ -59,6 +59,12 @@ export interface Unit {
   selectedKickplate?: string;
   selectedOther?: string;
   typology?: string;
+  selectedFrameProfile?: string;
+  selectedSashProfile?: string;
+  selectedMullionProfile?: string;
+  selectedFrameProfileImage?: string;
+  selectedSashProfileImage?: string;
+  selectedMullionProfileImage?: string;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';
@@ -160,4 +166,12 @@ export interface AppData {
   accessories: Accessory[];
   machines?: MachineConfig[];
   customers?: Customer[];
+}
+
+export interface CatalogProfileItem {
+  code: string;
+  weight: number;
+  type: 'frame' | 'sash' | 'mullion';
+  nameTr: string;
+  nameEn: string;
 }

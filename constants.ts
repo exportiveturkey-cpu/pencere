@@ -1,5 +1,5 @@
 
-import { ProfileSystem, GlassType, Project, Accessory } from './types';
+import { ProfileSystem, GlassType, Project, Accessory, CatalogProfileItem } from './types';
 
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
   // --- KURTOĞLU ALÜMİNYUM ---
@@ -154,4 +154,48 @@ export const COLOR_GROUPS = [
     descriptionTr: 'Ahşap desen kaplamalı dekoratif transfer profiller',
     descriptionEn: 'Decorative wood-pattern sublimation coated profiles'
   }
+];
+
+export const KURTOGLU_70T_CATALOG: CatalogProfileItem[] = [
+  // Frame Profiles (Kasa)
+  { code: '70T-102-18', weight: 1.627, type: 'frame', nameTr: 'Kasa Profili (Eko)', nameEn: 'Frame Profile (Eco)' },
+  { code: '70TH-102-18', weight: 1.637, type: 'frame', nameTr: 'Kasa Profili (Yalıtımlı)', nameEn: 'Thermal Frame Profile' },
+  { code: '70T-103-18', weight: 1.821, type: 'frame', nameTr: 'Hemyüz Kasa Profili', nameEn: 'Flush Frame Profile' },
+  { code: '70TH-103-18', weight: 1.837, type: 'frame', nameTr: 'Hemyüz Kasa Profili (Yalıtımlı)', nameEn: 'Thermal Flush Frame Profile' },
+  { code: '70T-112-18', weight: 1.765, type: 'frame', nameTr: 'Dışa Açılır Kasa Profili', nameEn: 'Outward Opening Frame Profile' },
+  { code: '70TH-112-18', weight: 1.775, type: 'frame', nameTr: 'Dışa Açılır Kasa (Yalıtımlı)', nameEn: 'Thermal Outward Opening Frame' },
+  { code: '70T-122-18', weight: 1.852, type: 'frame', nameTr: 'Sıva Üstü Kasa Profili', nameEn: 'Wall Joint Frame Profile' },
+  { code: '70TH-122-18', weight: 1.862, type: 'frame', nameTr: 'Sıva Üstü Kasa (Yalıtımlı)', nameEn: 'Thermal Wall Joint Frame' },
+  { code: '70T-141-18', weight: 2.009, type: 'frame', nameTr: 'Dar Kasa Profili', nameEn: 'Narrow Frame Profile' },
+  { code: '70TH-141-18', weight: 2.012, type: 'frame', nameTr: 'Dar Kasa Profili (Yalıtımlı)', nameEn: 'Thermal Narrow Frame Profile' },
+  { code: '70T-109-18', weight: 3.336, type: 'frame', nameTr: 'Geniş Kasa Profili', nameEn: 'Wide Frame Profile' },
+  { code: '70TH-109-18', weight: 3.396, type: 'frame', nameTr: 'Geniş Kasa Profili (Yalıtımlı)', nameEn: 'Thermal Wide Frame Profile' },
+
+  // Sash Profiles (Kanat)
+  { code: '70T-201-18', weight: 1.616, type: 'sash', nameTr: 'Pencere Kanat Profili (Eko)', nameEn: 'Window Sash Profile (Eco)' },
+  { code: '70TH-201-18', weight: 1.621, type: 'sash', nameTr: 'Pencere Kanat (Yalıtımlı)', nameEn: 'Thermal Window Sash' },
+  { code: '70T-202-18', weight: 1.857, type: 'sash', nameTr: 'Dışa Açılır Kanat Profili', nameEn: 'Outward Opening Sash Profile' },
+  { code: '70TH-202-18', weight: 1.870, type: 'sash', nameTr: 'Dışa Açılır Kanat (Yalıtımlı)', nameEn: 'Thermal Outward Opening Sash' },
+  { code: '70T-211-18', weight: 1.601, type: 'sash', nameTr: 'İçeri Açılır Kanat Profili', nameEn: 'Inward Opening Sash Profile' },
+  { code: '70TH-211-18', weight: 1.606, type: 'sash', nameTr: 'İçeri Açılır Kanat (Yalıtımlı)', nameEn: 'Thermal Inward Opening Sash' },
+  { code: '70T-212-18', weight: 1.842, type: 'sash', nameTr: 'Gizli Kanat Profili', nameEn: 'Hidden Sash Profile' },
+  { code: '70TH-212-18', weight: 1.855, type: 'sash', nameTr: 'Gizli Kanat (Yalıtımlı)', nameEn: 'Thermal Hidden Sash' },
+  { code: '70T-216-18', weight: 2.270, type: 'sash', nameTr: 'Kapı Kanat Profili', nameEn: 'Door Sash Profile' },
+  { code: '70TH-216-18', weight: 2.297, type: 'sash', nameTr: 'Kapı Kanat (Yalıtımlı)', nameEn: 'Thermal Door Sash' },
+  { code: '70T-217-18', weight: 2.217, type: 'sash', nameTr: 'Dışa Açılır Kapı Kanat', nameEn: 'Outward Opening Door Sash' },
+  { code: '70TH-217-18', weight: 2.244, type: 'sash', nameTr: 'Dışa Açılır Kapı (Yalıtımlı)', nameEn: 'Thermal Outward Opening Door' },
+
+  // Mullion Profiles (Orta Kayıt)
+  { code: '70T-301-18', weight: 1.492, type: 'mullion', nameTr: 'Orta Kayıt Profili (Dar)', nameEn: 'Narrow Mullion/Transom' },
+  { code: '70TH-301-18', weight: 1.495, type: 'mullion', nameTr: 'Orta Kayıt Dar (Yalıtımlı)', nameEn: 'Thermal Narrow Mullion' },
+  { code: '70T-302-18', weight: 1.746, type: 'mullion', nameTr: 'Geniş Orta Kayıt Profili', nameEn: 'Wide Mullion Profile' },
+  { code: '70TH-302-18', weight: 1.756, type: 'mullion', nameTr: 'Geniş Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Wide Mullion' },
+  { code: '70T-312-18', weight: 1.880, type: 'mullion', nameTr: 'Dar Orta Kayıt Profili', nameEn: 'Narrow Mullion Profile' },
+  { code: '70TH-312-18', weight: 1.890, type: 'mullion', nameTr: 'Dar Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Narrow Mullion' },
+  { code: '70T-303-18', weight: 1.940, type: 'mullion', nameTr: 'Dekoratif Orta Kayıt Profili', nameEn: 'Decorative Mullion Profile' },
+  { code: '70TH-303-18', weight: 1.956, type: 'mullion', nameTr: 'Dekoratif Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Dec. Mullion' },
+  { code: '70T-322-18', weight: 2.628, type: 'mullion', nameTr: 'Geniş Eta Orta Kayıt Profili', nameEn: 'Wide Eta Mullion Profile' },
+  { code: '70TH-322-18', weight: 2.638, type: 'mullion', nameTr: 'Geniş Eta Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Wide Eta Mullion' },
+  { code: '70T-362-18', weight: 1.838, type: 'mullion', nameTr: 'Ağır Tip Orta Kayıt Profili', nameEn: 'Heavy Mullion Profile' },
+  { code: '70TH-362-18', weight: 1.848, type: 'mullion', nameTr: 'Ağır Tip Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Heavy Mullion' }
 ];
