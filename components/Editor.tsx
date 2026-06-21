@@ -320,8 +320,42 @@ const TYPOLOGIES_LIST = [
 ];
 
 const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mullion' }> = ({ code, type }) => {
+  const [imageFailed, setImageFailed] = React.useState(false);
   const isThermal = code.includes('TH');
-  
+
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [code]);
+
+  // Check if there is an uploaded image in localStorage for this specific profile code
+  const localUploadedImage = React.useMemo(() => {
+    try {
+      const saved = localStorage.getItem('alumetric_custom_profile_images');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed[code] || '';
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return '';
+  }, [code]);
+
+  // If we have an uploaded image, or if we try to load the static image in repository under /profiles/[code].png
+  const src = localUploadedImage || `/profiles/${code}.png`;
+
+  if (!imageFailed && src) {
+    return (
+      <img
+        src={src}
+        alt={code}
+        onError={() => setImageFailed(true)}
+        className="w-14 h-14 object-contain bg-white rounded-xl border border-slate-750 p-1 shrink-0 shadow-inner"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
   if (type === 'frame') {
     return (
       <svg className="w-14 h-14 text-sky-400 stroke-current bg-slate-950 border border-slate-800 p-1 rounded-xl shrink-0" viewBox="0 0 100 100" fill="none">
