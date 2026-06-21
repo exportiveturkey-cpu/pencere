@@ -53,40 +53,7 @@ const App: React.FC = () => {
   const [loadingPortal, setLoadingPortal] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const bidParam = params.get('bid');
-    if (bidParam) {
-      const parts = bidParam.split(':');
-      if (parts.length === 2) {
-        const [licenseKey, projectId] = parts;
-        setLoadingPortal(true);
-        const fetchPortalData = async () => {
-          try {
-            const allProjects = await cloud_getProjects(licenseKey);
-            const foundProj = allProjects.find(p => p.id === projectId);
-            const fetchedSystems = await cloud_getSystems(licenseKey);
-            const fetchedAccs = await cloud_getAccessories(licenseKey);
-            if (foundProj) {
-              setPortalBidData({
-                licenseKey,
-                projectId,
-                project: foundProj,
-                systems: fetchedSystems || PROFILE_SYSTEMS,
-                accessories: fetchedAccs || MOCK_ACCESSORIES
-              });
-            } else {
-              alert("Teklif bulunamadı / Customer quotation could not be reached.");
-            }
-          } catch (err) {
-            console.error("Portal retrieval failed", err);
-            alert("Bağlantı veya yetkilendirme hatası!");
-          } finally {
-            setLoadingPortal(false);
-          }
-        };
-        fetchPortalData();
-      }
-    }
+    // Client Portal (Paylaşılabilir Canlı Dijital Sayfa) iptal edildi.
   }, []);
 
   useEffect(() => {
@@ -187,6 +154,8 @@ const App: React.FC = () => {
   };
 
   const handleCreateProject = async () => {
+    const year = new Date().getFullYear();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const newProject: Project = {
       id: uuidv4(),
       name: `Yeni Proje ${projects.length + 1}`,
@@ -194,7 +163,8 @@ const App: React.FC = () => {
       date: new Date().toISOString().split('T')[0],
       status: 'Draft',
       units: [],
-      isExport: false
+      isExport: false,
+      projectNumber: `ALU-${year}-${randomSuffix}`
     };
     const updated = [newProject, ...projects];
     setProjects(updated);

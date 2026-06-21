@@ -8,6 +8,24 @@ import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
 import { COLOR_GROUPS, MOCK_ACCESSORIES } from '../constants';
 
+export const TYPOLOGIES = [
+  { id: 'fixed_storefront', nameTr: 'Fixed / Sabit', nameEn: 'Fixed / Sabit' },
+  { id: 'top_hung_window', nameTr: 'Vasistas / Top Hung', nameEn: 'Top Hung / Vasistas' },
+  { id: 'hinged_window', nameTr: 'Tek Açılım / Side Hung Window', nameEn: 'Side Hung Window / Tek Açılım' },
+  { id: 'tilt_turn_window', nameTr: 'Çift Açılım / Tilt & Turn Window', nameEn: 'Tilt & Turn Window / Çift Açılım' },
+  { id: 'double_sash_window', nameTr: 'Çift Kanat Açılım / Double Sash', nameEn: 'Double Sash / Çift Kanat Açılım' },
+  { id: 'angular_junction', nameTr: 'Açılı Dönüş / Angular', nameEn: 'Angular / Açılı Dönüş' },
+  { id: 'inside_opening_door', nameTr: 'İçe Açılır Kapı / Inside Opening Door', nameEn: 'Inside Opening Door / İçe Açılır Kapı' },
+  { id: 'inside_opening_double_door', nameTr: 'İçe Açılır Çift Kanat Kapı / Inside Opening Double Sash Door', nameEn: 'Inside Opening Double Sash Door / İçe Açılır Çift Kanat Kapı' },
+  { id: 'outside_opening_door', nameTr: 'Dışa Açılır Kapı / Outside Opening Door', nameEn: 'Outside Opening Door / Dışa Açılır Kapı' },
+  { id: 'outside_opening_double_door', nameTr: 'Dışa Açılır Çift Kanat Kapı / Outside Opening Double Sash Door', nameEn: 'Outside Opening Double Sash Door / Dışa Açılır Çift Kanat Kapı' },
+  { id: 'pivot_opening', nameTr: 'Pivot Açılım / Pivot Opening', nameEn: 'Pivot Opening / Pivot Açılım' },
+  { id: 'sliding_window', nameTr: 'Sürme Pencere / Sliding Window', nameEn: 'Sliding Window / Sürme Pencere' },
+  { id: 'sliding_door', nameTr: 'Sürme Kapı / Sliding Door', nameEn: 'Sliding Door / Sürme Kapı' },
+  { id: 'tilt_slide_door', nameTr: 'Paralel Sürme / Tilt & Slide Opening Door', nameEn: 'Tilt & Slide Opening Door / Paralel Sürme' },
+  { id: 'folding_door', nameTr: 'Katlanır Kapı / Folding Door', nameEn: 'Folding Door / Katlanır Kapı' }
+];
+
 interface SettingsProps {
   systems: ProfileSystem[];
   accessories?: Accessory[];
@@ -79,7 +97,8 @@ const Settings: React.FC<SettingsProps> = ({
     name: '', type: 'hinged', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '',
     profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' },
     profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 },
-    correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 }
+    correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 },
+    supportedTypologies: []
   });
 
   // Accessory Form State
@@ -215,11 +234,12 @@ const Settings: React.FC<SettingsProps> = ({
         },
         laborPricePerKg: sysForm.laborPricePerKg !== undefined ? Number(sysForm.laborPricePerKg) : undefined,
         laborPricePerKgUsd: sysForm.laborPricePerKgUsd !== undefined ? Number(sysForm.laborPricePerKgUsd) : undefined,
+        supportedTypologies: sysForm.supportedTypologies || []
     };
     if (editingSysId) onUpdateSystem(sysData);
     else onAddSystem(sysData);
     setEditingSysId(null);
-    setSysForm({ name: '', type: 'hinged', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '', profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' }, profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 }, correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 } });
+    setSysForm({ name: '', type: 'hinged', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '', profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' }, profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 }, correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 }, supportedTypologies: [] });
   };
 
   const handleSaveAcc = () => {
@@ -447,7 +467,7 @@ const Settings: React.FC<SettingsProps> = ({
                              </div>
                              <div className="grid grid-cols-2 gap-4">
                                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Isı Köprüsü (mm)</label><input type="number" value={sysForm.thermalBreakWidth} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Et Kalınlığı (mm)</label><input type="number" step="0.1" value={sysForm.wallThickness} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Et Kalınlığı (mm)</label><input type="number" step="0.1" value={sysForm.wallThickness} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div></div><div className="p-4 bg-slate-950/50 rounded-xl border border-white/5 space-y-2 my-4"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">{lang === 'tr' ? 'Desteklenen Tipolojiler' : 'Supported Typologies'}</label><div className="grid grid-cols-1 gap-2">{TYPOLOGIES.map(typo => { const isChecked = (sysForm.supportedTypologies || []).includes(typo.id); return (<label key={typo.id} className="flex items-center gap-2.5 text-xs text-slate-300 hover:text-white cursor-pointer select-none"><input type="checkbox" checked={isChecked} onChange={e => { const current = sysForm.supportedTypologies || []; const updated = e.target.checked ? [...current, typo.id] : current.filter(id => id !== typo.id); setSysForm({ ...sysForm, supportedTypologies: updated }); }} className="w-4 h-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer" /><span>{lang === 'tr' ? typo.nameTr : typo.nameEn}</span></label>); })}</div>
                              </div>
 
                              <button onClick={handleSaveSys} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all mt-4">{editingSysId ? t(lang, 'update') : t(lang, 'addSystem')}</button>
@@ -462,7 +482,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 <h3 className="font-bold text-white text-lg">{sys.name}</h3>
                                 <div className="flex gap-3 mt-1">
                                     <span className="text-xs text-slate-500 uppercase tracking-wider">{sys.frameWidth}mm • CNC: <span className="text-emerald-400 font-mono">{sys.cncCode || 'N/A'}</span></span>
-                                    {sys.profileCodes?.frame && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">{sys.profileCodes.frame}</span>}
+                                    {sys.profileCodes?.frame && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">{sys.profileCodes.frame}</span>}{sys.supportedTypologies?.map(tId => { const tInfo = TYPOLOGIES.find(t => t.id === tId); return tInfo ? (<span key={tId} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/10 font-bold uppercase tracking-wider">{lang === 'tr' ? tInfo.nameTr : tInfo.nameEn}</span>) : null; })}
                                 </div>
                             </div>
                             <div className="flex gap-2">

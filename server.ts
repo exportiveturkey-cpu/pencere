@@ -42,6 +42,51 @@ async function startServer() {
     httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
   }) : null;
 
+  // Helper for resilient Gemini API content generation with retry & fallback
+  const generateWithRetryAndFallback = async (params: {
+    contents: any;
+    config?: any;
+  }) => {
+    if (!ai) throw new Error("Gemini API key not configured");
+    const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest"];
+    let lastError: any = null;
+
+    for (const model of modelsToTry) {
+      let retries = 3;
+      let delay = 1000;
+      while (retries > 0) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            ...params
+          });
+          return response;
+        } catch (error: any) {
+          lastError = error;
+          const errorMsg = error.message || "";
+          const isTransient = errorMsg.includes("503") || 
+                              errorMsg.includes("UNAVAILABLE") || 
+                              errorMsg.includes("Resource exhausted") ||
+                              errorMsg.includes("rate limit") ||
+                              error.status === 503 ||
+                              error.code === 503;
+          
+          if (isTransient) {
+            retries--;
+            if (retries > 0) {
+              console.warn(`Transient error calling model ${model} (remaining retries: ${retries}): ${errorMsg}. Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              delay *= 2;
+              continue;
+            }
+          }
+          break;
+        }
+      }
+    }
+    throw lastError || new Error("Failed to generate content with fallback models");
+  };
+
   // API Routes for Gemini AI Features
   app.get("/api/tcmb-rates", async (req, res) => {
     // 1. Try TCMB first
@@ -188,21 +233,18 @@ async function startServer() {
   });
 
   app.post("/api/ai/analyze-structure", async (req, res) => {
-    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { prompt } = req.body;
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+      const response = await generateWithRetryAndFallback({
         contents: prompt
       });
       res.json({ text: response.text });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message || error });
     }
   });
 
   app.post("/api/ai/analyze-drawing", async (req, res) => {
-    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { base64Data, mimeType, prompt } = req.body;
       
@@ -213,8 +255,7 @@ async function startServer() {
         },
       };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+      const response = await generateWithRetryAndFallback({
         contents: { parts: [imagePart, { text: prompt }] },
         config: {
           systemInstruction: "You are an expert façade engineering assistant specialized in extracting high-accuracy window and door schedule data from technical drawings, joinery schedules, and architectural plan images or PDFs. Your goal is to deliver clean, precise dimensions in millimeters and identify correct opening types based on standardized drafting symbols.",
@@ -248,21 +289,19 @@ async function startServer() {
       });
       res.json({ text: response.text });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message || error });
     }
   });
 
   app.post("/api/ai/generate-pitch", async (req, res) => {
-    if (!ai) return res.status(500).json({ error: "Gemini API key not configured" });
     try {
       const { prompt } = req.body;
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+      const response = await generateWithRetryAndFallback({
         contents: prompt
       });
       res.json({ text: response.text });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message || error });
     }
   });
 

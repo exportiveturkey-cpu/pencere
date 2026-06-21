@@ -10,6 +10,7 @@ export interface Project {
   units: Unit[];
   quoteText?: string;
   isExport?: boolean;
+  projectNumber?: string;
   discountPercentage?: number;
   clientApprovalStatus?: 'Pending' | 'Approved' | 'ChangesRequested';
   clientApprovalNotes?: string;
@@ -57,6 +58,7 @@ export interface Unit {
   selectedDoorCloser?: string;
   selectedKickplate?: string;
   selectedOther?: string;
+  typology?: string;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';
@@ -121,6 +123,7 @@ export interface ProfileSystem {
   profileWeights?: ProfileWeights;
   laborPricePerKg?: number;
   laborPricePerKgUsd?: number;
+  supportedTypologies?: string[];
 }
 
 export interface GlassType {

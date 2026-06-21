@@ -78,7 +78,8 @@ export const MOCK_PROJECTS: Project[] = [
     client: 'Sample Construction Ltd.',
     date: '2024-03-20',
     status: 'Draft',
-    units: []
+    units: [],
+    projectNumber: 'ALU-2024-1001'
   }
 ];
 

@@ -589,12 +589,17 @@ const Dashboard: React.FC<DashboardProps> = ({
               {filteredProjects.map((project) => (
                 <div key={project.id} onClick={() => onSelectProject(project.id)} className="group bg-slate-900/40 border border-white/5 hover:border-blue-500/30 rounded-2xl p-6 cursor-pointer transition-all hover:-translate-y-1 relative">
                   <div className="flex justify-between items-start mb-6">
-                      <div className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${
-                          project.status === 'Draft' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 
-                          project.status === 'Production' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
-                          'bg-slate-500/10 border-slate-500/20 text-slate-400'
-                      }`}>
-                        {getStatusLabel(project.status)}
+                      <div className="flex gap-2 items-center">
+                        <div className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${
+                            project.status === 'Draft' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 
+                            project.status === 'Production' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+                            'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                        }`}>
+                          {getStatusLabel(project.status)}
+                        </div>
+                        <div className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border bg-blue-500/10 border-blue-500/20 text-blue-400 font-mono">
+                          {project.projectNumber || `ALU-${new Date(project.date).getFullYear() || 2026}-${project.id.slice(0, 4).toUpperCase()}`}
+                        </div>
                       </div>
                       <div className="relative">
                         <button 
@@ -837,6 +842,15 @@ const Dashboard: React.FC<DashboardProps> = ({
                   onChange={e => setEditingProject({...editingProject, name: e.target.value})}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50"
                   placeholder={t(lang, 'projectNamePlaceholder')}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">{lang === 'tr' ? 'Proje Numarası' : 'Project Number'}</label>
+                <input 
+                  value={editingProject.projectNumber || ''}
+                  onChange={e => setEditingProject({...editingProject, projectNumber: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50 font-mono"
+                  placeholder="ALU-2026-1001"
                 />
               </div>
               <div>

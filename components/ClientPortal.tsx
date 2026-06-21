@@ -335,6 +335,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                     <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight print:text-slate-900">
                       {lang === 'tr' ? 'DİJİTAL MÜHENDİSLİK TEKLİFİ' : 'TECHNICAL ENGINEERING QUOTATION'}
                     </h1>
+                    {project.projectNumber && (
+                      <div className="text-sm font-black text-indigo-400 print:text-indigo-700 font-mono mt-1.5 tracking-wider">
+                        {lang === 'tr' ? 'TEKLİF NO' : 'QUOTATION NO'}: {project.projectNumber}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-400 font-medium">
                       <span className="flex items-center gap-1"><Calendar size={13} /> {project.date || '---'}</span>
                       <span className="h-3 w-[1px] bg-white/10" />

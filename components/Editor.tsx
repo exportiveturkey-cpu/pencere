@@ -21,6 +21,304 @@ interface EditorProps {
   onToggleTheme?: () => void;
 }
 
+const TYPOLOGIES_LIST = [
+  { 
+    id: 'fixed_storefront', 
+    nameTr: 'Sabit / Vitrin', 
+    nameEn: 'Fixed / Storefront',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Outer frame */}
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Glass bead margin line */}
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" strokeDasharray="1 1" opacity="0.4" />
+        {/* Technical "+" symbol for fixed glazing */}
+        <line x1="32" y1="26" x2="32" y2="38" strokeWidth="1" strokeLinecap="round" />
+        <line x1="26" y1="32" x2="38" y2="32" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  { 
+    id: 'top_hung_window', 
+    nameTr: 'Vasistas', 
+    nameEn: 'Top Hung',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Outer frame */}
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" opacity="0.3" />
+        {/* Inner Sash Frame */}
+        <rect x="14" y="14" width="36" height="36" strokeWidth="1" strokeLinecap="round" />
+        {/* Dashed lines pointing to handle side from top-hinge corners */}
+        <line x1="14" y1="14" x2="32" y2="50" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="50" y1="14" x2="32" y2="50" strokeWidth="0.8" strokeDasharray="3 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'hinged_window', 
+    nameTr: 'Tek Açılım', 
+    nameEn: 'Side Hung Window',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Outer frame */}
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" opacity="0.3" />
+        <rect x="14" y="14" width="36" height="36" strokeWidth="1" strokeLinecap="round" />
+        {/* Hinge is on left, points to right handle */}
+        <line x1="14" y1="14" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="14" y1="50" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'tilt_turn_window', 
+    nameTr: 'Çift Açılım', 
+    nameEn: 'Tilt & Turn',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Outer frame */}
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" opacity="0.3" />
+        <rect x="14" y="14" width="36" height="36" strokeWidth="1" strokeLinecap="round" />
+        {/* Side hung lines */}
+        <line x1="14" y1="14" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="14" y1="50" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Bottom hung/tilt lines */}
+        <line x1="14" y1="50" x2="32" y2="14" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="50" y1="50" x2="32" y2="14" strokeWidth="0.8" strokeDasharray="3 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'double_sash_window', 
+    nameTr: 'Çift Kanat', 
+    nameEn: 'Double Sash',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Outer frame */}
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" opacity="0.3" />
+        {/* Center Partition Column */}
+        <line x1="32" y1="8" x2="32" y2="56" strokeWidth="1.5" />
+        {/* Left inner sash */}
+        <rect x="13" y="13" width="16" height="38" strokeWidth="1" strokeLinecap="round" />
+        {/* Right inner sash */}
+        <rect x="35" y="13" width="16" height="38" strokeWidth="1" strokeLinecap="round" />
+        {/* Left opening lines */}
+        <line x1="13" y1="13" x2="29" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="13" y1="51" x2="29" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Right opening lines */}
+        <line x1="51" y1="13" x2="35" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="51" y1="51" x2="35" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'angular_junction', 
+    nameTr: 'Açılı Dönüş', 
+    nameEn: 'Angular',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Profile Angled Drawing */}
+        <rect x="8" y="14" width="16" height="36" rx="1" strokeWidth="1.2" />
+        <rect x="24" y="8" width="12" height="48" rx="1" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="36" y="14" width="16" height="36" rx="1" strokeWidth="1.2" />
+        {/* Angle degree arc line */}
+        <path d="M 16 52 Q 30 58 44 52" strokeWidth="0.8" strokeDasharray="2 2" />
+        <line x1="30" y1="14" x2="30" y2="50" strokeWidth="0.6" strokeDasharray="1 1" opacity="0.5" />
+        <line x1="32" y1="20" x2="32" y2="44" strokeWidth="0.6" strokeDasharray="1 1" opacity="0.5" />
+      </svg>
+    )
+  },
+  { 
+    id: 'inside_opening_door', 
+    nameTr: 'İçe Açılır Kapı', 
+    nameEn: 'Inside Opening Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        {/* Tall outer door frame */}
+        <rect x="14" y="6" width="36" height="52" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="17" y="9" width="30" height="46" strokeWidth="0.8" opacity="0.3" />
+        {/* Door Sash Panel */}
+        <rect x="19" y="11" width="26" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Inward Opening lines */}
+        <line x1="19" y1="11" x2="45" y2="33" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="19" y1="55" x2="45" y2="33" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Handles */}
+        <path d="M 42 31 L 40 31 L 40 35 M 42 31.5 L 42 34.5" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  { 
+    id: 'inside_opening_double_door', 
+    nameTr: 'İçe Açılan Çift Kanat Kapı', 
+    nameEn: 'Inside double Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="10" y="6" width="44" height="52" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Center vertical mullion line */}
+        <line x1="32" y1="6" x2="32" y2="58" strokeWidth="1.5" />
+        {/* Left inner sash */}
+        <rect x="14" y="10" width="15" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Right inner sash */}
+        <rect x="35" y="10" width="15" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Left Opening */}
+        <line x1="14" y1="10" x2="29" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="14" y1="54" x2="29" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Right Opening */}
+        <line x1="50" y1="10" x2="35" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="50" y1="54" x2="35" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Handles */}
+        <line x1="30" y1="30" x2="30" y2="34" strokeWidth="1" />
+        <line x1="34" y1="30" x2="34" y2="34" strokeWidth="1" />
+      </svg>
+    )
+  },
+  { 
+    id: 'outside_opening_door', 
+    nameTr: 'Dışa Açılır Kapı', 
+    nameEn: 'Outside Opening Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="14" y="6" width="36" height="52" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="19" y="11" width="26" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Outward Opening lines */}
+        <line x1="45" y1="11" x2="19" y2="33" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="45" y1="55" x2="19" y2="33" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Handle */}
+        <path d="M 22 31 L 24 31 L 24 35" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  { 
+    id: 'outside_opening_double_door', 
+    nameTr: 'Dışa Açılan Çift Kanat Kapı', 
+    nameEn: 'Outside double Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="10" y="6" width="44" height="52" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="32" y1="6" x2="32" y2="58" strokeWidth="1.5" />
+        <rect x="14" y="10" width="15" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        <rect x="35" y="10" width="15" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Outward hinges */}
+        <line x1="29" y1="10" x2="14" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="29" y1="54" x2="14" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="35" y1="10" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+        <line x1="35" y1="54" x2="50" y2="32" strokeWidth="0.8" strokeDasharray="3 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'pivot_opening', 
+    nameTr: 'Pivot Açılım', 
+    nameEn: 'Pivot Opening',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="8" y="8" width="48" height="48" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="12" y="12" width="40" height="40" strokeWidth="0.8" opacity="0.3" />
+        <rect x="14" y="14" width="36" height="36" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Central vertical rotation axis */}
+        <line x1="32" y1="6" x2="32" y2="58" strokeWidth="0.8" strokeDasharray="4 2" />
+        {/* Axis center dot indicators */}
+        <circle cx="32" cy="14" r="2.5" fill="currentColor" />
+        <circle cx="32" cy="50" r="2.5" fill="currentColor" />
+        {/* Pivot diagonal dashed vectors showing sweep */}
+        <line x1="14" y1="32" x2="32" y2="14" strokeWidth="0.8" strokeDasharray="2 2" />
+        <line x1="14" y1="32" x2="32" y2="50" strokeWidth="0.8" strokeDasharray="2 2" />
+        <line x1="50" y1="32" x2="32" y2="14" strokeWidth="0.8" strokeDasharray="2 2" />
+        <line x1="50" y1="32" x2="32" y2="50" strokeWidth="0.8" strokeDasharray="2 2" />
+      </svg>
+    )
+  },
+  { 
+    id: 'sliding_window', 
+    nameTr: 'Sürme Pencere', 
+    nameEn: 'Sliding Window',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="8" y="14" width="48" height="36" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Sashes split */}
+        <line x1="32" y1="14" x2="32" y2="50" strokeWidth="1.2" />
+        {/* Left inner sash */}
+        <rect x="12" y="18" width="18" height="28" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+        {/* Right inner sash */}
+        <rect x="34" y="18" width="18" height="28" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Sliding arrows */}
+        <line x1="16" y1="32" x2="26" y2="32" strokeWidth="1" />
+        <path d="M 22 28 L 26 32 L 22 36" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="48" y1="32" x2="38" y2="32" strokeWidth="1" />
+        <path d="M 42 28 L 38 32 L 42 36" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  { 
+    id: 'sliding_door', 
+    nameTr: 'Sürme Kapı', 
+    nameEn: 'Sliding Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="12" y="6" width="40" height="52" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Center vertical mullion line */}
+        <line x1="32" y1="6" x2="32" y2="58" strokeWidth="1.5" />
+        {/* Left tall sash */}
+        <rect x="15" y="10" width="14" height="44" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+        {/* Right tall sash */}
+        <rect x="35" y="10" width="14" height="44" strokeWidth="1.2" strokeLinecap="round" />
+        {/* Sliding arrows */}
+        <line x1="18" y1="32" x2="26" y2="32" strokeWidth="1" />
+        <path d="M 22 28 L 26 32 L 22 36" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="46" y1="32" x2="38" y2="32" strokeWidth="1" />
+        <path d="M 42 28 L 38 32 L 42 36" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  { 
+    id: 'tilt_slide_door', 
+    nameTr: 'Paralel Sürme', 
+    nameEn: 'Tilt & Slide Opening Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="8" y="12" width="48" height="40" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Middle split */}
+        <line x1="32" y1="12" x2="32" y2="52" strokeWidth="1.5" />
+        {/* Left Fixed sash */}
+        <rect x="12" y="16" width="16" height="32" strokeWidth="1" strokeLinecap="round" opacity="0.5" />
+        <line x1="20" y1="28" x2="20" y2="36" strokeWidth="0.8" />
+        <line x1="16" y1="32" x2="24" y2="32" strokeWidth="0.8" />
+        {/* Right sliding and tilt sash */}
+        <rect x="36" y="16" width="16" height="32" strokeWidth="1.2" strokeLinecap="round" className="stroke-blue-400/80" />
+        {/* Translation sliding arrow */}
+        <line x1="52" y1="32" x2="36" y2="32" strokeWidth="1.2" />
+        <path d="M 40 28 L 36 32 L 40 36" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Tilt action dashed line */}
+        <line x1="36" y1="48" x2="44" y2="16" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.75" />
+        <line x1="52" y1="48" x2="44" y2="16" strokeWidth="0.8" strokeDasharray="2 2" opacity="0.75" />
+      </svg>
+    )
+  },
+  { 
+    id: 'folding_door', 
+    nameTr: 'Katlanır Kapı', 
+    nameEn: 'Folding Door',
+    renderIcon: (active: boolean) => (
+      <svg className={`w-12 h-12 stroke-current ${active ? 'text-blue-400' : 'text-slate-400'} transition-colors`} viewBox="0 0 64 64" fill="none">
+        <rect x="8" y="10" width="48" height="44" rx="1.5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Accordion Panels */}
+        <line x1="20" y1="10" x2="20" y2="54" strokeWidth="1" />
+        <line x1="32" y1="10" x2="32" y2="54" strokeWidth="1" />
+        <line x1="44" y1="10" x2="44" y2="54" strokeWidth="1" />
+        {/* Zigzag dashed folding trajectory */}
+        <path d="M 8 50 L 20 14 L 32 50 L 44 14 L 56 50" strokeWidth="0.8" strokeDasharray="3 2" />
+        {/* Small hinge round nodes */}
+        <circle cx="20" cy="14" r="1.5" fill="currentColor" />
+        <circle cx="32" cy="50" r="1.5" fill="currentColor" />
+        <circle cx="44" cy="14" r="1.5" fill="currentColor" />
+      </svg>
+    )
+  }
+];
+
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
@@ -29,6 +327,40 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [selectedTypology, setSelectedTypology] = useState<string>(() => {
+    if (initialUnit?.typology) return initialUnit.typology;
+    const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
+    if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
+      return initialSystem.supportedTypologies[0];
+    }
+    return 'hinged_window';
+  });
+
+  const compatibleSystems = useMemo(() => {
+    return systems.filter(sys => {
+      if (sys.supportedTypologies && sys.supportedTypologies.length > 0) {
+        return sys.supportedTypologies.includes(selectedTypology);
+      }
+      
+      const selectedTypoLower = selectedTypology.toLowerCase();
+      if (selectedTypoLower.includes('sliding')) {
+        return sys.type === 'sliding';
+      }
+      if (selectedTypoLower.includes('fixed') || selectedTypoLower.includes('storefront')) {
+        return true;
+      }
+      return sys.type === 'hinged';
+    });
+  }, [systems, selectedTypology]);
+
+  useEffect(() => {
+    if (compatibleSystems.length > 0) {
+      const isStillCompatible = compatibleSystems.some(s => s.id === systemId);
+      if (!isStillCompatible) {
+        setSystemId(compatibleSystems[0].id);
+      }
+    }
+  }, [compatibleSystems, systemId]);
   const [color, setColor] = useState(initialUnit?.color || 'group1');
   const [specificColor, setSpecificColor] = useState(initialUnit?.specificColor || '');
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
@@ -258,7 +590,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       customGlassPrice: customPriceNum,
       selectedHandle, selectedHinge, selectedGasket, selectedLock, 
       selectedCorner, selectedAutomation, selectedKickplate, 
-      selectedDoorCloser, selectedLockStriker, selectedOther
+      selectedDoorCloser, selectedLockStriker, selectedOther,
+      typology: selectedTypology
     });
   };
 
@@ -631,10 +964,53 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                       )}
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'profileSystem')}</label>
+                        <div className="space-y-1.5 pb-2.5 border-b border-white/5 mb-2.5 pt-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1 tracking-wider">
+                               {lang === 'tr' ? '1. Ürün Tipolojisi Seçin' : '1. Choose Product Typology'}
+                            </label>
+                            
+                            {/* Görsel Teknik Çizim Gridi */}
+                            <div className="grid grid-cols-3 gap-1.5 max-h-[300px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                              {TYPOLOGIES_LIST.map(typo => {
+                                const active = selectedTypology === typo.id;
+                                return (
+                                  <button
+                                    key={typo.id}
+                                    type="button"
+                                    onClick={() => setSelectedTypology(typo.id)}
+                                    className={`relative flex flex-col items-center justify-between p-2 rounded-xl border text-left transition-all duration-200 group ${
+                                      active 
+                                        ? 'border-blue-500/80 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] text-blue-400' 
+                                        : 'border-slate-850 bg-slate-950/40 hover:border-slate-700 hover:bg-slate-900/50 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    {/* Seçili ise sağ üstte minik onay işareti */}
+                                    {active && (
+                                      <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-0.5 animate-in zoom-in-50 duration-150">
+                                        <Check size={8} strokeWidth={3} />
+                                      </div>
+                                    )}
+                                    
+                                    {/* SVG Çizim */}
+                                    <div className="mb-1.5 p-1 rounded-lg bg-black/10 group-hover:scale-105 transition-transform">
+                                      {typo.renderIcon(active)}
+                                    </div>
+                                    
+                                    {/* İsim */}
+                                    <span className={`text-[9px] text-center font-bold tracking-tight leading-none block w-full truncate ${
+                                      active ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'
+                                    }`} title={lang === 'tr' ? typo.nameTr : typo.nameEn}>
+                                      {lang === 'tr' ? typo.nameTr : typo.nameEn}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                        </div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'profileSystem')} ({lang === 'tr' ? 'Seçilen Tipolojiye Uygun' : 'Compatible with Chosen Typology'})</label>
                         <div className="flex gap-2">
                             <select value={systemId} onChange={e => setSystemId(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
-                            {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            {compatibleSystems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             <button 
                                 onClick={() => setShowSection(true)}

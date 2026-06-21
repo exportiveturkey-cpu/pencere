@@ -603,6 +603,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                           <h1 className="text-xl font-bold text-white leading-tight">{project.name}</h1>
                           <Edit2 size={14} className="text-slate-500 opacity-60 group-hover:opacity-100 transition-opacity" />
                         </div>
+                        <span className="text-[10px] bg-blue-500/10 border border-blue-500/10 rounded px-1.5 py-0.5 text-blue-400 font-mono font-bold uppercase ml-1">
+                          {project.projectNumber || `ALU-${new Date(project.date).getFullYear() || 2026}-${project.id.slice(0, 4).toUpperCase()}`}
+                        </span>
                     </div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{project.client} • {project.date}</span>
                 </div>
@@ -912,6 +915,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
                             <div>
                                 <h1 className="text-4xl font-black text-slate-900 mb-2 uppercase tracking-tight">{t(lang, 'printQuote')}</h1>
+                                <div className="text-sm font-black text-blue-600 font-mono tracking-widest uppercase mb-2">
+                                    {lang === 'tr' ? 'TEKLİF NO' : 'QUOTE REF'}: {project.projectNumber || `ALU-${new Date(project.date).getFullYear() || 2026}-${project.id.slice(0, 4).toUpperCase()}`}
+                                </div>
                                 <p className="text-slate-500 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
                                     <Globe size={14} className="text-blue-600" /> ALUMETRIC Engineering Suite • {project.date}
                                 </p>
@@ -1178,21 +1184,6 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         <button onClick={() => window.print()} className="flex items-center gap-3 px-8 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-[1.25rem] font-black text-base transition-all shadow-xl shadow-sky-500/20 w-full sm:w-auto justify-center">
                             <Printer size={20} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
                         </button>
-                        {licenseKey && (
-                          <button 
-                            onClick={handleCopyShareLink} 
-                            className={`flex items-center gap-3 px-8 py-4 text-white rounded-[1.25rem] font-black text-base transition-all shadow-xl w-full sm:w-auto justify-center ${
-                              copiedLink 
-                                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20' 
-                                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'
-                            }`}
-                          >
-                            <Share2 size={20} />
-                            {copiedLink 
-                              ? (lang === 'tr' ? 'Bağlantı Kopyalandı!' : 'Link Copied!') 
-                              : (lang === 'tr' ? 'Müşteri Dijital Onay Linki' : 'Customer Digital Approval Link')}
-                          </button>
-                        )}
                     </div>
                 </div>
             )}
@@ -1439,6 +1430,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Proje Adı' : 'Project Name'}</label>
                 <input value={tempProject.name} onChange={e => setTempProject({...tempProject, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" placeholder="Project Name" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Proje Numarası' : 'Project Number'}</label>
+                <input value={tempProject.projectNumber || ''} onChange={e => setTempProject({...tempProject, projectNumber: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none font-mono" placeholder="ALU-2026-1001" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{lang === 'tr' ? 'Müşteri Adı' : 'Client Name'}</label>
