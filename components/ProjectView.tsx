@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -295,6 +295,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const taxRate = Number(localStorage.getItem('alucraft_tax')) || 20;
   const [currency, setCurrency] = useState('USD');
   const [currencySymbol, setCurrencySymbol] = useState('$');
+  const [showCostDetails, setShowCostDetails] = useState<boolean>(() => {
+    return localStorage.getItem('alucraft_show_cost_details') === 'true';
+  });
+
+  const handleToggleCostDetails = (checked: boolean) => {
+    setShowCostDetails(checked);
+    localStorage.setItem('alucraft_show_cost_details', checked ? 'true' : 'false');
+  };
 
   const reloadCurrencySettings = () => {
     const activeCurr = getActiveCurrency();
@@ -910,6 +918,40 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
             {activeTab === 'quote' && (
                 <div className="animate-in slide-in-from-right-4 duration-300">
+                    {/* Quoting Display Controls */}
+                    <div className="mb-6 p-5 bg-slate-900 border border-slate-800 rounded-[2rem] print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl">
+                                <Sliders size={18} />
+                            </div>
+                            <div>
+                                <div className="text-white text-xs font-black uppercase tracking-wider">
+                                    {lang === 'tr' ? 'Teklif İnceleme & Baskı Seçenekleri' : 'Proposal Configuration & Print Options'}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                    {lang === 'tr' ? 'Detay fiyatlarının teklif çıktısında gizlenmesini belirleyin.' : 'Configure which cost elements display in print layout.'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4 flex-wrap">
+                            <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition" id="quote-cost-details-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={showCostDetails}
+                                    onChange={e => handleToggleCostDetails(e.target.checked)}
+                                    className="rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-slate-300">
+                                    {lang === 'tr' ? 'Maliyet/Gider Detaylarını Göster' : 'Show Cost/Expense Details'}
+                                </span>
+                            </label>
+
+                            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent">
+                                <Printer size={15} /> {t(lang, 'exportPdf')}
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="bg-white text-black p-12 print:p-2 rounded-[2rem] print:rounded-none shadow-2xl print:shadow-none min-h-[1000px] print:min-h-0 flex flex-col border border-slate-200 print:border-none">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
@@ -1002,7 +1044,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                 <span>{unit.specificColor ? (lang === 'tr' ? 'Renk / Boya Kodu:' : 'Color / Powder Code:') : (lang === 'tr' ? 'Profil Renk Grubu:' : 'Profile Color Group:')}</span>
                                                                 <span className="font-bold text-slate-900">{unit.specificColor || colorLabel}</span>
                                                               </div>
-                                                              {stats.laborRate > 0 && (
+                                                              {showCostDetails && stats.laborRate > 0 && (
                                                                 <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
                                                                   <span>{lang === 'tr' ? 'Sistem İşçiliği (Kg):' : 'System Labor (Kg):'}</span>
                                                                   <span className="font-bold text-slate-900 font-mono">
@@ -1019,7 +1061,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                             {unit.includeGlass === false ? (lang === 'tr' ? 'Hayır (Cam Hariç)' : 'No (Glass Excluded)') : (lang === 'tr' ? 'Evet (Cam Dahil)' : 'Yes (Glass Included)')}
                                                           </span>
                                                         </div>
-                                                        {unit.includeGlass !== false && (
+                                                        {showCostDetails && unit.includeGlass !== false && (
                                                           <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium border-b border-dashed border-slate-100 pb-0.5">
                                                             <span>{lang === 'tr' ? 'Cam m² Fiyatı' : 'Glass m² Price'}:</span>
                                                             <span className="font-bold font-mono text-slate-900">
@@ -1043,7 +1085,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 max-w-xl">
                                                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">
                                                                 <span>{t(lang, 'accessories')}</span>
-                                                                <span>{lang === 'tr' ? `FİYAT (${currencySymbol})` : `PRICE (${currencySymbol})`}</span>
+                                                                {showCostDetails && <span>{lang === 'tr' ? `FİYAT (${currencySymbol})` : `PRICE (${currencySymbol})`}</span>}
                                                             </div>
                                                             <div className="grid grid-cols-1 gap-1.5">
                                                               {stats.selectedAccs.map((acc: any, aIdx: number) => (
@@ -1052,20 +1094,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                         <span className="font-bold shrink-0 min-w-[85px] text-slate-500">{t(lang, acc.type)}:</span>
                                                                         <span className="text-slate-800 font-semibold">{acc.name}</span>
                                                                     </div>
-                                                                    <div className="text-slate-500 font-mono text-[11px] whitespace-nowrap text-right">
-                                                                        <span>
-                                                                            {acc.qty.toFixed(1)} {acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce')} x {currencySymbol}{acc.price.toLocaleString(undefined, { minimumFractionDigits: 2 })} = 
-                                                                        </span>
-                                                                        <span className="font-bold text-slate-900 ml-1">
-                                                                            {currencySymbol}{(acc.price * acc.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                                        </span>
-                                                                    </div>
+                                                                    {showCostDetails && (
+                                                                        <div className="text-slate-500 font-mono text-[11px] whitespace-nowrap text-right">
+                                                                            <span>
+                                                                                {acc.qty.toFixed(1)} {acc.unit === 'meter' ? t(lang, 'unitMeter') : t(lang, 'unitPce')} x {currencySymbol}{acc.price.toLocaleString(undefined, { minimumFractionDigits: 2 })} = 
+                                                                            </span>
+                                                                            <span className="font-bold text-slate-900 ml-1">
+                                                                                {currencySymbol}{(acc.price * acc.qty).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                               ))}
-                                                              <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 mt-1 text-[11px] text-slate-500 font-bold">
+                                                              {showCostDetails && <div className="flex justify-between border-t border-dashed border-slate-200 pt-1.5 mt-1 text-[11px] text-slate-500 font-bold">
                                                                   <span>{t(lang, 'accessoryCost')}</span>
                                                                   <span className="text-slate-900">{currencySymbol}{stats.accCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                                                </div>
+                                                                </div>}
                                                             </div>
                                                         </div>
                                                     )}
