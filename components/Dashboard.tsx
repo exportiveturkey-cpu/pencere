@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, Language, ProfileSystem, Accessory, Customer } from '../types';
-import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon } from 'lucide-react';
+import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon, Printer, ArrowLeft } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
@@ -58,6 +58,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [showCustomerMenuId, setShowCustomerMenuId] = useState<string | null>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
+  const [showCustomerReport, setShowCustomerReport] = useState(false);
   
   const toggleLang = () => setLang(lang === 'en' ? 'tr' : 'en');
   const session = getSessionInfo();
@@ -188,6 +189,243 @@ const Dashboard: React.FC<DashboardProps> = ({
       default: return status;
     }
   };
+
+  const getCustomerProjects = (customer: Customer) => {
+    const nameLower = customer.name.trim().toLowerCase();
+    const compLower = customer.company ? customer.company.trim().toLowerCase() : '';
+    
+    return projects.filter(p => {
+      const pClient = p.client.trim().toLowerCase();
+      return pClient === nameLower || (compLower && pClient === compLower);
+    });
+  };
+
+  if (showCustomerReport) {
+    const activeCustomers = customers.filter(c => c.status === 'active');
+    
+    // Calculate global stats for customers
+    let grandTotalProjects = 0;
+    let grandTotalValue = 0;
+    let grandApprovedProjects = 0;
+    
+    customers.forEach(customer => {
+      const { totalCount, totalValue, approvedCount } = getCustomerStats(customer);
+      grandTotalProjects += totalCount;
+      grandTotalValue += totalValue;
+      grandApprovedProjects += approvedCount;
+    });
+
+    const averageConversionRate = grandTotalProjects > 0 ? Math.round((grandApprovedProjects / grandTotalProjects) * 100) : 0;
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-6 sm:p-8 font-sans print:bg-white print:text-black print:p-0">
+        <div className="max-w-6xl mx-auto space-y-8 print:max-w-none print:space-y-6">
+          {/* Header Controls */}
+          <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900/60 backdrop-blur border border-white/5 rounded-2xl p-6 shadow-xl gap-4 print:hidden">
+            <button 
+              onClick={() => setShowCustomerReport(false)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-slate-300 flex items-center gap-2 transition-all border border-white/5"
+            >
+              <ArrowLeft size={14} />
+              {lang === 'tr' ? 'Kontrol Paneline Dön' : 'Back to Dashboard'}
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-slate-400">
+                {lang === 'tr' ? 'Müşteri Kayıtları Raporu' : 'Customer Database Report'}
+              </span>
+              <button 
+                onClick={() => window.print()}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/10"
+              >
+                <Printer size={14} />
+                {lang === 'tr' ? 'PDF / Rapor Yazdır' : 'Print PDF Report'}
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Report Document Card */}
+          <div className="bg-slate-900/40 border border-white/5 p-6 sm:p-10 rounded-[2rem] shadow-2xl print:bg-white print:border-none print:p-0 print:shadow-none">
+            {/* Enterprise Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/10 pb-8 mb-8 print:border-slate-300 print:pb-6 print:mb-6">
+              <div className="flex items-center gap-3">
+                <Logo className="w-10 h-10" theme={theme} />
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight print:text-black">
+                    {lang === 'tr' ? 'MÜŞTERİ KAYİTLARİ & TEKLİF RAPORU' : 'CUSTOMER DATABASE & BID REPORT'}
+                  </h1>
+                  <p className="text-slate-400 text-xs font-medium mt-1 print:text-slate-600">
+                    Alumetric Engineering Suite • {new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right mt-4 md:mt-0 font-mono text-xs text-slate-500 print:text-slate-700">
+                <div>{lang === 'tr' ? 'Firma: ' : 'Company: '} {displayName}</div>
+                <div>{lang === 'tr' ? 'Sistem: ' : 'System: '} ALUMETRIC Suite</div>
+              </div>
+            </div>
+
+            {/* Global Summary KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 print:gap-2 print:mb-6">
+              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
+                  {lang === 'tr' ? 'TOPLAM MÜŞTERİ' : 'TOTAL CUSTOMERS'}
+                </span>
+                <span className="text-xl font-bold text-white print:text-slate-950 block">
+                  {customers.length} <span className="text-xs font-normal text-slate-500 font-sans">({activeCustomers.length} {lang === 'tr' ? 'Aktif' : 'Active'})</span>
+                </span>
+              </div>
+              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
+                  {lang === 'tr' ? 'TOPLAM TEKLİF' : 'TOTAL ESTIMATIONS'}
+                </span>
+                <span className="text-xl font-bold text-blue-400 print:text-blue-700 block">
+                  {grandTotalProjects}
+                </span>
+              </div>
+              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
+                  {lang === 'tr' ? 'ONAY / SİPARİŞ' : 'CONVERSION RATE'}
+                </span>
+                <span className="text-xl font-bold text-emerald-400 print:text-emerald-700 block">
+                  %{averageConversionRate} <span className="text-xs font-normal text-slate-500 font-sans">({grandApprovedProjects} {lang === 'tr' ? 'Sipariş' : 'Order'})</span>
+                </span>
+              </div>
+              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
+                  {lang === 'tr' ? 'TEKLİF PORTFÖYÜ' : 'PIPELINE VALUE'}
+                </span>
+                <span className="text-xl font-bold text-orange-400 print:text-orange-700 font-mono block">
+                  ${grandTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer Records Listing */}
+            <div className="space-y-6">
+              <h2 className="text-sm font-black text-indigo-400 uppercase tracking-widest border-b border-white/5 pb-2 mb-4 print:text-indigo-800 print:border-slate-300">
+                {lang === 'tr' ? 'MÜŞTERİ BAZLI TEKLİF GEÇMİŞİ' : 'CUSTOMER DETAILED QUOTATION LOG'}
+              </h2>
+
+              {customers.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 border border-dashed border-white/5 rounded-2xl">
+                  {lang === 'tr' ? 'Henüz müşteri kaydı bulunmamaktadır.' : 'No customer records available.'}
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5 print:divide-slate-200 space-y-6">
+                  {customers.map((customer, idx) => {
+                    const cStats = getCustomerStats(customer);
+                    const cProjects = getCustomerProjects(customer);
+                    
+                    return (
+                      <div key={customer.id} className={`pt-6 ${idx === 0 ? 'pt-0' : ''} avoid-break`}>
+                        {/* Customer Meta Row */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/20 p-4 rounded-xl border border-white/5 mb-4 print:bg-slate-50 print:border-slate-200">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-extrabold text-white text-base print:text-slate-950">{customer.name}</h3>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${
+                                customer.status === 'active' 
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                                  : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                              }`}>
+                                {customer.status === 'active' ? (lang === 'tr' ? 'Aktif' : 'Active') : (lang === 'tr' ? 'Engelli' : 'Blocked')}
+                              </span>
+                            </div>
+                            {customer.company && (
+                              <p className="text-blue-400 text-xs font-bold uppercase tracking-wider print:text-blue-800">{customer.company}</p>
+                            )}
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-400 font-medium print:text-slate-600">
+                              {customer.phone && <span>Tel: {customer.phone}</span>}
+                              {customer.email && <span>E-mail: {customer.email}</span>}
+                              {customer.address && <span className="line-clamp-1">Adres: {customer.address}</span>}
+                            </div>
+                          </div>
+
+                          {/* Customer mini stats KPI */}
+                          <div className="text-start md:text-right md:border-l border-white/10 md:pl-4 print:border-slate-300">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block print:text-slate-500">
+                              {lang === 'tr' ? 'TOPLAM TEKLİF HESABI' : 'TOTAL Bids ESTIMATION'}
+                            </span>
+                            <span className="text-sm font-extrabold text-white print:text-slate-950 font-mono block">
+                              {cStats.totalCount} {lang === 'tr' ? 'Proje' : 'Projects'} / ${cStats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 print:text-emerald-700 font-bold block">
+                              {lang === 'tr' ? 'Onay Oranı' : 'Conversion'}: %{cStats.conversionRate}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Customer Projects details */}
+                        <div className="pl-4 border-l-2 border-slate-800 pr-2 mb-4 print:border-slate-300 overflow-x-auto">
+                          {cProjects.length === 0 ? (
+                            <div className="text-slate-500 text-xs py-2 italic font-normal">
+                              {lang === 'tr' ? 'Bu müşteriye ait henüz bir teklif kaydı oluşturulmamıştır.' : 'No estimations issued for this customer yet.'}
+                            </div>
+                          ) : (
+                            <table className="w-full text-xs text-left min-w-[500px]">
+                              <thead>
+                                <tr className="text-slate-500 font-black uppercase tracking-wider border-b border-white/5 pb-2 print:text-slate-500 print:border-slate-200">
+                                  <th className="py-2 pr-4">{lang === 'tr' ? 'Proje No / Ref' : 'Project Ref'}</th>
+                                  <th className="py-2 pr-4">{lang === 'tr' ? 'Proje Adı' : 'Project Name'}</th>
+                                  <th className="py-2 pr-4">{lang === 'tr' ? 'Tarih' : 'Date'}</th>
+                                  <th className="py-2 pr-4 text-center">{lang === 'tr' ? 'Poz' : 'Units'}</th>
+                                  <th className="py-2 pr-4 text-right">{lang === 'tr' ? 'Teklif Bedeli' : 'Est. Amount'}</th>
+                                  <th className="py-2 text-right">{lang === 'tr' ? 'Durum' : 'Status'}</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 print:divide-slate-200">
+                                {cProjects.map(proj => {
+                                  const costReport = calculateProjectCost(proj, systems, accessories);
+                                  return (
+                                    <tr key={proj.id} className="text-slate-300 hover:bg-white/5 print:text-slate-850">
+                                      <td className="py-2.5 font-mono text-blue-400 font-bold print:text-blue-800 pr-4">
+                                        {proj.projectNumber || `ALU-${new Date(proj.date).getFullYear() || 2026}-${proj.id.slice(0, 4).toUpperCase()}`}
+                                      </td>
+                                      <td className="py-2.5 font-bold pr-4">{proj.name}</td>
+                                      <td className="py-2.5 text-slate-400 print:text-slate-600 pr-4">{proj.date}</td>
+                                      <td className="py-2.5 text-center font-bold pr-4">{proj.units.length}</td>
+                                      <td className="py-2.5 text-right font-mono font-bold pr-4 text-emerald-400 print:text-emerald-700">
+                                        ${costReport.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="py-2.5 text-right">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-tight border ${
+                                          proj.status === 'Draft' ? 'bg-yellow-500/10 border-yellow-500/10 text-yellow-500 print:border-yellow-200' :
+                                          proj.status === 'Production' ? 'bg-emerald-500/10 border-emerald-500/10 text-emerald-400 print:border-emerald-200' :
+                                          'bg-slate-500/10 border-slate-500/10 text-slate-400 print:border-slate-200'
+                                        }`}>
+                                          {getStatusLabel(proj.status)}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Printable signatures footer */}
+            <div className="hidden print:flex justify-between items-center pt-24 mt-12 border-t border-slate-300 text-xs">
+              <div className="text-center w-48">
+                <div className="font-bold border-b border-slate-400 pb-16 mb-2">Hazırlayan / Issued By</div>
+                <div className="text-[10px] text-slate-500 uppercase">{displayName} Yetkilisi</div>
+              </div>
+              <div className="text-center w-48">
+                <div className="font-bold border-b border-slate-400 pb-16 mb-2">Belge Onayı / Verification</div>
+                <div className="text-[10px] text-slate-500 uppercase">ALUMETRIC Engineering Suite</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -573,13 +811,22 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
             </div>
             {activeTab === 'customers' && (
-              <button 
-                onClick={() => { setEditingCustomer({ id: uuidv4(), name: '', company: '', phone: '', email: '', status: 'active', notes: '' }); setIsAddingCustomer(true); }}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shrink-0 shadow-lg shadow-blue-500/10"
-              >
-                <Plus size={18} />
-                {lang === 'tr' ? 'Yeni Müşteri' : 'Add Customer'}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                <button 
+                  onClick={() => setShowCustomerReport(true)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/5 font-bold px-5 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                >
+                  <Printer size={18} />
+                  {lang === 'tr' ? 'Müşteri Raporu Yazdır' : 'Print Customer Report'}
+                </button>
+                <button 
+                  onClick={() => { setEditingCustomer({ id: uuidv4(), name: '', company: '', phone: '', email: '', status: 'active', notes: '' }); setIsAddingCustomer(true); }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shrink-0 shadow-lg shadow-blue-500/10"
+                >
+                  <Plus size={18} />
+                  {lang === 'tr' ? 'Yeni Müşteri' : 'Add Customer'}
+                </button>
+              </div>
             )}
         </div>
 
