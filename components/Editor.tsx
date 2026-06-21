@@ -1184,7 +1184,14 @@ max="0.95"
                     </div>
                     <div className="flex justify-between items-center text-slate-400 font-medium">
                       <span>{lang === 'tr' ? 'Sistem Tipi:' : 'System Type:'}</span>
-                      <span className="font-bold uppercase text-slate-200 tracking-wider text-[9px]">{selectedSystem.type === 'hinged' ? (lang === 'tr' ? 'Menteşeli / Devrilmeli' : 'Hinged / Tilt') : (lang === 'tr' ? 'Sürme' : 'Sliding')}</span>
+                      <span className="font-bold uppercase text-slate-200 tracking-wider text-[9px]">
+                        {(() => {
+                          const currentTypology = TYPOLOGIES_LIST.find(t => t.id === selectedTypology);
+                          return currentTypology 
+                            ? (lang === 'tr' ? currentTypology.nameTr : currentTypology.nameEn)
+                            : (selectedSystem.type === 'hinged' ? (lang === 'tr' ? 'Menteşeli / Devrilmeli' : 'Hinged / Tilt') : (lang === 'tr' ? 'Sürme' : 'Sliding'));
+                        })()}
+                      </span>
                     </div>
                     {selectedSystem.type === 'hinged' && recommendedHinge && (
                       <div className="flex justify-between items-start text-slate-400 pt-1.5 border-t border-white/5">
