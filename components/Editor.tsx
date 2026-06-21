@@ -319,6 +319,161 @@ const TYPOLOGIES_LIST = [
   }
 ];
 
+const getInitialNodeForTypology = (typologyId: string): WindowNode => {
+  const rootId = uuidv4();
+  switch (typologyId) {
+    case 'fixed_storefront':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'fixed',
+      };
+    
+    case 'top_hung_window':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'tilt',
+      };
+      
+    case 'hinged_window':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'turn-left',
+      };
+      
+    case 'tilt_turn_window':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'tilt-turn-left',
+      };
+      
+    case 'double_sash_window':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'turn-left' },
+          { id: uuidv4(), type: 'glass', openingType: 'tilt-turn-right' }
+        ]
+      };
+      
+    case 'angular_junction':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+          { id: uuidv4(), type: 'glass', openingType: 'fixed' }
+        ]
+      };
+      
+    case 'inside_opening_door':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'turn-right',
+      };
+      
+    case 'inside_opening_double_door':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'turn-left' },
+          { id: uuidv4(), type: 'glass', openingType: 'turn-right' }
+        ]
+      };
+      
+    case 'outside_opening_door':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'turn-left',
+      };
+      
+    case 'outside_opening_double_door':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'turn-left' },
+          { id: uuidv4(), type: 'glass', openingType: 'turn-right' }
+        ]
+      };
+      
+    case 'pivot_opening':
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'tilt',
+      };
+      
+    case 'sliding_window':
+    case 'sliding_door':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'sliding' },
+          { id: uuidv4(), type: 'glass', openingType: 'fixed' }
+        ]
+      };
+      
+    case 'tilt_slide_door':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.5, 0.5],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+          { id: uuidv4(), type: 'glass', openingType: 'sliding' }
+        ]
+      };
+      
+    case 'folding_door':
+      return {
+        id: rootId,
+        type: 'container',
+        direction: 'vertical',
+        splitRatio: [0.33, 0.67],
+        children: [
+          { id: uuidv4(), type: 'glass', openingType: 'turn-left' },
+          { 
+            id: uuidv4(), 
+            type: 'container', 
+            direction: 'vertical', 
+            splitRatio: [0.5, 0.5], 
+            children: [
+              { id: uuidv4(), type: 'glass', openingType: 'turn-left' },
+              { id: uuidv4(), type: 'glass', openingType: 'turn-left' }
+            ]
+          }
+        ]
+      };
+      
+    default:
+      return {
+        id: rootId,
+        type: 'glass',
+        openingType: 'fixed',
+      };
+  }
+};
+
 const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mullion' }> = ({ code, type }) => {
   const [imageFailed, setImageFailed] = React.useState(false);
   const isThermal = code.includes('TH');
@@ -653,7 +808,21 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [color, setColor] = useState(initialUnit?.color || 'group1');
   const [specificColor, setSpecificColor] = useState(initialUnit?.specificColor || '');
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
-  const [rootNode, setRootNode] = useState<WindowNode>(initialUnit?.rootNode || { ...INITIAL_ROOT_NODE, id: uuidv4() });
+  const [rootNode, setRootNode] = useState<WindowNode>(() => {
+    if (initialUnit?.rootNode) return initialUnit.rootNode;
+    
+    // Determine the initial typology
+    let initialType = 'hinged_window';
+    if (initialUnit?.typology) {
+      initialType = initialUnit.typology;
+    } else {
+      const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
+      if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
+        initialType = initialSystem.supportedTypologies[0];
+      }
+    }
+    return getInitialNodeForTypology(initialType);
+  });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hasThreshold, setHasThreshold] = useState<boolean>(initialUnit?.hasThreshold || false);
   const [includeGlass, setIncludeGlass] = useState<boolean>(initialUnit?.includeGlass !== false);
@@ -1273,7 +1442,11 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                   <button
                                     key={typo.id}
                                     type="button"
-                                    onClick={() => setSelectedTypology(typo.id)}
+                                    onClick={() => {
+                                      setSelectedTypology(typo.id);
+                                      setRootNode(getInitialNodeForTypology(typo.id));
+                                      setSelectedNodeId(null);
+                                    }}
                                     className={`relative flex flex-col items-center justify-between p-2 rounded-xl border text-left transition-all duration-200 group ${
                                       active 
                                         ? 'border-blue-500/80 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] text-blue-400' 
