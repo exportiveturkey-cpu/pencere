@@ -65,6 +65,7 @@ export interface Unit {
   selectedFrameProfileImage?: string;
   selectedSashProfileImage?: string;
   selectedMullionProfileImage?: string;
+  customProfileImages?: Record<string, string>;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';

@@ -539,9 +539,49 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(initialUnit?.selectedFrameProfile || '70T-102-18');
   const [selectedSashProfile, setSelectedSashProfile] = useState<string>(initialUnit?.selectedSashProfile || '70T-201-18');
   const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(initialUnit?.selectedMullionProfile || '70T-301-18');
-  const [selectedFrameProfileImage, setSelectedFrameProfileImage] = useState<string>(initialUnit?.selectedFrameProfileImage || '');
-  const [selectedSashProfileImage, setSelectedSashProfileImage] = useState<string>(initialUnit?.selectedSashProfileImage || '');
-  const [selectedMullionProfileImage, setSelectedMullionProfileImage] = useState<string>(initialUnit?.selectedMullionProfileImage || '');
+
+  // Custom uploaded drawings mapping keyed by profile code to allow different drawings per style
+  const [customProfileImages, setCustomProfileImages] = useState<Record<string, string>>(() => {
+    const unitImages = initialUnit?.customProfileImages || {};
+    try {
+      const saved = localStorage.getItem('alumetric_custom_profile_images');
+      if (saved) {
+        return { ...JSON.parse(saved), ...unitImages };
+      }
+    } catch (e) {
+      console.warn('Error loading custom profile images', e);
+    }
+    return unitImages;
+  });
+
+  const selectedFrameProfileImage = customProfileImages[selectedFrameProfile] || '';
+  const selectedSashProfileImage = customProfileImages[selectedSashProfile] || '';
+  const selectedMullionProfileImage = customProfileImages[selectedMullionProfile] || '';
+
+  const handleProfileImageUploaded = (code: string, base64: string) => {
+    setCustomProfileImages(prev => {
+      const updated = { ...prev, [code]: base64 };
+      try {
+        localStorage.setItem('alumetric_custom_profile_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Quota limit for images reached', e);
+      }
+      return updated;
+    });
+  };
+
+  const handleProfileImageCleared = (code: string) => {
+    setCustomProfileImages(prev => {
+      const updated = { ...prev };
+      delete updated[code];
+      try {
+        localStorage.setItem('alumetric_custom_profile_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving to localStorage', e);
+      }
+      return updated;
+    });
+  };
   const [selectedTypology, setSelectedTypology] = useState<string>(() => {
     if (initialUnit?.typology) return initialUnit.typology;
     const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
@@ -812,7 +852,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedMullionProfile,
       selectedFrameProfileImage,
       selectedSashProfileImage,
-      selectedMullionProfileImage
+      selectedMullionProfileImage,
+      customProfileImages
     });
   };
 
@@ -1262,8 +1303,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                   code={selectedFrameProfile} 
                                   type="frame" 
                                   imageUrl={selectedFrameProfileImage} 
-                                  onImageUploaded={setSelectedFrameProfileImage} 
-                                  onImageCleared={() => setSelectedFrameProfileImage('')} 
+                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedFrameProfile, b64)} 
+                                  onImageCleared={() => handleProfileImageCleared(selectedFrameProfile)} 
                                   lang={lang} 
                                 />
                                 <div className="flex-1 min-w-0">
@@ -1295,8 +1336,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                   code={selectedSashProfile} 
                                   type="sash" 
                                   imageUrl={selectedSashProfileImage} 
-                                  onImageUploaded={setSelectedSashProfileImage} 
-                                  onImageCleared={() => setSelectedSashProfileImage('')} 
+                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedSashProfile, b64)} 
+                                  onImageCleared={() => handleProfileImageCleared(selectedSashProfile)} 
                                   lang={lang} 
                                 />
                                 <div className="flex-1 min-w-0">
@@ -1328,8 +1369,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                   code={selectedMullionProfile} 
                                   type="mullion" 
                                   imageUrl={selectedMullionProfileImage} 
-                                  onImageUploaded={setSelectedMullionProfileImage} 
-                                  onImageCleared={() => setSelectedMullionProfileImage('')} 
+                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedMullionProfile, b64)} 
+                                  onImageCleared={() => handleProfileImageCleared(selectedMullionProfile)} 
                                   lang={lang} 
                                 />
                                 <div className="flex-1 min-w-0">
