@@ -299,9 +299,37 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return localStorage.getItem('alucraft_show_cost_details') === 'true';
   });
 
+  const [companyLogo, setCompanyLogo] = useState<string | null>(() => {
+    return localStorage.getItem('alucraft_company_logo') || null;
+  });
+
   const handleToggleCostDetails = (checked: boolean) => {
     setShowCostDetails(checked);
     localStorage.setItem('alucraft_show_cost_details', checked ? 'true' : 'false');
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Optional: Size limit check (e.g. 1.5MB to avoid exceeding local storage size limits)
+    if (file.size > 1500000) {
+      alert(lang === 'tr' ? 'Logo dosyası çok büyük (maksimum 1.5 MB olmalıdır)' : 'Logo file is too large (maximum 1.5 MB)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setCompanyLogo(base64String);
+      localStorage.setItem('alucraft_company_logo', base64String);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setCompanyLogo(null);
+    localStorage.removeItem('alucraft_company_logo');
   };
 
   const reloadCurrencySettings = () => {
@@ -919,7 +947,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             {activeTab === 'quote' && (
                 <div className="animate-in slide-in-from-right-4 duration-300">
                     {/* Quoting Display Controls */}
-                    <div className="mb-6 p-5 bg-slate-900 border border-slate-800 rounded-[2rem] print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="mb-6 p-5 bg-slate-900 border border-slate-800 rounded-[2rem] print:hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl">
                                 <Sliders size={18} />
@@ -929,11 +957,38 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     {lang === 'tr' ? 'Teklif İnceleme & Baskı Seçenekleri' : 'Proposal Configuration & Print Options'}
                                 </div>
                                 <div className="text-[10px] text-slate-400">
-                                    {lang === 'tr' ? 'Detay fiyatlarının teklif çıktısında gizlenmesini belirleyin.' : 'Configure which cost elements display in print layout.'}
+                                    {lang === 'tr' ? 'Maliyet detaylarını gizleyebilir, PDF çıktısı için şirket logonuzu yükleyebilirsiniz.' : 'Toggle cost details and upload a custom corporate logo for your print/PDF sheets.'}
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-4 flex-wrap lg:flex-nowrap">
+                            {/* Logo Uploader Widget */}
+                            <div className="flex items-center gap-3 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800">
+                                <span className="text-xs font-bold text-slate-450">{lang === 'tr' ? 'Logo:' : 'Logo:'}</span>
+                                {companyLogo ? (
+                                    <div className="flex items-center gap-2">
+                                        <img src={companyLogo} alt="Logo Preview" className="h-7 w-auto object-contain bg-white rounded border border-slate-700 p-0.5" />
+                                        <button 
+                                            type="button"
+                                            onClick={handleRemoveLogo}
+                                            className="text-[10px] bg-red-500/15 text-red-400 hover:bg-red-500/25 px-2 py-1 rounded-md font-bold transition"
+                                        >
+                                            {lang === 'tr' ? 'Sil' : 'Remove'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="relative cursor-pointer text-xs font-bold text-blue-400 hover:text-blue-300">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            onChange={handleLogoUpload} 
+                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                                        />
+                                        <span>{lang === 'tr' ? 'Yükle' : 'Upload'}</span>
+                                    </div>
+                                )}
+                            </div>
+
                             <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition" id="quote-cost-details-toggle">
                                 <input
                                     type="checkbox"
@@ -942,7 +997,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     className="rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
                                 />
                                 <span className="text-xs font-bold text-slate-300">
-                                    {lang === 'tr' ? 'Maliyet/Gider Detaylarını Göster' : 'Show Cost/Expense Details'}
+                                    {lang === 'tr' ? 'Maliyet Detaylarını Göster' : 'Show Cost/Expense Details'}
                                 </span>
                             </label>
 
@@ -955,14 +1010,28 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     <div className="bg-white text-black p-12 print:p-2 rounded-[2rem] print:rounded-none shadow-2xl print:shadow-none min-h-[1000px] print:min-h-0 flex flex-col border border-slate-200 print:border-none">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
-                            <div>
-                                <h1 className="text-4xl font-black text-slate-900 mb-2 uppercase tracking-tight">{t(lang, 'printQuote')}</h1>
-                                <div className="text-sm font-black text-blue-600 font-mono tracking-widest uppercase mb-2">
-                                    {lang === 'tr' ? 'TEKLİF NO' : 'QUOTE REF'}: {project.projectNumber || `ALU-${new Date(project.date).getFullYear() || 2026}-${project.id.slice(0, 4).toUpperCase()}`}
+                            <div className="flex items-start gap-5">
+                                {companyLogo && (
+                                    <div className="relative group/logo shrink-0">
+                                        <img src={companyLogo} alt="Company Logo" className="max-h-20 max-w-[150px] object-contain rounded-lg border border-slate-250 p-1 bg-white" />
+                                        <button 
+                                            onClick={handleRemoveLogo} 
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 print:hidden shadow hover:bg-red-600 transition"
+                                            title={lang === 'tr' ? 'Logoyu Sil' : 'Remove Logo'}
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
+                                )}
+                                <div>
+                                    <h1 className="text-4xl font-black text-slate-900 mb-2 uppercase tracking-tight">{t(lang, 'printQuote')}</h1>
+                                    <div className="text-sm font-black text-blue-600 font-mono tracking-widest uppercase mb-2">
+                                        {lang === 'tr' ? 'TEKLİF NO' : 'QUOTE REF'}: {project.projectNumber || `ALU-${new Date(project.date).getFullYear() || 2026}-${project.id.slice(0, 4).toUpperCase()}`}
+                                    </div>
+                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
+                                        <Globe size={14} className="text-blue-600" /> ALUMETRIC Engineering Suite • {project.date}
+                                    </p>
                                 </div>
-                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
-                                    <Globe size={14} className="text-blue-600" /> ALUMETRIC Engineering Suite • {project.date}
-                                </p>
                             </div>
                             <div className="text-right">
                                 <div className="text-slate-400 text-[10px] font-black uppercase mb-1">{t(lang, 'clientName')}</div>
