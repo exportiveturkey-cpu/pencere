@@ -305,6 +305,8 @@ async function startServer() {
     }
   });
 
+
+
   // Setup Vite middleware or static serving
   await setupVite(app);
 

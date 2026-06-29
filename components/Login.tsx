@@ -130,10 +130,10 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
 
         <div className="mt-8 pt-6 border-t border-slate-800 text-center space-y-3">
             <p className="text-xs text-slate-500">
-                &copy; {new Date().getFullYear()} Alumetric Cloud Licensing
+                &copy; {new Date().getFullYear()} Vizyon Pergola Cloud Licensing
             </p>
             <div className="text-[10px] text-slate-600 uppercase tracking-tighter">
-                Güvenli Bulut Bağlantısı Sağlandı
+                VIZYON PERGOLA GÜVENLİ BAĞLANTI SAĞLANDI
             </div>
         </div>
       </div>

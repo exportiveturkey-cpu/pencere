@@ -199,3 +199,43 @@ export const KURTOGLU_70T_CATALOG: CatalogProfileItem[] = [
   { code: '70T-362-18', weight: 1.838, type: 'mullion', nameTr: 'Ağır Tip Orta Kayıt Profili', nameEn: 'Heavy Mullion Profile' },
   { code: '70TH-362-18', weight: 1.848, type: 'mullion', nameTr: 'Ağır Tip Orta Kayıt (Yalıtımlı)', nameEn: 'Thermal Heavy Mullion' }
 ];
+
+export const KURTOGLU_51LS_CATALOG: CatalogProfileItem[] = [
+  // Frame Profiles (Kasa) - 1 ile başlayanlar
+  { code: '51LS-101-00', weight: 1.805, type: 'frame', nameTr: 'Kasa Profili', nameEn: 'Frame Profile' },
+  { code: '51LSM-101-00', weight: 1.904, type: 'frame', nameTr: 'Kasa Profili (Monorail)', nameEn: 'Monorail Frame Profile' },
+  { code: '51LS-102-00', weight: 1.820, type: 'frame', nameTr: 'Çift Raylı Kasa Profili', nameEn: 'Double Track Frame' },
+  { code: '51LS-112-00', weight: 2.023, type: 'frame', nameTr: 'Yüksek Çift Raylı Kasa', nameEn: 'Double Track Frame (High)' },
+  { code: '51LS-151-00', weight: 2.322, type: 'frame', nameTr: 'Kasa Profili (Geniş)', nameEn: 'Wide Frame Profile' },
+  { code: '51LS-152-00', weight: 2.338, type: 'frame', nameTr: 'Yarım Eko Çift Ray Kasa', nameEn: 'Double Track Eco Frame' },
+  { code: '51LS-153-00', weight: 3.295, type: 'frame', nameTr: 'Yarım Eko Üç Ray Kasa', nameEn: 'Triple Track Eco Frame' },
+  { code: '51LS-162-00', weight: 2.541, type: 'frame', nameTr: 'Çift Raylı Kasa (Sineklikli)', nameEn: 'Double Track Frame with Flyscreen' },
+  { code: '51LS-163-00', weight: 3.498, type: 'frame', nameTr: 'Yarım Eko Üç Ray Kasa (Yüksek)', nameEn: 'Triple Track Eco Frame (High)' },
+  { code: '51LS-103-00', weight: 2.777, type: 'frame', nameTr: 'Üç Raylı Kasa Profili', nameEn: 'Triple Track Frame' },
+  { code: '51LS-113-00', weight: 2.980, type: 'frame', nameTr: 'Üç Raylı Kasa Profili (Yüksek)', nameEn: 'Triple Track Frame (High)' },
+  { code: '51LS-182-00', weight: 1.962, type: 'frame', nameTr: 'Eko Çift Raylı Kasa', nameEn: 'Double Track Eco Frame' },
+  { code: '51LS-192-00', weight: 2.165, type: 'frame', nameTr: 'Eko Çift Raylı Kasa (Sineklikli)', nameEn: 'Double Track Eco Frame with Flyscreen' },
+  { code: '51LS-183-00', weight: 2.919, type: 'frame', nameTr: 'Eko Üç Raylı Kasa', nameEn: 'Triple Track Eco Frame' },
+  { code: '51LS-193-00', weight: 3.122, type: 'frame', nameTr: 'Eko Üç Raylı Kasa (Yüksek)', nameEn: 'Triple Track Eco Frame (High)' },
+  { code: '51LS-172-00', weight: 2.280, type: 'frame', nameTr: 'Özel Çift Raylı Kasa', nameEn: 'Special Double Track Frame' },
+  { code: '51LS-173-00', weight: 3.152, type: 'frame', nameTr: 'Özel Üç Raylı Kasa', nameEn: 'Special Triple Track Frame' },
+  { code: '51LSM-190-00', weight: 0.975, type: 'frame', nameTr: 'Kasa Adaptör Profili', nameEn: 'Frame Adapter Profile' },
+  { code: '58T-153-15', weight: 1.905, type: 'frame', nameTr: '58T Serisi Kasa Profili', nameEn: '58T Series Frame Profile' },
+  { code: '58T-151-15', weight: 2.148, type: 'frame', nameTr: '58T Serisi Kasa (Alternatif)', nameEn: '58T Series Frame (Alternative)' },
+
+  // Sash Profiles (Kanat) - 2 ile başlayanlar
+  { code: '51LS-201-00', weight: 1.521, type: 'sash', nameTr: 'Sürme Kanat Profili (Eko)', nameEn: 'Sliding Sash Profile (Eco)' },
+  { code: '51LS-211-00', weight: 1.103, type: 'sash', nameTr: 'Dar Sürme Kanat Profili', nameEn: 'Narrow Sliding Sash' },
+  { code: '51LS-212-00', weight: 2.039, type: 'sash', nameTr: 'Geniş Sürme Kanat Profili', nameEn: 'Wide Sliding Sash' },
+  { code: '51LS-213-00', weight: 2.157, type: 'sash', nameTr: 'Ağır Tip Kanat Profili', nameEn: 'Heavy Duty Sliding Sash' },
+
+  // Mullion/Transom Profiles (Orta Kayıt) - 3 ile başlayanlar
+  { code: '51LS-301-00', weight: 1.409, type: 'mullion', nameTr: 'Orta Kayıt Profili', nameEn: 'Mullion Profile' },
+
+  // Special/Accessory/Mullion supplementary profiles (listed on catalog sheet, starting with other numbers)
+  { code: '51LS-561-00', weight: 1.844, type: 'sash', nameTr: 'Kanat Adaptör Profili / Kamçı', nameEn: 'Sash Adapter Profile' },
+  { code: '51LSM-513-00', weight: 1.100, type: 'sash', nameTr: 'Sürme Kenet Profili', nameEn: 'Interlocking Profile' },
+  { code: '51LS-541-00', weight: 1.389, type: 'mullion', nameTr: 'Eşik Profili / Damlalık', nameEn: 'Threshold Profile / Drip' },
+  { code: '07-123-00', weight: 1.591, type: 'mullion', nameTr: 'Yardımcı Profil', nameEn: 'Auxiliary Profile' },
+  { code: '07-124-00', weight: 0.129, type: 'mullion', nameTr: 'Mini Adaptör / Kapak', nameEn: 'Cover-Adapter Profile' }
+];

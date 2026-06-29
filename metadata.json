@@ -1,6 +1,6 @@
 {
-  "name": "Alumetric - Engineering Suite",
-  "description": "Professional aluminium window and door fabrication software featuring recursive unit designer, cost estimation, and AI-powered structural analysis.",
+  "name": "VizyonPergola - Engineering Suite",
+  "description": "Professional pergola, rolling roof, and aluminium facade fabrication software featuring recursive unit designer, cost estimation, and CNC integration.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

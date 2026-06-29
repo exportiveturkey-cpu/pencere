@@ -4,9 +4,9 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, U
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
-import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG } from '../constants';
+import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2 } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -725,9 +725,46 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
-  const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(initialUnit?.selectedFrameProfile || '70T-102-18');
-  const [selectedSashProfile, setSelectedSashProfile] = useState<string>(initialUnit?.selectedSashProfile || '70T-201-18');
-  const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(initialUnit?.selectedMullionProfile || '70T-301-18');
+  const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
+    if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
+    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    return initialSysId === 'kurt-51ls' ? '51LS-101-00' : '70T-102-18';
+  });
+  const [selectedSashProfile, setSelectedSashProfile] = useState<string>(() => {
+    if (initialUnit?.selectedSashProfile) return initialUnit.selectedSashProfile;
+    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    return initialSysId === 'kurt-51ls' ? '51LS-201-00' : '70T-201-18';
+  });
+  const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(() => {
+    if (initialUnit?.selectedMullionProfile) return initialUnit.selectedMullionProfile;
+    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    return initialSysId === 'kurt-51ls' ? '51LS-301-00' : '70T-301-18';
+  });
+
+  useEffect(() => {
+    // If we switched systems, auto-switch to valid default profile codes
+    if (systemId === 'kurt-51ls') {
+      if (!selectedFrameProfile.startsWith('51LS') && !selectedFrameProfile.startsWith('51LM') && !selectedFrameProfile.startsWith('58T')) {
+        setSelectedFrameProfile('51LS-101-00');
+      }
+      if (!selectedSashProfile.startsWith('51LS') && !selectedSashProfile.startsWith('51LM')) {
+        setSelectedSashProfile('51LS-201-00');
+      }
+      if (!selectedMullionProfile.startsWith('51LS') && !selectedMullionProfile.startsWith('51LM') && !selectedMullionProfile.startsWith('07-')) {
+        setSelectedMullionProfile('51LS-301-00');
+      }
+    } else if (systemId === 'kurt-70t-th') {
+      if (!selectedFrameProfile.startsWith('70T')) {
+        setSelectedFrameProfile('70T-102-18');
+      }
+      if (!selectedSashProfile.startsWith('70T')) {
+        setSelectedSashProfile('70T-201-18');
+      }
+      if (!selectedMullionProfile.startsWith('70T')) {
+        setSelectedMullionProfile('70T-301-18');
+      }
+    }
+  }, [systemId]);
 
   // Custom uploaded drawings mapping keyed by profile code to allow different drawings per style
   const [customProfileImages, setCustomProfileImages] = useState<Record<string, string>>(() => {
@@ -849,6 +886,364 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [selectedOther, setSelectedOther] = useState(initialUnit?.selectedOther || '');
   const [activePack, setActivePack] = useState<'standard' | 'premium' | 'heavyduty' | null>(null);
 
+  const [previewType, setPreviewType] = useState<'svg' | 'canvas'>('svg');
+  const [isVisualizing, setIsVisualizing] = useState(false);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+
+  const drawCanvasPreview = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set high-DPI support
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 2;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, w, h);
+
+    // Padding for dimensions
+    const padX = 60;
+    const padY = 60;
+    const availW = w - padX * 2;
+    const availH = h - padY * 2;
+
+    const scale = Math.min(availW / width, availH / height);
+    const drawW = width * scale;
+    const drawH = height * scale;
+    const startX = padX + (availW - drawW) / 2;
+    const startY = padY + (availH - drawH) / 2;
+
+    const isDark = theme === 'dark';
+    const profileColor = isDark ? '#334155' : '#e2e8f0';
+    const profileSelectedColor = isDark ? '#1e3a8a' : '#bfdbfe';
+    const strokeColor = isDark ? '#475569' : '#94a3b8';
+    const selectedStrokeColor = isDark ? '#3b82f6' : '#2563eb';
+    const glassColor = 'rgba(186, 230, 253, 0.6)'; // beautiful glossy blue
+    const hardwareColor = isDark ? '#94a3b8' : '#1e293b';
+    const arrowColor = isDark ? '#64748b' : '#475569';
+
+    const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
+    const frameWidth = selectedSystem.frameWidth;
+    const frameWidthScaled = frameWidth * scale;
+
+    const bottomFw = hasThreshold ? Math.min(15, frameWidth) : frameWidth;
+    const bottomFwScaled = bottomFw * scale;
+
+    const sashWidth = 55;
+    const sashWidthScaled = sashWidth * scale;
+
+    // Helper for drawing shapes
+    const drawRect = (rx: number, ry: number, rw: number, rh: number, fill: string, stroke: string, strokeW: number, selected: boolean) => {
+      ctx.fillStyle = fill;
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeStyle = selected ? selectedStrokeColor : stroke;
+      ctx.lineWidth = selected ? strokeW + 1 : strokeW;
+      ctx.strokeRect(rx, ry, rw, rh);
+
+      // Accent inner CAD line
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(rx + 3, ry + 3, Math.max(0, rw - 6), Math.max(0, rh - 6));
+    };
+
+    // Helper for path clipping based on shape
+    const setShapeClipPath = (isInner: boolean) => {
+      ctx.beginPath();
+      if (shape === 'triangle') {
+        if (!isInner) {
+          ctx.moveTo(startX, startY + drawH);
+          ctx.lineTo(startX + drawW / 2, startY);
+          ctx.lineTo(startX + drawW, startY + drawH);
+        } else {
+          const sideLen = Math.sqrt((drawW / 2) * (drawW / 2) + drawH * drawH);
+          const sinA = drawH / sideLen;
+          const cosA = (drawW / 2) / sideLen;
+          const ix = frameWidthScaled * (1 + cosA) / sinA;
+          const iy = startY + drawH - bottomFwScaled;
+          const topY = startY + frameWidthScaled / cosA;
+          ctx.moveTo(startX + ix, iy);
+          ctx.lineTo(startX + drawW / 2, topY);
+          ctx.lineTo(startX + drawW - ix, iy);
+        }
+        ctx.closePath();
+      } else if (shape === 'arch') {
+        const aH = (archHeight / height) * drawH;
+        if (!isInner) {
+          ctx.moveTo(startX, startY + drawH);
+          ctx.lineTo(startX, startY + aH);
+          ctx.quadraticCurveTo(startX + drawW / 2, startY, startX + drawW, startY + aH);
+          ctx.lineTo(startX + drawW, startY + drawH);
+        } else {
+          const iw = drawW - 2 * frameWidthScaled;
+          const iaH = aH - frameWidthScaled;
+          ctx.moveTo(startX + frameWidthScaled, startY + drawH - bottomFwScaled);
+          ctx.lineTo(startX + frameWidthScaled, startY + aH);
+          ctx.quadraticCurveTo(startX + drawW / 2, startY + frameWidthScaled, startX + drawW - frameWidthScaled, startY + aH);
+          ctx.lineTo(startX + drawW - frameWidthScaled, startY + drawH - bottomFwScaled);
+        }
+        ctx.closePath();
+      } else {
+        if (!isInner) {
+          ctx.rect(startX, startY, drawW, drawH);
+        } else {
+          ctx.rect(startX + frameWidthScaled, startY + frameWidthScaled, drawW - 2 * frameWidthScaled, drawH - frameWidthScaled - bottomFwScaled);
+        }
+      }
+    };
+
+    // 1. Draw outer frame background
+    ctx.save();
+    setShapeClipPath(false);
+    ctx.fillStyle = rootNode.id === selectedNodeId ? profileSelectedColor : profileColor;
+    ctx.fill();
+    ctx.strokeStyle = rootNode.id === selectedNodeId ? selectedStrokeColor : strokeColor;
+    ctx.lineWidth = rootNode.id === selectedNodeId ? 2 : 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Draw safety threshold warning stripes if active
+    if (hasThreshold) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(startX, startY + drawH - bottomFwScaled, drawW, bottomFwScaled);
+      ctx.clip();
+
+      ctx.fillStyle = isDark ? '#1e293b' : '#334155';
+      ctx.fillRect(startX, startY + drawH - bottomFwScaled, drawW, bottomFwScaled);
+
+      // Warning strip
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(startX, startY + drawH - bottomFwScaled + 1, drawW, Math.max(1, bottomFwScaled - 2));
+
+      // Stripes
+      ctx.fillStyle = '#1e293b';
+      for (let i = 0; i < drawW / 12; i++) {
+        ctx.beginPath();
+        ctx.moveTo(startX + i * 12, startY + drawH);
+        ctx.lineTo(startX + i * 12 + 4, startY + drawH - bottomFwScaled);
+        ctx.lineTo(startX + i * 12 + 7, startY + drawH - bottomFwScaled);
+        ctx.lineTo(startX + i * 12 + 3, startY + drawH);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 2. Recursive Node Drawing inside the inner frame bounds
+    ctx.save();
+    setShapeClipPath(true);
+    ctx.clip();
+
+    const drawNode = (node: WindowNode, x: number, y: number, w: number, h: number) => {
+      const isSelected = node.id === selectedNodeId;
+
+      if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
+        const isVertical = node.direction === 'vertical';
+        const totalSize = isVertical ? w - frameWidthScaled : h - frameWidthScaled;
+        const size1 = totalSize * node.splitRatio[0];
+        const size2 = totalSize * node.splitRatio[1];
+
+        // Draw child 1
+        drawNode(node.children[0], x, y, isVertical ? size1 : w, isVertical ? h : size1);
+
+        // Draw middle partition line
+        const mx = isVertical ? x + size1 : x;
+        const my = isVertical ? y : y + size1;
+        const mw = isVertical ? frameWidthScaled : w;
+        const mh = isVertical ? h : frameWidthScaled;
+        drawRect(mx, my, mw, mh, isSelected ? profileSelectedColor : profileColor, strokeColor, 1.2, isSelected);
+
+        // Draw child 2
+        const sx = isVertical ? x + size1 + frameWidthScaled : x;
+        const sy = isVertical ? y : y + size1 + frameWidthScaled;
+        drawNode(node.children[1], sx, sy, isVertical ? size2 : w, isVertical ? h : size2);
+      } else {
+        const isOpening = node.openingType && node.openingType !== 'fixed';
+        let glassX = x;
+        let glassY = y;
+        let glassW = w;
+        let glassH = h;
+
+        if (isOpening) {
+          // Draw Sash Frame around glass
+          drawRect(x, y, w, h, isSelected ? profileSelectedColor : profileColor, strokeColor, 1.2, isSelected);
+          glassX = x + sashWidthScaled;
+          glassY = y + sashWidthScaled;
+          glassW = Math.max(0, w - sashWidthScaled * 2);
+          glassH = Math.max(0, h - sashWidthScaled * 2);
+        }
+
+        // Draw glass pane
+        ctx.fillStyle = glassColor;
+        ctx.fillRect(glassX, glassY, glassW, glassH);
+        ctx.strokeStyle = isSelected ? selectedStrokeColor : strokeColor;
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(glassX, glassY, glassW, glassH);
+
+        // Glass glossy effect
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(glassX + 12, glassY + 12);
+        ctx.lineTo(glassX + Math.min(40, glassW - 10), glassY + Math.min(40, glassH - 10));
+        ctx.moveTo(glassX + 22, glassY + 12);
+        ctx.lineTo(glassX + Math.min(32, glassW - 10), glassY + Math.min(22, glassH - 10));
+        ctx.stroke();
+
+        // Draw Opening Arrows/Symbols
+        const type = node.openingType || 'fixed';
+        if (type !== 'fixed') {
+          ctx.strokeStyle = arrowColor;
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([4, 3]);
+
+          if (type.includes('left') && !type.includes('sliding')) {
+            ctx.beginPath();
+            ctx.moveTo(glassX, glassY);
+            ctx.lineTo(glassX + glassW, glassY + glassH / 2);
+            ctx.lineTo(glassX, glassY + glassH);
+            ctx.stroke();
+          } else if (type.includes('right') && !type.includes('sliding')) {
+            ctx.beginPath();
+            ctx.moveTo(glassX + glassW, glassY);
+            ctx.lineTo(glassX, glassY + glassH / 2);
+            ctx.lineTo(glassX + glassW, glassY + glassH);
+            ctx.stroke();
+          }
+
+          if (type.includes('tilt')) {
+            ctx.beginPath();
+            ctx.moveTo(glassX, glassY + glassH);
+            ctx.lineTo(glassX + glassW / 2, glassY);
+            ctx.lineTo(glassX + glassW, glassY + glassH);
+            ctx.stroke();
+          }
+
+          ctx.setLineDash([]); // reset dash
+
+          // Sliding symbol arrow
+          if (type.includes('sliding')) {
+            const arrowY = glassY + glassH / 2;
+            ctx.beginPath();
+            ctx.moveTo(glassX + 15, arrowY);
+            ctx.lineTo(glassX + glassW - 15, arrowY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(glassX + glassW - 20, arrowY - 3);
+            ctx.lineTo(glassX + glassW - 15, arrowY);
+            ctx.lineTo(glassX + glassW - 20, arrowY + 3);
+            ctx.fillStyle = arrowColor;
+            ctx.fill();
+          }
+
+          // Handles & Hinges
+          ctx.fillStyle = hardwareColor;
+          if (type.includes('left') && !type.includes('sliding')) {
+            // Hinges
+            ctx.fillRect(glassX - 1, glassY + 15, 2.5, 8);
+            ctx.fillRect(glassX - 1, glassY + glassH - 23, 2.5, 8);
+            // Handle
+            ctx.fillRect(glassX + glassW - 8, glassY + glassH / 2 - 6, 2.5, 12);
+            ctx.fillRect(glassX + glassW - 11, glassY + glassH / 2 - 1.5, 4, 3);
+          } else if (type.includes('right') && !type.includes('sliding')) {
+            // Hinges
+            ctx.fillRect(glassX + glassW - 1.5, glassY + 15, 2.5, 8);
+            ctx.fillRect(glassX + glassW - 1.5, glassY + glassH - 23, 2.5, 8);
+            // Handle
+            ctx.fillRect(glassX + 5, glassY + glassH / 2 - 6, 2.5, 12);
+            ctx.fillRect(glassX + 7, glassY + glassH / 2 - 1.5, 4, 3);
+          } else if (type === 'tilt') {
+            // Hinges bottom
+            ctx.fillRect(glassX + 15, glassY + glassH - 1.5, 8, 2.5);
+            ctx.fillRect(glassX + glassW - 23, glassY + glassH - 1.5, 8, 2.5);
+            // Handle top
+            ctx.fillRect(glassX + glassW / 2 - 6, glassY + 5, 12, 2.5);
+            ctx.fillRect(glassX + glassW / 2 - 1.5, glassY + 7, 3, 4);
+          } else if (type.includes('sliding')) {
+            // Handle
+            ctx.fillRect(glassX + 6, glassY + glassH / 2 - 8, 2.5, 16);
+          }
+        }
+      }
+    };
+
+    // Draw nodes
+    drawNode(rootNode, startX + frameWidthScaled, startY + frameWidthScaled, drawW - 2 * frameWidthScaled, drawH - frameWidthScaled - bottomFwScaled);
+
+    ctx.restore(); // Restore from clipping path
+
+    // 3. Dimensions drawing
+    ctx.strokeStyle = isDark ? '#475569' : '#94a3b8';
+    ctx.fillStyle = isDark ? '#94a3b8' : '#334155';
+    ctx.lineWidth = 1;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+
+    // Width line (Top)
+    const dimY = startY - 20;
+    ctx.beginPath();
+    ctx.moveTo(startX, dimY);
+    ctx.lineTo(startX + drawW, dimY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(startX, dimY - 4);
+    ctx.lineTo(startX, dimY + 4);
+    ctx.moveTo(startX + drawW, dimY - 4);
+    ctx.lineTo(startX + drawW, dimY + 4);
+    ctx.stroke();
+
+    const wText = `${width} mm`;
+    const wTextWidth = ctx.measureText(wText).width;
+    ctx.fillStyle = isDark ? '#020617' : '#ffffff';
+    ctx.fillRect(startX + drawW / 2 - wTextWidth / 2 - 4, dimY - 6, wTextWidth + 8, 12);
+    ctx.fillStyle = isDark ? '#38bdf8' : '#2563eb';
+    ctx.fillText(wText, startX + drawW / 2, dimY + 3);
+
+    // Height line (Left)
+    const dimX = startX - 25;
+    ctx.beginPath();
+    ctx.moveTo(dimX, startY);
+    ctx.lineTo(dimX, startY + drawH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(dimX - 4, startY);
+    ctx.lineTo(dimX + 4, startY);
+    ctx.moveTo(dimX - 4, startY + drawH);
+    ctx.lineTo(dimX + 4, startY + drawH);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(dimX, startY + drawH / 2);
+    ctx.rotate(-Math.PI / 2);
+    const hText = `${height} mm`;
+    const hTextWidth = ctx.measureText(hText).width;
+    ctx.fillStyle = isDark ? '#020617' : '#ffffff';
+    ctx.fillRect(-hTextWidth / 2 - 4, -6, hTextWidth + 8, 12);
+    ctx.fillStyle = isDark ? '#38bdf8' : '#2563eb';
+    ctx.fillText(hText, 0, 3);
+    ctx.restore();
+
+  }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems]);
+
+  useEffect(() => {
+    if (previewType === 'canvas') {
+      const timer = setTimeout(() => {
+        drawCanvasPreview();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [previewType, drawCanvasPreview]);
+
   useEffect(() => {
     const maxDim = Math.max(width, height);
     if (maxDim > 3000) setVisualScale(0.12);
@@ -891,6 +1286,12 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   }, [systemId, systems, accessories]);
 
   const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
+
+  const currentCatalog = useMemo(() => {
+    if (systemId === 'kurt-51ls') return KURTOGLU_51LS_CATALOG;
+    if (systemId === 'kurt-70t-th') return KURTOGLU_70T_CATALOG;
+    return null;
+  }, [systemId]);
 
   // Dynamically calculate unit glass weight!
   const currentUnitDummy: Unit = useMemo(() => ({
@@ -1301,6 +1702,27 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                 <BoxSelect size={14} /> 3D PREVIEW
               </button>
             </div>
+            {viewMode === '2d' && (
+              <button 
+                onClick={() => {
+                  setPreviewType('canvas');
+                  setIsVisualizing(true);
+                  setTimeout(() => {
+                    drawCanvasPreview();
+                    setIsVisualizing(false);
+                  }, 400);
+                }} 
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all border border-indigo-500 shadow-lg shadow-indigo-900/30 mr-2"
+                title={lang === 'tr' ? 'Gerçekçi Tuval Görselleştirmesini Yenile' : 'Trigger Canvas Visualization Redraw'}
+              >
+                {isVisualizing ? (
+                  <Loader2 className="animate-spin text-amber-300" size={16} />
+                ) : (
+                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
+                )}
+                <span>{lang === 'tr' ? 'Görselleştirme' : 'Visualization'}</span>
+              </button>
+            )}
             <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
               <Undo2 size={18} /> {t(lang, 'undo')}
             </button>
@@ -1490,13 +1912,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             </button>
                         </div>
 
-                        {/* DETAYLI PROFİL KOD SEÇİMİ (SEÇİLEN SİSTEM KURTOĞLU 70T-TH İSE) */}
-                        {systemId === 'kurt-70t-th' && (
+                        {/* DETAYLI PROFİL KOD SEÇİMİ (SEÇİLEN SİSTEM KATALOĞU VARSA) */}
+                        {currentCatalog && (
                           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 mt-3 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
                             <div className="flex items-center gap-2 mb-1">
                               <Sparkles className="text-amber-500 w-4 h-4 animate-pulse" />
                               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                                {lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection'}
+                                {systemId === 'kurt-51ls' 
+                                  ? (lang === 'tr' ? '51LS Detaylı Profil Kataloğu' : '51LS Detailed Profile Selection')
+                                  : (lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection')}
                               </h4>
                             </div>
                             
@@ -1520,14 +1944,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                     onChange={e => setSelectedFrameProfile(e.target.value)} 
                                     className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
                                   >
-                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'frame').map(item => (
+                                    {currentCatalog.filter(x => x.type === 'frame').map(item => (
                                       <option key={item.code} value={item.code} className="bg-slate-950 text-white">
                                         {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
                                       </option>
                                     ))}
                                   </select>
                                   <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedFrameProfile)?.weight} kg/m
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedFrameProfile)?.weight} kg/m
                                   </div>
                                 </div>
                               </div>
@@ -1553,14 +1977,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                     onChange={e => setSelectedSashProfile(e.target.value)} 
                                     className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
                                   >
-                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'sash').map(item => (
+                                    {currentCatalog.filter(x => x.type === 'sash').map(item => (
                                       <option key={item.code} value={item.code} className="bg-slate-950 text-white">
                                         {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
                                       </option>
                                     ))}
                                   </select>
                                   <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedSashProfile)?.weight} kg/m
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedSashProfile)?.weight} kg/m
                                   </div>
                                 </div>
                               </div>
@@ -1586,14 +2010,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                     onChange={e => setSelectedMullionProfile(e.target.value)} 
                                     className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
                                   >
-                                    {KURTOGLU_70T_CATALOG.filter(x => x.type === 'mullion').map(item => (
+                                    {currentCatalog.filter(x => x.type === 'mullion').map(item => (
                                       <option key={item.code} value={item.code} className="bg-slate-950 text-white">
                                         {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
                                       </option>
                                     ))}
                                   </select>
                                   <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {KURTOGLU_70T_CATALOG.find(x => x.code === selectedMullionProfile)?.weight} kg/m
+                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedMullionProfile)?.weight} kg/m
                                   </div>
                                 </div>
                               </div>
@@ -1914,31 +2338,63 @@ max="0.95"
                         style={{ backgroundImage: 'linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px)', backgroundSize: '50px 50px' }} 
                   />
                   
-                  <div className="relative p-12 flex items-center justify-center group transition-all duration-300" style={{ transform: `scale(${visualScale * 5})`, transformOrigin: 'center center' }}>
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <Box size={10} className="text-blue-500" /> {width} mm
-                    </div>
-                    <div className="absolute left-0 top-1/2 -translate-x-16 -translate-y-1/2 rotate-90 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <Box size={10} className="text-blue-500" /> {height} mm
-                    </div>
-
-                    <svg 
-                      width={width * 0.2} 
-                      height={height * 0.2} 
-                      viewBox={`0 0 ${width} ${height}`} 
-                      className="drop-shadow-2xl overflow-visible transition-transform duration-300"
+                  {/* Floating Toggle for Vector vs Realistic Canvas */}
+                  <div className="absolute top-6 left-6 flex items-center bg-slate-800/85 p-1.5 rounded-2xl border border-white/10 z-30 gap-1.5 backdrop-blur-md shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <button 
+                      type="button"
+                      onClick={() => setPreviewType('svg')} 
+                      className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${previewType === 'svg' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30 font-extrabold' : 'text-slate-400 hover:text-slate-200'}`}
                     >
-                        <Visualizer 
-                            node={rootNode} width={width} height={height} 
-                            system={selectedSystem}
-                            selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId}
-                            shape={shape} archHeight={archHeight}
-                            theme={theme}
-                            hasThreshold={hasThreshold}
-                            lang={lang}
-                        />
-                    </svg>
+                      <Layout size={12} />
+                      {lang === 'tr' ? 'Vektör CAD' : 'Vector CAD'}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setPreviewType('canvas');
+                        setTimeout(drawCanvasPreview, 80);
+                      }} 
+                      className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${previewType === 'canvas' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30 font-extrabold' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                      <Sparkles size={12} className="text-amber-300" />
+                      {lang === 'tr' ? 'Gerçekçi Tuval' : 'Realistic Canvas'}
+                    </button>
                   </div>
+
+                  {previewType === 'svg' ? (
+                    <div className="relative p-12 flex items-center justify-center group transition-all duration-300" style={{ transform: `scale(${visualScale * 5})`, transformOrigin: 'center center' }}>
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <Box size={10} className="text-blue-500" /> {width} mm
+                      </div>
+                      <div className="absolute left-0 top-1/2 -translate-x-16 -translate-y-1/2 rotate-90 bg-white px-4 py-1.5 rounded-full text-[10px] font-mono text-slate-800 shadow-md flex items-center gap-2 font-black border border-slate-200 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <Box size={10} className="text-blue-500" /> {height} mm
+                      </div>
+
+                      <svg 
+                        width={width * 0.2} 
+                        height={height * 0.2} 
+                        viewBox={`0 0 ${width} ${height}`} 
+                        className="drop-shadow-2xl overflow-visible transition-transform duration-300"
+                      >
+                          <Visualizer 
+                              node={rootNode} width={width} height={height} 
+                              system={selectedSystem}
+                              selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId}
+                              shape={shape} archHeight={archHeight}
+                              theme={theme}
+                              hasThreshold={hasThreshold}
+                              lang={lang}
+                          />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="relative w-full h-full max-w-[550px] max-h-[500px] aspect-square flex items-center justify-center p-4">
+                      <canvas 
+                        ref={canvasRef} 
+                        className="w-full h-full drop-shadow-2xl rounded-2xl bg-slate-950/40 border border-white/5 transition-all duration-300" 
+                      />
+                    </div>
+                  )}
                </div>
              ) : (
                <ThreeDPreview 

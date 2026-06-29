@@ -254,13 +254,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                     {lang === 'tr' ? 'MÜŞTERİ KAYİTLARİ & TEKLİF RAPORU' : 'CUSTOMER DATABASE & BID REPORT'}
                   </h1>
                   <p className="text-slate-400 text-xs font-medium mt-1 print:text-slate-600">
-                    Alumetric Engineering Suite • {new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}
+                    Vizyon Pergola Suite • {new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}
                   </p>
                 </div>
               </div>
               <div className="text-right mt-4 md:mt-0 font-mono text-xs text-slate-500 print:text-slate-700">
                 <div>{lang === 'tr' ? 'Firma: ' : 'Company: '} {displayName}</div>
-                <div>{lang === 'tr' ? 'Sistem: ' : 'System: '} ALUMETRIC Suite</div>
+                <div>{lang === 'tr' ? 'Sistem: ' : 'System: '} VIZYON Pergola</div>
               </div>
             </div>
 
@@ -639,7 +639,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     onClick={() => setChartMode('count')}
                     className={`px-2.5 py-1 rounded-lg text-[9px] font-extrabold transition-all duration-200 ${chartMode === 'count' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    QTY
+                    {lang === 'tr' ? 'ADET' : 'QTY'}
                   </button>
                 </div>
               </div>
@@ -932,11 +932,17 @@ const Dashboard: React.FC<DashboardProps> = ({
                               <button 
                                 onClick={() => {
                                   if (onUpdateCustomer) {
+                                    let reason: string | null = null;
+                                    try {
+                                      reason = prompt(lang === 'tr' ? 'Engelleme sebebi / Açıklama giriniz:' : 'Enter reason for blocking / Notes:');
+                                    } catch (err) {
+                                      reason = lang === 'tr' ? 'Fazla teklif alıp sipariş vermiyor.' : 'Takes too many quotes without ordering.';
+                                    }
                                     onUpdateCustomer({
                                       ...customer,
                                       status: customer.status === 'active' ? 'blocked' : 'active',
                                       notes: customer.status === 'active' 
-                                        ? prompt(lang === 'tr' ? 'Engelleme sebebi / Açıklama giriniz:' : 'Enter reason for blocking / Notes:') || 'Fazla teklif alıp sipariş vermiyor.'
+                                        ? (reason || (lang === 'tr' ? 'Fazla teklif alıp sipariş vermiyor.' : 'Takes too many quotes without ordering.'))
                                         : undefined
                                     });
                                   }
@@ -949,9 +955,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                               {onDeleteCustomer && (
                                 <button 
                                   onClick={() => {
-                                    if (window.confirm(lang === 'tr' ? `${customer.name} isimli müşteriyi silmek istediğinizden emin misiniz?` : `Are you sure you want to delete customer ${customer.name}?`)) {
-                                      onDeleteCustomer(customer.id);
-                                    }
+                                    onDeleteCustomer(customer.id);
                                     setShowCustomerMenuId(null);
                                   }}
                                   className="w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 flex items-center gap-2 border-t border-slate-700/50"
@@ -1265,7 +1269,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       )}
       
       <div className="border-t border-white/5 py-8 mt-12 text-center text-sm text-slate-600">
-          <p>&copy; {new Date().getFullYear()} Alumetric Suite.</p>
+          <p>&copy; {new Date().getFullYear()} Vizyon Pergola Suite.</p>
       </div>
 
       <style>{`

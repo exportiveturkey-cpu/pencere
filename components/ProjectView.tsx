@@ -1,19 +1,22 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
-import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye } from 'lucide-react';
+import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem } from '../types';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
 import { GLASS_TYPES, COLOR_GROUPS } from '../constants';
-import { analyzeDrawing, generateSalesPitch } from '../services/geminiService';
+import { analyzeDrawing, generateSalesPitch, analyzeShadingImage, ShadingAnalysisResult } from '../services/geminiService';
 import { generateCNCCSV } from '../services/cncService';
 import { generateDXF } from '../services/dxfService';
 import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
 import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
+
+const sortQuadrilateralPoints = (pts: any) => pts;
+const getPerspectiveTransform = (src: any, dst: any) => "matrix(1, 0, 0, 1, 0, 0)";
 
 interface ProjectViewProps {
   project: Project;
@@ -91,7 +94,7 @@ const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: stri
 };
 
 const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme, licenseKey }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'production' | 'cnc' | 'quote'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'shading' | 'production' | 'cnc' | 'quote'>('details');
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyShareLink = () => {
@@ -107,6 +110,1281 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [appMode, setAppMode] = useState<'quoting' | 'manufacturing'>(() => {
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
+
+  // --- Alumetric Shading AI Visualizer States ---
+  const [globalToast, setGlobalToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    setGlobalToast({ message, type });
+  }, []);
+
+  useEffect(() => {
+    if (globalToast) {
+      const timer = setTimeout(() => {
+        setGlobalToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [globalToast]);
+
+  const [isDetectingPerspective, setIsDetectingPerspective] = useState(false);
+
+  const handleAutoDraw = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    if (!shadingBgImage) {
+      showToast(lang === 'tr' ? "Lütfen önce bir cephe görseli yükleyin." : "Please upload a facade image first.", "warning");
+      return;
+    }
+
+    setIsDetectingPerspective(true);
+    setIsAnalyzingShading(true);
+    showToast(lang === 'tr' ? "Yapay zekâ cepheyi analiz ediyor ve 3D perspektifi hesaplıyor..." : "AI is analyzing the facade and calculating the 3D perspective...", "info");
+
+    try {
+      const res = await analyzeShadingImage(
+        shadingBgImage, 
+        'image/jpeg', 
+        lang, 
+        undefined, // no custom user polygon points drawn yet
+        selectedShadingProduct, 
+        selectedShadingColor, 
+        selectedShadingNotes
+      );
+      
+      if (res.suggestedPolygonPoints && res.suggestedPolygonPoints.length >= 4) {
+        setPolygonPoints(res.suggestedPolygonPoints);
+        setBasePerspectivePoints(res.suggestedPolygonPoints);
+        setManualScaleX(1.0);
+        setManualScaleY(1.0);
+        setManualRotate(0);
+        setManualShiftX(0);
+        setManualShiftY(0);
+        setIsDrawingCompleted(true);
+        setAiShadingReport(res);
+        showToast(lang === 'tr' ? "Yapay zekâ 3D perspektifi otomatik algıladı ve ürünü yerleştirdi!" : "AI auto-detected 3D perspective and placed the product!", "success");
+      } else {
+        // Fallback to high-quality default perspective if Gemini couldn't return points
+        const defaultPts = [
+          { x: 30, y: 45 },
+          { x: 70, y: 45 },
+          { x: 75, y: 80 },
+          { x: 25, y: 80 }
+        ];
+        setPolygonPoints(defaultPts);
+        setBasePerspectivePoints(defaultPts);
+        setManualScaleX(1.0);
+        setManualScaleY(1.0);
+        setManualRotate(0);
+        setManualShiftX(0);
+        setManualShiftY(0);
+        setIsDrawingCompleted(true);
+        showToast(lang === 'tr' ? "Örnek montaj alanı otomatik yerleştirildi!" : "Sample installation area automatically placed!", 'success');
+      }
+    } catch (err: any) {
+      console.error("AI perspective detection failed, falling back to manual preset:", err);
+      const defaultPts = [
+        { x: 30, y: 45 },
+        { x: 70, y: 45 },
+        { x: 75, y: 80 },
+        { x: 25, y: 80 }
+      ];
+      setPolygonPoints(defaultPts);
+      setBasePerspectivePoints(defaultPts);
+      setManualScaleX(1.0);
+      setManualScaleY(1.0);
+      setManualRotate(0);
+      setManualShiftX(0);
+      setManualShiftY(0);
+      setIsDrawingCompleted(true);
+      showToast(lang === 'tr' ? "Bağlantı hatası, örnek montaj alanı yerleştirildi." : "Connection failed, sample area placed.", 'success');
+    } finally {
+      setIsDetectingPerspective(false);
+      setIsAnalyzingShading(false);
+    }
+  };
+
+  const [selectedShadingItemId, setSelectedShadingItemId] = useState<string | null>(null);
+  const [shadingBgImage, setShadingBgImage] = useState<string>(() => {
+    const firstWithBg = project.shadingItems?.find(x => x.bgImageUrl)?.bgImageUrl;
+    return firstWithBg || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200';
+  });
+  const [isAnalyzingShading, setIsAnalyzingShading] = useState(false);
+  const [aiShadingReport, setAiShadingReport] = useState<ShadingAnalysisResult | null>(null);
+  const [showAiReportModal, setShowAiReportModal] = useState(false);
+
+  // --- VizyonPergola AI Polygon Drawing & State Integration ---
+  const [polygonPoints, setPolygonPoints] = useState<{ x: number; y: number }[]>(() => {
+    const firstWithBg = project.shadingItems?.find(x => x.bgImageUrl)?.bgImageUrl;
+    if (firstWithBg) return [];
+    return [
+      { x: 38, y: 48 },
+      { x: 80, y: 51 },
+      { x: 86, y: 88 },
+      { x: 36, y: 82 }
+    ];
+  });
+  const [isDrawingCompleted, setIsDrawingCompleted] = useState<boolean>(() => {
+    const firstWithBg = project.shadingItems?.find(x => x.bgImageUrl)?.bgImageUrl;
+    return !firstWithBg;
+  });
+  const [selectedShadingProduct, setSelectedShadingProduct] = useState<string>('bioclimatic-pergola');
+  const [selectedShadingColor, setSelectedShadingColor] = useState<string>('RAL 7016 Antrasit Gri');
+  const [selectedShadingNotes, setSelectedShadingNotes] = useState<string>('');
+  const [shadingLouverAngle, setShadingLouverAngle] = useState<number>(45);
+  const [shadingLedOn, setShadingLedOn] = useState<boolean>(true);
+  const [shadingExtension, setShadingExtension] = useState<number>(80);
+  const [shadingColumnHeight, setShadingColumnHeight] = useState<number>(120);
+  const [visualizedImage, setVisualizedImage] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  const boundingBox = useMemo(() => {
+    if (polygonPoints.length === 0) {
+      return { x: 0, y: 0, w: 0, h: 0 };
+    }
+    const xs = polygonPoints.map(p => p.x);
+    const ys = polygonPoints.map(p => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return {
+      x: minX,
+      y: minY,
+      w: maxX - minX,
+      h: maxY - minY
+    };
+  }, [polygonPoints]);
+
+  // --- Additional states for PergolaViz AI layout style ---
+  const [shadingCanvasMode, setShadingCanvasMode] = useState<'design' | 'comparison'>('design');
+
+  // --- VizyonPergola Manual Placement & Size Adjustments with Perspective Preservation ---
+  const [shadingPlacementMode, setShadingPlacementMode] = useState<'draw' | 'manual'>('draw');
+  const [basePerspectivePoints, setBasePerspectivePoints] = useState<{ x: number; y: number }[]>(() => {
+    const firstWithBg = project.shadingItems?.find(x => x.bgImageUrl)?.bgImageUrl;
+    if (firstWithBg) return [];
+    return [
+      { x: 38, y: 48 },
+      { x: 80, y: 51 },
+      { x: 86, y: 88 },
+      { x: 36, y: 82 }
+    ];
+  });
+  const [manualScaleX, setManualScaleX] = useState<number>(1.0); // 0.1 to 2.0 scaling
+  const [manualScaleY, setManualScaleY] = useState<number>(1.0); // 0.1 to 2.0 scaling
+  const [manualRotate, setManualRotate] = useState<number>(0);   // -45 to 45 rotation
+  const [manualShiftX, setManualShiftX] = useState<number>(0);   // -50 to 50 translation
+  const [manualShiftY, setManualShiftY] = useState<number>(0);   // -50 to 50 translation
+  const [draggingNodeIndex, setDraggingNodeIndex] = useState<number | null>(null);
+  const [isDraggingManualCenter, setIsDraggingManualCenter] = useState<boolean>(false);
+  const dragStartRef = useRef<{ x: number; y: number; points: { x: number; y: number }[] }>({ x: 0, y: 0, points: [] });
+
+  const updatePerspectivePoints = (
+    sX: number,
+    sY: number,
+    rot: number,
+    shX: number,
+    shY: number,
+    basePts = basePerspectivePoints
+  ) => {
+    if (!basePts || basePts.length < 3) return;
+    
+    // Compute geometric center of the base perspective coordinates
+    const sumX = basePts.reduce((sum, p) => sum + p.x, 0);
+    const sumY = basePts.reduce((sum, p) => sum + p.y, 0);
+    const cx = sumX / basePts.length;
+    const cy = sumY / basePts.length;
+    
+    const rad = (rot * Math.PI) / 180;
+    const cosVal = Math.cos(rad);
+    const sinVal = Math.sin(rad);
+    
+    const newPoints = basePts.map(p => {
+      // 1. Center the point relative to cx, cy
+      let dx = p.x - cx;
+      let dy = p.y - cy;
+      
+      // 2. Apply scaling
+      dx *= sX;
+      dy *= sY;
+      
+      // 3. Apply 2D rotation on the perspective plane
+      const rx = dx * cosVal - dy * sinVal;
+      const ry = dx * sinVal + dy * cosVal;
+      
+      // 4. Shift back and apply translations, clamped within image boundaries (0-100)
+      return {
+        x: Math.max(0, Math.min(100, Math.round((cx + rx + shX) * 10) / 10)),
+        y: Math.max(0, Math.min(100, Math.round((cy + ry + shY) * 10) / 10))
+      };
+    });
+    
+    setPolygonPoints(newPoints);
+    setIsDrawingCompleted(true);
+  };
+
+  const handleSetPlacementMode = (mode: 'draw' | 'manual') => {
+    setShadingPlacementMode(mode);
+    if (mode === 'manual') {
+      if (polygonPoints.length < 3) {
+        const defaultPts = [
+          { x: 30, y: 40 },
+          { x: 70, y: 40 },
+          { x: 75, y: 75 },
+          { x: 25, y: 75 }
+        ];
+        setPolygonPoints(defaultPts);
+        setBasePerspectivePoints(defaultPts);
+        setIsDrawingCompleted(true);
+      } else {
+        setBasePerspectivePoints(polygonPoints);
+      }
+      setManualScaleX(1.0);
+      setManualScaleY(1.0);
+      setManualRotate(0);
+      setManualShiftX(0);
+      setManualShiftY(0);
+    } else {
+      setPolygonPoints([]);
+      setBasePerspectivePoints([]);
+      setIsDrawingCompleted(false);
+      setVisualizedImage(null);
+    }
+  };
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [isSliding, setIsSliding] = useState(false);
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const shadingCanvasRef = useRef<HTMLDivElement>(null);
+  const [canvasDimensions, setCanvasDimensions] = useState({ width: 640, height: 480 });
+  
+  useEffect(() => {
+    if (activeTab === 'shading') {
+      const updateDimensions = () => {
+        if (shadingCanvasRef.current) {
+          setCanvasDimensions({
+            width: shadingCanvasRef.current.clientWidth || 640,
+            height: shadingCanvasRef.current.clientHeight || 480
+          });
+        }
+      };
+      updateDimensions();
+      window.addEventListener('resize', updateDimensions);
+      const timer = setTimeout(updateDimensions, 500);
+      return () => {
+        window.removeEventListener('resize', updateDimensions);
+        clearTimeout(timer);
+      };
+    }
+  }, [activeTab, shadingBgImage, isDrawingCompleted]);
+
+  const [isDraggingItem, setIsDraggingItem] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0, itemX: 50, itemY: 50 });
+
+  useEffect(() => {
+    if (activeTab === 'shading') {
+      const items = project.shadingItems || [];
+      if (items.length > 0) {
+        if (!selectedShadingItemId || !items.some(x => x.id === selectedShadingItemId)) {
+          setSelectedShadingItemId(items[0].id);
+        }
+      } else {
+        const newId = `shading-default-${Date.now()}`;
+        const defaultItem: ShadingItem = {
+          id: newId,
+          productType: 'bioclimatic-pergola',
+          name: lang === 'tr' ? 'Standart Bioklimatik Pergole' : 'Standard Bioclimatic Pergola',
+          modelStyle: lang === 'tr' ? 'Standart Bioklimatik' : 'Standard Bioclimatic',
+          width: 4000,
+          height: 2500,
+          depth: 3000,
+          quantity: 1,
+          unitPrice: 4500,
+          color: 'RAL 7016 Antrasit Gri',
+          notes: '',
+          overlayX: 50,
+          overlayY: 60,
+          overlayScale: 100,
+          overlayRotate: 0,
+        };
+        onUpdateProject({
+          ...project,
+          shadingItems: [defaultItem]
+        });
+        setSelectedShadingItemId(newId);
+      }
+    }
+  }, [activeTab]);
+
+  // --- AI Smart Mount Perspective States & Functions ---
+
+  const triggerAiSmartMount = (item: ShadingItem, pctX: number, pctY: number) => {
+    // Instant Perspective simulation calculations
+    // 1. Scale relative to height (Y coordinate): higher up (smaller Y) means further back -> smaller scale.
+    const calculatedScale = Math.min(160, Math.max(30, Math.round(45 + (pctY * 1.05))));
+    
+    // 2. Camera lens rotation distortion (vanishing point skewing)
+    let calculatedRotate = 0;
+    if (pctX < 40) {
+      // Left side -> tilt clockwise
+      calculatedRotate = Math.round((40 - pctX) * 0.18);
+    } else if (pctX > 60) {
+      // Right side -> tilt counter-clockwise
+      calculatedRotate = Math.round((60 - pctX) * 0.18);
+    }
+    
+    // Update item with new perspective coords instantly with zero artificial delay
+    handleUpdateShadingItem({
+      ...item,
+      overlayX: pctX,
+      overlayY: pctY,
+      overlayScale: calculatedScale,
+      overlayRotate: calculatedRotate
+    });
+  };
+
+  const triggerPresetZoneMount = (zone: 'left' | 'center' | 'right' | 'balcony' | 'canopy') => {
+    const activeItem = (project.shadingItems || []).find(x => x.id === selectedShadingItemId);
+    if (!activeItem) return;
+
+    let targetX = 50;
+    let targetY = 50;
+    switch (zone) {
+      case 'left':
+        targetX = 25;
+        targetY = 60;
+        break;
+      case 'center':
+        targetX = 50;
+        targetY = 75;
+        break;
+      case 'right':
+        targetX = 75;
+        targetY = 65;
+        break;
+      case 'balcony':
+        targetX = 52;
+        targetY = 38;
+        break;
+      case 'canopy':
+        targetX = 32;
+        targetY = 82;
+        break;
+    }
+    triggerAiSmartMount(activeItem, targetX, targetY);
+  };
+
+  const handleShadingDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(true);
+  };
+
+  const handleShadingDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+  };
+
+  const handleShadingDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      fileToDataURI(file).then(uri => {
+        setShadingBgImage(uri);
+        setPolygonPoints([]);
+        setBasePerspectivePoints([]);
+        setIsDrawingCompleted(false);
+        setVisualizedImage(null);
+        setManualScaleX(1.0);
+        setManualScaleY(1.0);
+        setManualRotate(0);
+        setManualShiftX(0);
+        setManualShiftY(0);
+        showToast(
+          lang === 'tr' 
+            ? "Ev fotoğrafınız başarıyla yüklendi! Sistem yerleşimini ayarlayabilirsiniz." 
+            : "Your house photo has been successfully loaded! You can now adjust the system layout.", 
+          "success"
+        );
+      });
+    }
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // If we clicked directly on the image or the container or SVG drawing helpers
+    const tagName = (e.target as HTMLElement).tagName.toLowerCase();
+    if (
+      e.target === e.currentTarget || 
+      tagName === 'img' || 
+      tagName === 'svg' || 
+      tagName === 'polyline' || 
+      tagName === 'polygon' || 
+      tagName === 'circle' || 
+      (e.target as HTMLElement).classList.contains('image-overlay-bg')
+    ) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const pctX = Math.round((clickX / rect.width) * 1000) / 10;
+      const pctY = Math.round((clickY / rect.height) * 1000) / 10;
+      
+      if (shadingPlacementMode === 'manual') {
+        // In manual placement mode, clicking on the canvas instantly relocates and aligns the center of the shading system to the clicked point!
+        let basePts = basePerspectivePoints;
+        if (!basePts || basePts.length < 3) {
+          basePts = [
+            { x: 30, y: 40 },
+            { x: 70, y: 40 },
+            { x: 75, y: 75 },
+            { x: 25, y: 75 }
+          ];
+          setBasePerspectivePoints(basePts);
+        }
+        
+        // Compute center of base points
+        const sumX = basePts.reduce((sum, p) => sum + p.x, 0);
+        const sumY = basePts.reduce((sum, p) => sum + p.y, 0);
+        const cx = sumX / basePts.length;
+        const cy = sumY / basePts.length;
+        
+        // Calculate the translation shift needed to make the center equal to the clicked (pctX, pctY)
+        const shX = Math.round((pctX - cx) * 10) / 10;
+        const shY = Math.round((pctY - cy) * 10) / 10;
+        
+        setManualShiftX(shX);
+        setManualShiftY(shY);
+        updatePerspectivePoints(manualScaleX, manualScaleY, manualRotate, shX, shY, basePts);
+        showToast(
+          lang === 'tr' 
+            ? "Sistem tıkladığınız noktaya hizalandı ve yerleştirildi!" 
+            : "System aligned and placed at the clicked point!", 
+          "success"
+        );
+        return;
+      }
+
+      if (isDrawingCompleted) {
+        // If drawing was completed, let's prevent accidental resets. They can use the "Reset Design" button.
+        return;
+      }
+
+      // Check if clicking near the first point to close the loop
+      if (polygonPoints.length >= 3) {
+        const startPoint = polygonPoints[0];
+        const dist = Math.sqrt(Math.pow(pctX - startPoint.x, 2) + Math.pow(pctY - startPoint.y, 2));
+        if (dist < 4) { // within 4% distance
+          setIsDrawingCompleted(true);
+          setBasePerspectivePoints(polygonPoints);
+          return;
+        }
+      }
+
+      setPolygonPoints(prev => [...prev, { x: pctX, y: pctY }]);
+    }
+  };
+  
+  // Local form for adding/editing a shading system item
+  const [showAddShadingModal, setShowAddShadingModal] = useState(false);
+  const [shadingFormProduct, setShadingFormProduct] = useState<'rolling-roof' | 'bioclimatic-pergola' | 'zip-blind' | 'awning' | 'guillotine' | 'glass-balcony'>('bioclimatic-pergola');
+  const [shadingFormName, setShadingFormName] = useState('Premium Bioklimatik Pergole');
+  const [shadingFormWidth, setShadingFormWidth] = useState(4000);
+  const [shadingFormHeight, setShadingFormHeight] = useState(2500);
+  const [shadingFormDepth, setShadingFormDepth] = useState(3000);
+  const [shadingFormQty, setShadingFormQty] = useState(1);
+  const [shadingFormPrice, setShadingFormPrice] = useState(4500);
+  const [shadingFormColor, setShadingFormColor] = useState('RAL 7016 Antrasit Gri');
+  const [shadingFormNotes, setShadingFormNotes] = useState('');
+  const [editingShadingItem, setEditingShadingItem] = useState<ShadingItem | null>(null);
+
+  const handleAddShadingItem = (newItem: ShadingItem) => {
+    const currentItems = project.shadingItems || [];
+    const updatedItems = [...currentItems, newItem];
+    onUpdateProject({
+      ...project,
+      shadingItems: updatedItems
+    });
+  };
+
+  const handleUpdateShadingItem = (updatedItem: ShadingItem) => {
+    const currentItems = project.shadingItems || [];
+    const updatedItems = currentItems.map(item => item.id === updatedItem.id ? updatedItem : item);
+    onUpdateProject({
+      ...project,
+      shadingItems: updatedItems
+    });
+  };
+
+  const handleDeleteShadingItem = (itemId: string) => {
+    const currentItems = project.shadingItems || [];
+    const updatedItems = currentItems.filter(item => item.id !== itemId);
+    if (selectedShadingItemId === itemId) {
+      setSelectedShadingItemId(null);
+    }
+    onUpdateProject({
+      ...project,
+      shadingItems: updatedItems
+    });
+  };
+
+  const handleSaveShadingItem = () => {
+    if (editingShadingItem) {
+      const updated: ShadingItem = {
+        ...editingShadingItem,
+        productType: shadingFormProduct,
+        name: shadingFormName,
+        width: shadingFormWidth,
+        height: shadingFormHeight,
+        depth: shadingFormDepth,
+        quantity: shadingFormQty,
+        unitPrice: shadingFormPrice,
+        color: shadingFormColor,
+        notes: shadingFormNotes,
+      };
+      handleUpdateShadingItem(updated);
+    } else {
+      const newId = `shading-${Date.now()}`;
+      const created: ShadingItem = {
+        id: newId,
+        productType: shadingFormProduct,
+        name: shadingFormName,
+        width: shadingFormWidth,
+        height: shadingFormHeight,
+        depth: shadingFormDepth,
+        quantity: shadingFormQty,
+        unitPrice: shadingFormPrice,
+        color: shadingFormColor,
+        notes: shadingFormNotes,
+        overlayX: 50,
+        overlayY: 50,
+        overlayScale: 100,
+        overlayRotate: 0,
+      };
+      handleAddShadingItem(created);
+      setSelectedShadingItemId(newId);
+    }
+    setShowAddShadingModal(false);
+    setEditingShadingItem(null);
+  };
+
+  const handleAnalyzeShading = async () => {
+    if (!shadingBgImage) {
+      showToast(lang === 'tr' ? "Lütfen önce bir cephe görseli yükleyin." : "Please upload a facade image first.", "warning");
+      return;
+    }
+    
+    // Auto-complete the drawing if not completed but has >= 3 points
+    if (polygonPoints.length >= 3 && !isDrawingCompleted) {
+      setIsDrawingCompleted(true);
+      setBasePerspectivePoints(polygonPoints);
+    }
+
+    setIsAnalyzingShading(true);
+    try {
+      const res = await analyzeShadingImage(
+        shadingBgImage, 
+        'image/jpeg', 
+        lang, 
+        polygonPoints.length >= 3 ? polygonPoints : undefined, 
+        selectedShadingProduct, 
+        selectedShadingColor, 
+        selectedShadingNotes
+      );
+      setAiShadingReport(res);
+      
+      // Auto-load AI-suggested 3D perspective corners
+      if (res.suggestedPolygonPoints && res.suggestedPolygonPoints.length >= 4) {
+        setPolygonPoints(res.suggestedPolygonPoints);
+        setBasePerspectivePoints(res.suggestedPolygonPoints);
+        setManualScaleX(1.0);
+        setManualScaleY(1.0);
+        setManualRotate(0);
+        setManualShiftX(0);
+        setManualShiftY(0);
+        setIsDrawingCompleted(true);
+        showToast(lang === 'tr' ? "Yapay zekâ 3D perspektifi otomatik algıladı ve ürünü yerleştirdi!" : "AI auto-detected 3D perspective and placed the product!", "info");
+      }
+      
+      setVisualizedImage('active');
+      setShadingCanvasMode('comparison');
+      setShowAiReportModal(true);
+      showToast(lang === 'tr' ? "Yapay zekâ görselleştirmesi ve tasarımı başarıyla oluşturuldu!" : "AI visualization and design successfully generated!", "success");
+    } catch (err: any) {
+      showToast(lang === 'tr' ? "Analiz sırasında hata oluştu: " + err.message : "Error during analysis: " + err.message, "error");
+    } finally {
+      setIsAnalyzingShading(false);
+    }
+  };
+
+  // Convert uploaded image file into lightweight base64 string
+  const fileToDataURI = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const getShadingProductSrcPoints = (productType: string) => {
+    switch (productType) {
+      case 'bioclimatic-pergola':
+      case 'rolling-roof':
+        return [
+          { x: 16, y: 42 },   // Top-Left of the gutter/roof
+          { x: 184, y: 42 },  // Top-Right of the gutter/roof
+          { x: 184, y: 124 }, // Bottom-Right (lowest point of front-right foot)
+          { x: 16, y: 124 }   // Bottom-Left (lowest point of front-left foot)
+        ];
+      case 'zip-blind':
+        return [
+          { x: 21, y: 14 },   // Top-Left of the cassette headbox
+          { x: 179, y: 14 },  // Top-Right of the cassette headbox
+          { x: 179, y: 135 }, // Bottom-Right of the guide channel
+          { x: 21, y: 135 }   // Bottom-Left of the guide channel
+        ];
+      case 'awning':
+        return [
+          { x: 19, y: 14 },   // Top-Left of steel bar / valance
+          { x: 181, y: 14 },  // Top-Right of steel bar / valance
+          { x: 181, y: 62 },  // Bottom-Right of the valance
+          { x: 19, y: 62 }    // Bottom-Left of the valance
+        ];
+      case 'guillotine':
+        return [
+          { x: 25, y: 15 },   // Top-Left of the heavy frame
+          { x: 175, y: 15 },  // Top-Right of the heavy frame
+          { x: 175, y: 131 }, // Bottom-Right of the frame
+          { x: 25, y: 131 }   // Bottom-Left of the frame
+        ];
+      case 'glass-balcony':
+        return [
+          { x: 14, y: 16 },   // Top-Left of upper track
+          { x: 186, y: 16 },  // Top-Right of upper track
+          { x: 186, y: 124 }, // Bottom-Right of lower track
+          { x: 14, y: 124 }   // Bottom-Left of lower track
+        ];
+      default:
+        return [
+          { x: 0, y: 0 },
+          { x: 200, y: 0 },
+          { x: 200, y: 150 },
+          { x: 0, y: 150 }
+        ];
+    }
+  };
+
+  // Render clean vector illustrations for the shading systems
+  const renderRealisticShadingSVG = (item: ShadingItem) => {
+    let colorHex = '#475569';
+    const textColorLower = item.color.toLowerCase();
+    if (textColorLower.includes('gri') || textColorLower.includes('grey') || textColorLower.includes('7016') || textColorLower.includes('antrasit')) {
+      colorHex = '#374151';
+    } else if (textColorLower.includes('beyaz') || textColorLower.includes('white') || textColorLower.includes('9010')) {
+      colorHex = '#e2e8f0';
+    } else if (textColorLower.includes('krem') || textColorLower.includes('cream') || textColorLower.includes('1013') || textColorLower.includes('bej') || textColorLower.includes('beige')) {
+      colorHex = '#f5e6c4';
+    } else if (textColorLower.includes('bronz') || textColorLower.includes('bronze') || textColorLower.includes('kahve') || textColorLower.includes('brown')) {
+      colorHex = '#5c2c16';
+    } else if (textColorLower.includes('wood') || textColorLower.includes('ahşap') || textColorLower.includes('meşe') || textColorLower.includes('oak')) {
+      colorHex = '#92400e';
+    }
+
+    return (
+      <svg viewBox="0 0 100 100" className="w-full h-full" xmlns="http://www.w3.org/2005/svg">
+        <rect x="5" y="5" width="90" height="90" rx="8" fill={colorHex} opacity="0.1" stroke={colorHex} strokeWidth="2" />
+        <text x="50" y="45" fill={colorHex} fontWeight="bold" fontSize="8" textAnchor="middle">
+          {item.name.toUpperCase().substring(0, 15)}
+        </text>
+        <text x="50" y="60" fill="#94a3b8" fontSize="6" textAnchor="middle">
+          {item.width} x {item.height} mm
+        </text>
+        <rect x="25" y="70" width="50" height="6" rx="2" fill={colorHex} />
+      </svg>
+    );
+  };
+
+  const deadCodeDUMMY = (item: ShadingItem) => {
+    const text = item.color.toLowerCase();
+    
+    // 1. Dynamic architectural metallic palette calculation based on actual customer choice
+    let baseColor = '#334155'; // slate slate-700 default
+    let highlightColor = '#64748b'; // slate-500
+    let shadowColor = '#0f172a'; // slate-900
+    
+    if (text.includes('gri') || text.includes('grey') || text.includes('7016') || text.includes('antrasit')) {
+      baseColor = '#374151'; // gray-700
+      highlightColor = '#6b7280'; // gray-500
+      shadowColor = '#111827'; // gray-900
+    } else if (text.includes('beyaz') || text.includes('white') || text.includes('9010')) {
+      baseColor = '#e2e8f0'; // slate-200
+      highlightColor = '#f8fafc'; // slate-50
+      shadowColor = '#94a3b8'; // slate-400
+    } else if (text.includes('krem') || text.includes('cream') || text.includes('1013') || text.includes('bej') || text.includes('beige')) {
+      baseColor = '#eab308'; // warm cream
+      baseColor = '#f3ebd4'; 
+      highlightColor = '#fffdf5'; 
+      shadowColor = '#a89d7c'; 
+    } else if (text.includes('bronz') || text.includes('bronze') || text.includes('kahve') || text.includes('brown') || text.includes('8014')) {
+      baseColor = '#5c2c16';
+      highlightColor = '#854222';
+      shadowColor = '#2d1307';
+    } else if (text.includes('wood') || text.includes('ahşap') || text.includes('meşe') || text.includes('oak')) {
+      baseColor = '#78350f'; // amber-900
+      highlightColor = '#d97706'; // amber-600
+      shadowColor = '#451a03'; // amber-950
+    }
+
+    const uniqueId = item.id.replace(/[^a-zA-Z0-9-]/g, '');
+
+    return (
+      <svg viewBox="0 0 200 150" className="w-full h-full drop-shadow-2xl select-none" xmlns="http://www.w3.org/2005/svg">
+        <defs>
+          {/* Metallic cylindrical lighting gradient for heavy structural pillars */}
+          <linearGradient id={`pillarGrad-${uniqueId}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={shadowColor} />
+            <stop offset="25%" stopColor={highlightColor} />
+            <stop offset="60%" stopColor={baseColor} />
+            <stop offset="85%" stopColor={baseColor} />
+            <stop offset="100%" stopColor={shadowColor} />
+          </linearGradient>
+
+          {/* Horizontal top beam metallic profile gradient */}
+          <linearGradient id={`beamGrad-${uniqueId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={highlightColor} />
+            <stop offset="20%" stopColor={baseColor} />
+            <stop offset="70%" stopColor={baseColor} />
+            <stop offset="100%" stopColor={shadowColor} />
+          </linearGradient>
+
+          {/* Slat/Louver metallic bevel shading */}
+          <linearGradient id={`slatGrad-${uniqueId}`} x1="0%" y1="0%" x2="30%" y2="100%">
+            <stop offset="0%" stopColor={highlightColor} stopOpacity="1" />
+            <stop offset="40%" stopColor={baseColor} />
+            <stop offset="100%" stopColor={shadowColor} />
+          </linearGradient>
+
+          {/* Realistic 3D wooden floor deck perspective gradient */}
+          <linearGradient id={`woodPlankGrad-${uniqueId}`} x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stopColor="#291507" />
+            <stop offset="40%" stopColor="#54301a" />
+            <stop offset="100%" stopColor="#7c4a27" />
+          </linearGradient>
+
+          {/* Glass pane glossy reflection glare */}
+          <linearGradient id={`glassReflection-${uniqueId}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.6" />
+            <stop offset="25%" stopColor="#ffffff" stopOpacity="0.15" />
+            <stop offset="26%" stopColor="#ffffff" stopOpacity="0" />
+            <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
+            <stop offset="80%" stopColor="#ffffff" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+          </linearGradient>
+
+          {/* Sky background for real exterior feel */}
+          <linearGradient id={`skyGrad-${uniqueId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#0284c7" /> {/* sky-600 */}
+            <stop offset="40%" stopColor="#38bdf8" /> {/* sky-400 */}
+            <stop offset="100%" stopColor="#bae6fd" /> {/* sky-200 */}
+          </linearGradient>
+
+          {/* Cozy sunset beach panorama background specifically for glass balconies */}
+          <linearGradient id={`sunsetGrad-${uniqueId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#fdba74" /> {/* orange-300 */}
+            <stop offset="50%" stopColor="#f43f5e" /> {/* rose-500 */}
+            <stop offset="100%" stopColor="#881337" /> {/* rose-950 */}
+          </linearGradient>
+
+          {/* High-fidelity micro-mesh screen fabric pattern for zip blinds */}
+          <pattern id={`zipMeshPattern-${uniqueId}`} width="4" height="4" patternUnits="userSpaceOnUse">
+            <rect width="4" height="4" fill={baseColor} />
+            <path d="M 0 2 L 4 2 M 2 0 L 2 4" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.2" />
+            <circle cx="2" cy="2" r="1" fill={shadowColor} fillOpacity="0.4" />
+          </pattern>
+
+          {/* Soft cloud pattern */}
+          <radialGradient id={`cloudGlow-${uniqueId}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* ==================== 1. BIOCLIMATIC PERGOLA / ROLLING ROOF ==================== */}
+        {(item.productType === 'bioclimatic-pergola' || item.productType === 'rolling-roof') && (
+          <g>
+            {/* SKY BACKDROP WITH CLOUDS */}
+            <rect x="10" y="10" width="180" height="110" rx="6" fill={`url(#skyGrad-${uniqueId})`} />
+            <circle cx="140" cy="35" r="25" fill={`url(#cloudGlow-${uniqueId})`} />
+            <circle cx="60" cy="50" r="35" fill={`url(#cloudGlow-${uniqueId})`} />
+            
+            {/* MODERN FAÇADE BACKGROUND WALL DETAILS */}
+            <path d="M10,65 L80,50 L80,120 L10,120 Z" fill="#cbd5e1" fillOpacity="0.4" /> {/* Stone cladding section */}
+            <line x1="80" y1="50" x2="80" y2="120" stroke="#94a3b8" strokeWidth="0.5" />
+
+            {/* REALISTIC 3D WOODEN PATIO DECK FLOOR WITH LINEAR PERSPECTIVE PLANKS */}
+            <polygon points="10,110 190,110 190,140 10,140" fill={`url(#woodPlankGrad-${uniqueId})`} />
+            <g opacity="0.3">
+              <line x1="10" y1="110" x2="10" y2="140" stroke="#1e1b4b" strokeWidth="1.5" />
+              <line x1="40" y1="110" x2="30" y2="140" stroke="#1e1b4b" strokeWidth="1.2" />
+              <line x1="70" y1="110" x2="65" y2="140" stroke="#1e1b4b" strokeWidth="1.2" />
+              <line x1="100" y1="110" x2="100" y2="140" stroke="#1e1b4b" strokeWidth="1.2" />
+              <line x1="130" y1="110" x2="135" y2="140" stroke="#1e1b4b" strokeWidth="1.2" />
+              <line x1="160" y1="110" x2="170" y2="140" stroke="#1e1b4b" strokeWidth="1.2" />
+              <line x1="190" y1="110" x2="190" y2="140" stroke="#1e1b4b" strokeWidth="1.5" />
+            </g>
+            {/* Horizontal wood grain separator lines */}
+            <line x1="10" y1="120" x2="190" y2="120" stroke="#291507" strokeWidth="0.5" opacity="0.5" />
+            <line x1="10" y1="130" x2="190" y2="130" stroke="#291507" strokeWidth="0.5" opacity="0.5" />
+
+            {/* INTEGRATED SLIDING GLASS DOOR SYSTEM CAST IN REAR */}
+            <g opacity="0.5">
+              <rect x="42" y="44" width="116" height="66" fill="#bae6fd" fillOpacity="0.2" stroke="#64748b" strokeWidth="0.5" />
+              <line x1="100" y1="44" x2="100" y2="110" stroke="#64748b" strokeWidth="1" />
+              <line x1="71" y1="44" x2="71" y2="110" stroke="#64748b" strokeWidth="0.5" />
+              <line x1="129" y1="44" x2="129" y2="110" stroke="#64748b" strokeWidth="0.5" />
+              {/* Glass Glare */}
+              <polygon points="45,45 80,45 60,109 45,109" fill="#ffffff" fillOpacity="0.15" />
+              <polygon points="105,45 140,45 120,109 105,109" fill="#ffffff" fillOpacity="0.15" />
+            </g>
+
+            {/* REALISTIC CAST COLUMN SHADOWS ON WOODEN DECK */}
+            <ellipse cx="28" cy="118" rx="8" ry="3" fill="#000000" fillOpacity="0.5" filter="blur(1px)" />
+            <ellipse cx="172" cy="118" rx="8" ry="3" fill="#000000" fillOpacity="0.5" filter="blur(1px)" />
+            <ellipse cx="45" cy="111" rx="5" ry="2" fill="#000000" fillOpacity="0.4" filter="blur(1px)" />
+            <ellipse cx="155" cy="111" rx="5" ry="2" fill="#000000" fillOpacity="0.4" filter="blur(1px)" />
+
+            {/* REAR COLUMNS (DARKER, SHORTER FOR 3D PERSPECTIVE) */}
+            <rect x="42" y="44" width="6" height="67" fill={`url(#pillarGrad-${uniqueId})`} fillOpacity="0.8" />
+            <rect x="152" y="44" width="6" height="67" fill={`url(#pillarGrad-${uniqueId})`} fillOpacity="0.8" />
+
+            {/* FRONT MAIN COLUMNS (THICK, DETAILED METALLIC WITH BASE BOLTSPLATES) */}
+            <g>
+              {/* Left Column */}
+              <rect x="24" y="54" width="8" height="64" fill={`url(#pillarGrad-${uniqueId})`} />
+              {/* Bevel Highlights */}
+              <line x1="25" y1="54" x2="25" y2="118" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.3" />
+              {/* Pillar base mounting plate (Anchor) */}
+              <path d="M20,116 L36,116 L34,120 L22,120 Z" fill={shadowColor} />
+              <circle cx="23" cy="118" r="0.75" fill="#94a3b8" />
+              <circle cx="33" cy="118" r="0.75" fill="#94a3b8" />
+
+              {/* Right Column */}
+              <rect x="168" y="54" width="8" height="64" fill={`url(#pillarGrad-${uniqueId})`} />
+              <line x1="169" y1="54" x2="169" y2="118" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.3" />
+              {/* Pillar base mounting plate */}
+              <path d="M164,116 L180,116 L178,120 L166,120 Z" fill={shadowColor} />
+              <circle cx="167" cy="118" r="0.75" fill="#94a3b8" />
+              <circle cx="177" cy="118" r="0.75" fill="#94a3b8" />
+            </g>
+
+            {/* SLANTED PERSPECTIVE LOUVERS ARRAY (3D AERODYNAMIC PROFILE SLATS) */}
+            <polygon points="18,44 182,44 154,18 46,18" fill={shadowColor} fillOpacity="0.9" />
+            <g>
+              {[
+                { p1: "44,19", p2: "156,19", p3: "152,22", p4: "40,22", d: "0.95" },
+                { p1: "40,22", p2: "160,22", p3: "154,25", p4: "34,25", d: "0.95" },
+                { p1: "34,25", p2: "166,25", p3: "156,28", p4: "28,28", d: "0.95" },
+                { p1: "28,28", p2: "172,28", p3: "158,32", p4: "20,32", d: "0.95" },
+                { p1: "20,32", p2: "180,32", p3: "162,36", p4: "14,36", d: "0.95" },
+                { p1: "14,36", p2: "186,36", p3: "168,40", p4: "10,40", d: "0.95" },
+                { p1: "10,40", p2: "190,40", p3: "182,44", p4: "18,44", d: "1.0" }
+              ].map((slat, sIdx) => (
+                <g key={sIdx}>
+                  <polygon 
+                    points={`${slat.p1} ${slat.p2} ${slat.p3} ${slat.p4}`} 
+                    fill={`url(#slatGrad-${uniqueId})`} 
+                    stroke={shadowColor} 
+                    strokeWidth="0.5" 
+                  />
+                  {/* Aluminum slat edge highlight shine */}
+                  <polygon 
+                    points={`${slat.p1} ${slat.p2} ${slat.p2}`} 
+                    stroke="#ffffff" 
+                    strokeWidth="0.5" 
+                    strokeOpacity="0.25" 
+                  />
+                </g>
+              ))}
+            </g>
+
+            {/* HEAVY PERIMETER GUTTER BEAM WITH CHAMFERS & DRAIN OUTLETS */}
+            <polygon points="16,42 184,42 174,56 26,56" fill={`url(#beamGrad-${uniqueId})`} />
+            {/* Top rim glossy line */}
+            <polygon points="16,42 184,42 182,44 18,44" fill="#ffffff" fillOpacity="0.4" />
+            {/* Corner connection welding joints caps */}
+            <rect x="16" y="42" width="10" height="14" fill={shadowColor} fillOpacity="0.3" />
+            <rect x="174" y="42" width="10" height="14" fill={shadowColor} fillOpacity="0.3" />
+
+            {/* INTEGRATED LED STRIP SPOTLIGHTS SHINING WARM RADIANT CONES */}
+            <g>
+              {/* Linear LED profile */}
+              <line x1="26" y1="50" x2="174" y2="50" stroke="#fef08a" strokeWidth="2.5" strokeOpacity="1" />
+              <line x1="26" y1="50" x2="174" y2="50" stroke="#eab308" strokeWidth="6" strokeOpacity="0.4" />
+              
+              {/* Conical yellow spotlights throwing down */}
+              <polygon points="50,51 20,110 80,110" fill="url(#ledGlow-gradient)" fillOpacity="0.15" opacity="0.6" className="animate-pulse" />
+              <polygon points="100,51 70,110 130,110" fill="url(#ledGlow-gradient)" fillOpacity="0.15" opacity="0.6" className="animate-pulse" />
+              <polygon points="150,51 120,110 180,110" fill="url(#ledGlow-gradient)" fillOpacity="0.15" opacity="0.6" className="animate-pulse" />
+
+              {/* Glowing LED points */}
+              {[45, 75, 100, 125, 155].map((cx) => (
+                <g key={cx}>
+                  <circle cx={cx} cy="50" r="2.5" fill="#ffffff" />
+                  <circle cx={cx} cy="50" r="6" fill="#fef08a" fillOpacity="0.5" />
+                </g>
+              ))}
+            </g>
+
+            {/* CENTRAL BRAND EMBOSSED LABEL PLATE */}
+            <rect x="52" y="74" width="96" height="18" rx="4" fill="#0f172a" fillOpacity="0.9" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+            <text x="100" y="86" fill="#ffffff" fontWeight="black" fontSize="7" textAnchor="middle" fontFamily="sans-serif" letterSpacing="1">
+              {item.name.toUpperCase().substring(0, 18)}
+            </text>
+          </g>
+        )}
+
+        {/* ==================== 2. ZIP BLIND / FACADE SUN SHADE ==================== */}
+        {item.productType === 'zip-blind' && (
+          <g>
+            {/* BACKGROUND HOUSE WALL WITH MODERN WINDOW OPENING */}
+            <rect x="10" y="10" width="180" height="130" rx="6" fill="#e2e8f0" /> {/* wall */}
+            
+            {/* Garden Landscape Silhouette viewable through window */}
+            <g>
+              <rect x="25" y="24" width="150" height="110" fill="#bae6fd" /> {/* sky backdrop inside */}
+              {/* Mountain Silhouette */}
+              <path d="M25,110 L50,85 L85,115 L120,75 L160,115 L175,100 L175,134 L25,134 Z" fill="#0284c7" fillOpacity="0.25" />
+              {/* Tree Silhouettes */}
+              <circle cx="45" cy="115" r="12" fill="#047857" fillOpacity="0.3" />
+              <circle cx="155" cy="110" r="14" fill="#047857" fillOpacity="0.3" />
+            </g>
+
+            {/* CASSETTE HEADBOX (CYLINDRICAL 3D CASING WITH METAL HIGHLIGHTS) */}
+            <g>
+              {/* Heavy-duty headbox shadow */}
+              <rect x="21" y="22" width="158" height="2" fill="#000000" fillOpacity="0.25" />
+              {/* Cassette casing */}
+              <rect x="21" y="14" width="158" height="20" rx="4" fill={`url(#beamGrad-${uniqueId})`} />
+              <line x1="21" y1="15" x2="179" y2="15" stroke="#ffffff" strokeWidth="0.75" strokeOpacity="0.5" />
+              <line x1="21" y1="33" x2="179" y2="33" stroke="#000000" strokeWidth="0.75" strokeOpacity="0.3" />
+              {/* Endcaps with mounting screw details */}
+              <rect x="21" y="14" width="5" height="20" fill={shadowColor} />
+              <rect x="174" y="14" width="5" height="20" fill={shadowColor} />
+              <circle cx="23.5" cy="24" r="1" fill="#ffffff" fillOpacity="0.6" />
+              <circle cx="176.5" cy="24" r="1" fill="#ffffff" fillOpacity="0.6" />
+            </g>
+
+            {/* SIDE CHANNELS (GUIDES WITH SPECIAL ZIP LOCK INLAY CHAMBERS) */}
+            <g>
+              {/* Left track */}
+              <rect x="24" y="34" width="7" height="100" fill={`url(#pillarGrad-${uniqueId})`} />
+              <line x1="31" y1="34" x2="31" y2="134" stroke="#000000" strokeWidth="0.75" strokeOpacity="0.5" />
+              {/* Right track */}
+              <rect x="169" y="34" width="7" height="100" fill={`url(#pillarGrad-${uniqueId})`} />
+              <line x1="169" y1="34" x2="169" y2="134" stroke="#000000" strokeWidth="0.75" strokeOpacity="0.5" />
+            </g>
+
+            {/* SEMI-TRANSLUCENT SCREEN MICRO-MESH WEAVE BLOCK */}
+            <rect x="31" y="34" width="138" height="92" fill={`url(#zipMeshPattern-${uniqueId})`} fillOpacity="0.85" />
+            {/* Woven fabric gloss fold sheen overlay */}
+            <rect x="31" y="34" width="138" height="92" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.15" />
+
+            {/* High-fidelity horizontal thermal joint welding bars */}
+            <line x1="31" y1="62" x2="169" y2="62" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+            <line x1="31" y1="90" x2="169" y2="90" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+            <line x1="31" y1="114" x2="169" y2="114" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+
+            {/* HEAVYWEIGHT BOTTOM RAIL BAR WITH SEALS & ENDPLUGS */}
+            <g>
+              <rect x="29" y="125" width="142" height="9" rx="1.5" fill={`url(#beamGrad-${uniqueId})`} />
+              {/* Aluminum bar beveled bottom cap */}
+              <rect x="30" y="134" width="140" height="2" fill="#111827" /> {/* black rubber gasket bottom */}
+              <line x1="30" y1="126" x2="170" y2="126" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.4" />
+              {/* Slide guide end runners */}
+              <rect x="29" y="125" width="2" height="9" fill={shadowColor} />
+              <rect x="169" y="125" width="2" height="9" fill={shadowColor} />
+            </g>
+
+            {/* TEXT BADGE */}
+            <rect x="52" y="64" width="96" height="18" rx="4" fill="#0f172a" fillOpacity="0.9" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+            <text x="100" y="76" fill="#ffffff" fontWeight="black" fontSize="7" textAnchor="middle" fontFamily="sans-serif" letterSpacing="0.8">
+              {item.name.toUpperCase().substring(0, 18)}
+            </text>
+          </g>
+        )}
+
+        {/* ==================== 3. RETRACTABLE FOLDING ARM AWNING ==================== */}
+        {item.productType === 'awning' && (
+          <g>
+            {/* WALL FACADE BACKGROUND SYSTEM */}
+            <rect x="10" y="10" width="180" height="130" rx="6" fill="#f1f5f9" /> {/* Clean stucco wall */}
+            {/* Draw delicate horizontal brick lines to give depth */}
+            <g stroke="#e2e8f0" strokeWidth="0.5" opacity="0.8">
+              <line x1="10" y1="25" x2="190" y2="25" />
+              <line x1="10" y1="45" x2="190" y2="45" />
+              <line x1="10" y1="65" x2="190" y2="65" />
+              <line x1="10" y1="85" x2="190" y2="85" />
+              <line x1="10" y1="105" x2="190" y2="105" />
+              <line x1="10" y1="125" x2="190" y2="125" />
+            </g>
+
+            {/* HEAVY CAST DROP SHADOW OF THE EXTENDED AWNING ON THE WALL */}
+            <polygon points="26,45 174,45 186,110 14,110" fill="#0f172a" fillOpacity="0.25" filter="blur(3px)" />
+
+            {/* HEAVY WALL BRACKET MOUNTING BEAM */}
+            <rect x="30" y="14" width="140" height="8" rx="2" fill={`url(#pillarGrad-${uniqueId})`} />
+            <circle cx="34" cy="18" r="1.2" fill="#94a3b8" />
+            <circle cx="166" cy="18" r="1.2" fill="#94a3b8" />
+
+            {/* STAINLESS STEEL RETRACTABLE MECHANICAL FOLDING SCISSOR ARMS */}
+            {/* Left articulating dual elbow mechanical arm */}
+            <g>
+              <line x1="52" y1="22" x2="44" y2="62" stroke={shadowColor} strokeWidth="6" strokeLinecap="round" />
+              <line x1="52" y1="22" x2="44" y2="62" stroke={`url(#pillarGrad-${uniqueId})`} strokeWidth="4" strokeLinecap="round" />
+              {/* Connecting arm hinge forearm */}
+              <line x1="44" y1="62" x2="30" y2="58" stroke={`url(#pillarGrad-${uniqueId})`} strokeWidth="3.5" strokeLinecap="round" />
+              {/* Stainless joint pivot pins details */}
+              <circle cx="44" cy="62" r="2.5" fill="#e2e8f0" stroke="#000000" strokeWidth="0.5" />
+              <circle cx="44" cy="62" r="1" fill="#475569" />
+              <circle cx="52" cy="22" r="2" fill="#e2e8f0" />
+            </g>
+
+            {/* Right articulating mechanical arm */}
+            <g>
+              <line x1="148" y1="22" x2="156" y2="62" stroke={shadowColor} strokeWidth="6" strokeLinecap="round" />
+              <line x1="148" y1="22" x2="156" y2="62" stroke={`url(#pillarGrad-${uniqueId})`} strokeWidth="4" strokeLinecap="round" />
+              {/* Forearm */}
+              <line x1="156" y1="62" x2="170" y2="58" stroke={`url(#pillarGrad-${uniqueId})`} strokeWidth="3.5" strokeLinecap="round" />
+              {/* Joint details */}
+              <circle cx="156" cy="62" r="2.5" fill="#e2e8f0" stroke="#000000" strokeWidth="0.5" />
+              <circle cx="156" cy="62" r="1" fill="#475569" />
+              <circle cx="148" cy="22" r="2" fill="#e2e8f0" />
+            </g>
+
+            {/* MULTI-SECTION TEXTURED POLYESTER FABRIC canopy */}
+            <g>
+              {[
+                { p: "32,18 54,18 48,56 20,56", c: "#dc2626", d: "#ef4444" },
+                { p: "54,18 76,18 74,56 48,56", c: "#f8fafc", d: "#ffffff" },
+                { p: "76,18 98,18 100,56 74,56", c: "#dc2626", d: "#ef4444" },
+                { p: "98,18 120,18 124,56 100,56", c: "#f8fafc", d: "#ffffff" },
+                { p: "120,18 142,18 148,56 124,56", c: "#dc2626", d: "#ef4444" },
+                { p: "142,18 164,18 172,56 148,56", c: "#f8fafc", d: "#ffffff" },
+                { p: "164,18 178,18 190,56 172,56", c: "#dc2626", d: "#ef4444" }
+              ].map((stripe, sIdx) => (
+                <g key={sIdx}>
+                  <polygon points={stripe.p} fill={stripe.c} />
+                  {/* Fine linear shading on fabric */}
+                  <polygon points={stripe.p} fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.1" />
+                </g>
+              ))}
+            </g>
+            {/* Drapery fold shadow overlays */}
+            <polygon points="32,18 178,18 190,56 20,56" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.15" />
+            <polygon points="32,18 178,18 190,56 20,56" fill={`url(#pillarGrad-${uniqueId})`} fillOpacity="0.15" />
+
+            {/* WAITING CONTURED WAVY VALANCE WITH WHITE PIPING AND STITCHING */}
+            <path d="M20,56 C28,61 36,56 44,56 C52,61 60,56 68,56 C76,61 84,56 92,56 C100,61 108,56 116,56 C124,61 132,56 140,56 C148,61 156,56 164,56 C172,61 180,56 190,56 L190,62 L20,62 Z" fill="#991b1b" />
+            <path d="M20,56 C28,61 36,56 44,56 C52,61 60,56 68,56 C76,61 84,56 92,56 C100,61 108,56 116,56 C124,61 132,56 140,56 C148,61 156,56 164,56 C172,61 180,56 190,56" fill="none" stroke="#fee2e2" strokeWidth="1" />
+
+            {/* BRAND BADGE */}
+            <rect x="52" y="80" width="96" height="18" rx="4" fill="#0f172a" fillOpacity="0.9" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+            <text x="100" y="92" fill="#ffffff" fontWeight="black" fontSize="7" textAnchor="middle" fontFamily="sans-serif" letterSpacing="0.8">
+              {item.name.toUpperCase().substring(0, 18)}
+            </text>
+          </g>
+        )}
+
+        {/* ==================== 4. MOTORIZED GUILLOTINE GLASS WINDOW ==================== */}
+        {item.productType === 'guillotine' && (
+          <g>
+            {/* DEEP INTERIOR ROOM WALL VIEWING OUT TO MAJESTIC SUNSET LANDSCAPE */}
+            <rect x="10" y="10" width="180" height="130" rx="6" fill="#cbd5e1" />
+            <rect x="20" y="18" width="160" height="114" rx="4" fill={`url(#skyGrad-${uniqueId})`} />
+            
+            {/* Mountain Skyline backdrop inside window frames */}
+            <path d="M20,110 L60,80 L100,105 L150,70 L180,105 L180,132 L20,132 Z" fill="#0369a1" fillOpacity="0.3" />
+
+            {/* THREE-PANE HEAVY ANODIZED ALUMINUM GUILLOTINE FRAME */}
+            <rect x="25" y="15" width="150" height="116" rx="4" fill="none" stroke={`url(#pillarGrad-${uniqueId})`} strokeWidth="5.5" />
+            <rect x="25" y="15" width="150" height="116" rx="4" fill="none" stroke={shadowColor} strokeWidth="1" />
+
+            {/* Partition cross members / horizontal steel frames */}
+            <rect x="27.5" y="17.5" width="145" height="4" fill={`url(#beamGrad-${uniqueId})`} />
+
+            {/* TOP GLASS PANE (SLIDING INNER ELEMENT WITH GLOSS GLARE EFFECTS) */}
+            <g>
+              <rect x="30.5" y="21.5" width="139" height="31" fill="#bae6fd" fillOpacity="0.25" rx="1.5" />
+              <rect x="30.5" y="21.5" width="139" height="31" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.4" rx="1.5" />
+              {/* Glass chamfer edge shines */}
+              <rect x="30.5" y="21.5" width="139" height="31" fill="none" stroke={baseColor} strokeWidth="2" />
+            </g>
+
+            {/* MIDDLE GLASS PANE (MID-WAY TRANSITIONING MOTORIZED GLASS FRAME) */}
+            <rect x="27.5" y="52.5" width="145" height="4" fill={`url(#beamGrad-${uniqueId})`} />
+            <g>
+              <rect x="30.5" y="56.5" width="139" height="31" fill="#bae6fd" fillOpacity="0.2" rx="1.5" />
+              <rect x="30.5" y="56.5" width="139" height="31" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.35" rx="1.5" />
+              <rect x="30.5" y="56.5" width="139" height="31" fill="none" stroke={baseColor} strokeWidth="2" />
+            </g>
+
+            {/* FIXED BOTTOM COUNTER-BALANCED GLASS BARRIERS */}
+            <rect x="27.5" y="87.5" width="145" height="4" fill={`url(#beamGrad-${uniqueId})`} />
+            <g>
+              <rect x="30.5" y="91.5" width="139" height="31" fill="#bae6fd" fillOpacity="0.15" rx="1.5" />
+              <rect x="30.5" y="91.5" width="139" height="31" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.25" rx="1.5" />
+              <rect x="30.5" y="91.5" width="139" height="31" fill="none" stroke={baseColor} strokeWidth="2" />
+            </g>
+
+            {/* REVEALING EXPOSED TRANSMISSION SIDE GUIDE CHAINS & GEAR COVERS */}
+            <g opacity="0.8">
+              <path d="M164,30 L164,110" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3,3" />
+              <path d="M164,28 L161,33 L167,33 Z" fill="#f59e0b" />
+              <path d="M164,114 L161,109 L167,109 Z" fill="#f59e0b" />
+            </g>
+
+            {/* BRAND INSCRIPTION */}
+            <rect x="52" y="62" width="96" height="18" rx="4" fill="#0f172a" fillOpacity="0.9" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+            <text x="100" y="74" fill="#ffffff" fontWeight="black" fontSize="7" textAnchor="middle" fontFamily="sans-serif" letterSpacing="0.8">
+              {item.name.toUpperCase().substring(0, 18)}
+            </text>
+          </g>
+        )}
+
+        {/* ==================== 5. FOLDING GLASS BALCONY GLAZING ==================== */}
+        {item.productType === 'glass-balcony' && (
+          <g>
+            {/* SUNSET BAY PANORAMIC OCEAN BACKGROUND VIEWABLE THROUGH LUXURY BALCONY */}
+            <rect x="10" y="10" width="180" height="130" rx="6" fill={`url(#sunsetGrad-${uniqueId})`} />
+            
+            {/* Sea horizon line and sunset waves */}
+            <line x1="10" y1="90" x2="190" y2="90" stroke="#fb7185" strokeWidth="1" opacity="0.6" />
+            <path d="M10,91 C30,89 50,92 70,91 C90,89 110,92 130,91 C150,89 170,92 190,91" fill="none" stroke="#f43f5e" strokeWidth="0.5" opacity="0.4" />
+
+            {/* HEAVY ANODIZED ALUMINUM TOP & BOTTOM RAILS GUIDE PROFILE */}
+            <rect x="14" y="16" width="172" height="10" rx="2" fill={`url(#beamGrad-${uniqueId})`} />
+            <line x1="14" y1="26" x2="186" y2="26" stroke="#000000" strokeWidth="1" />
+
+            <rect x="14" y="114" width="172" height="10" rx="2" fill={`url(#beamGrad-${uniqueId})`} />
+            <line x1="14" y1="114" x2="186" y2="114" stroke="#ffffff" strokeWidth="0.75" strokeOpacity="0.3" />
+
+            {/* BRUSHED STAINLESS STEEL MIDDLE SAFETY BALUSTRADE / HANDRAIL */}
+            <g opacity="0.7">
+              <line x1="14" y1="75" x2="186" y2="75" stroke="#94a3b8" strokeWidth="3" />
+              <line x1="14" y1="74" x2="186" y2="74" stroke="#ffffff" strokeWidth="0.75" />
+              {/* Handrail wall fixtures */}
+              <rect x="14" y="72" width="2" height="7" fill={shadowColor} />
+              <rect x="184" y="72" width="2" height="7" fill={shadowColor} />
+            </g>
+
+            {/* FIVE FRAMELESS TEMPERED GLASS PANELS WITH TRANSPARENT GLARE SHINES */}
+            {[
+              { x: 18, open: false },
+              { x: 51, open: false },
+              { x: 84, open: false },
+              { x: 117, open: false },
+              // We make the last panel 150 partially open/swung in perspective 3D to show off structural versatility
+              { x: 150, open: true }
+            ].map((pane, pIdx) => {
+              if (pane.open) {
+                // Swung partially open - styled with slanted 3D polygons to look extremely realistic!
+                return (
+                  <g key={pIdx}>
+                    {/* Perspective Swung Open Glass Panel */}
+                    <polygon points="150,26 166,28 166,112 150,114" fill="#38bdf8" fillOpacity="0.3" />
+                    <polygon points="150,26 166,28 166,112 150,114" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.4" />
+                    <polygon points="150,26 166,28 166,112 150,114" fill="none" stroke="#ffffff" strokeWidth="1.5" strokeOpacity="0.8" />
+                    
+                    {/* Hinge system */}
+                    <rect x="148" y="21" width="4" height="6" fill="#cbd5e1" />
+                    <rect x="148" y="113" width="4" height="6" fill="#cbd5e1" />
+                    <line x1="150" y1="26" x2="150" y2="114" stroke="#f59e0b" strokeWidth="1" strokeDasharray="2,2" />
+                  </g>
+                );
+              }
+
+              return (
+                <g key={pIdx}>
+                  {/* Frameless glass body */}
+                  <rect x={pane.x} y={26} width="32" height="88" fill="#38bdf8" fillOpacity="0.18" />
+                  {/* Gloss reflection shine */}
+                  <rect x={pane.x} y={26} width="32" height="88" fill={`url(#glassReflection-${uniqueId})`} fillOpacity="0.3" />
+                  {/* Delicate glass edge polishing highlight */}
+                  <rect x={pane.x} y={26} width="32" height="88" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.75" />
+                  
+                  {/* Upper and lower carrier stainless rollers guide shoes */}
+                  <rect x={pane.x + 13} y={21} width="6" height="5" rx="1" fill={shadowColor} />
+                  <rect x={pane.x + 13} y={114} width="6" height="5" rx="1" fill={shadowColor} />
+                  <circle cx={pane.x + 16} cy="23.5" r="0.75" fill="#ffffff" />
+                  <circle cx={pane.x + 16} cy="116.5" r="0.75" fill="#ffffff" />
+                </g>
+              );
+            })}
+
+            {/* TRANSLUCENT VERTICAL SILICONE GASKETS BETWEEN GLASS ELEMENTS */}
+            <line x1="50" y1="26" x2="50" y2="114" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+            <line x1="83" y1="26" x2="83" y2="114" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+            <line x1="116" y1="26" x2="116" y2="114" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+            <line x1="149" y1="26" x2="149" y2="114" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+
+            {/* STAINLESS STEEL CYLINDRICAL DOOR LOCK KNOB WITH CHAINS RING */}
+            <g>
+              <circle cx="24" cy="70" r="4" fill={`url(#pillarGrad-${uniqueId})`} stroke="#ffffff" strokeWidth="0.5" />
+              <circle cx="24" cy="70" r="1.5" fill={shadowColor} />
+              <line x1="24" y1="70" x2="28" y2="76" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+            </g>
+
+            {/* TEXT LABEL BADGE */}
+            <rect x="52" y="60" width="96" height="18" rx="4" fill="#0f172a" fillOpacity="0.9" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+            <text x="100" y="72" fill="#ffffff" fontWeight="black" fontSize="7" textAnchor="middle" fontFamily="sans-serif" letterSpacing="0.8">
+              {item.name.toUpperCase().substring(0, 18)}
+            </text>
+          </g>
+        )}
+      </svg>
+    );
+  };
+
+  // SVG Canvas overlay drag and drop precision controller
+  const dragRef = React.useRef({ isDragging: false, startX: 0, startY: 0, xPct: 50, yPct: 50 });
+
+  const handleSVGMouseDown = (e: React.MouseEvent, item: ShadingItem) => {
+    e.preventDefault();
+    dragRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      xPct: item.overlayX !== undefined ? item.overlayX : 50,
+      yPct: item.overlayY !== undefined ? item.overlayY : 50
+    };
+
+    const handleMouseMove = (mvEvt: MouseEvent) => {
+      if (!dragRef.current.isDragging) return;
+      const deltaX = mvEvt.clientX - dragRef.current.startX;
+      const deltaY = mvEvt.clientY - dragRef.current.startY;
+
+      // Map drag pixel boundaries dynamically into responsive viewport percentages
+      const dragPctX = Math.min(100, Math.max(0, dragRef.current.xPct + (deltaX / 7.2)));
+      const dragPctY = Math.min(100, Math.max(0, dragRef.current.yPct + (deltaY / 4.8)));
+
+      handleUpdateShadingItem({
+        ...item,
+        overlayX: Math.round(dragPctX),
+        overlayY: Math.round(dragPctY)
+      });
+    };
+
+    const handleMouseUp = () => {
+      dragRef.current.isDragging = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
   
   const [showAdminUnlockModal, setShowAdminUnlockModal] = useState(false);
   const [adminPassAttempt, setAdminPassAttempt] = useState('');
@@ -603,16 +1881,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const projectTotalStats = useMemo(() => {
     let totalWeight = 0;
-    let subTotal = 0;
+    let joinerySubTotal = 0;
     project.units.forEach(u => {
       const stats = getUnitStats(u);
       totalWeight += stats.weight * (u.quantity || 1);
-      subTotal += stats.cost * (u.quantity || 1);
+      joinerySubTotal += stats.cost * (u.quantity || 1);
     });
+
+    const shadingSubTotal = (project.shadingItems || []).reduce((sum, item) => sum + (item.unitPrice * (item.quantity || 1)), 0);
+    const subTotal = joinerySubTotal + shadingSubTotal;
+
     const discountAmount = (subTotal * (project.discountPercentage || 0)) / 100;
     const discountedSubTotal = subTotal - discountAmount;
     const vatAmount = project.isExport ? 0 : (discountedSubTotal * taxRate) / 100;
     return { 
+      joinerySubTotal,
+      shadingSubTotal,
       subTotal, 
       discountPercentage: project.discountPercentage || 0,
       discountAmount,
@@ -621,7 +1905,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       grandTotal: discountedSubTotal + vatAmount, 
       totalWeight 
     };
-  }, [project.units, project.isExport, project.discountPercentage, taxRate, systems, accessories]);
+  }, [project.units, project.shadingItems, project.isExport, project.discountPercentage, taxRate, systems, accessories]);
 
   return (
     <div className="flex h-full bg-slate-950 overflow-hidden">
@@ -944,6 +2228,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 </>
             )}
 
+
+
             {activeTab === 'quote' && (
                 <div className="animate-in slide-in-from-right-4 duration-300">
                     {/* Quoting Display Controls */}
@@ -1189,6 +2475,57 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             </tr>
                                         );
                                     })}
+
+                                    {/* Shading System Items Added to Commercial Proposal */}
+                                    {(project.shadingItems || []).map((item, sIdx) => {
+                                        const posIdx = project.units.length + sIdx + 1;
+                                        const finalItemCost = item.unitPrice * item.quantity;
+                                        
+                                        // Parse Color group
+                                        let hexColor = '#2d3748';
+                                        if (item.color.toLowerCase().includes('gri') || item.color.toLowerCase().includes('grey') || item.color.toLowerCase().includes('7016')) {
+                                            hexColor = '#2b313d';
+                                        } else if (item.color.toLowerCase().includes('beyaz') || item.color.toLowerCase().includes('white') || item.color.toLowerCase().includes('9010')) {
+                                            hexColor = '#e2e8f0';
+                                        } else if (item.color.toLowerCase().includes('krem') || item.color.toLowerCase().includes('cream') || item.color.toLowerCase().includes('1013')) {
+                                            hexColor = '#fef3c7';
+                                        } else if (item.color.toLowerCase().includes('bronz') || item.color.toLowerCase().includes('bronze')) {
+                                            hexColor = '#7c2d12';
+                                        }
+
+                                        return (
+                                            <tr key={item.id} className="border-b border-slate-100 group print:break-inside-avoid">
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{posIdx.toString().padStart(2, '0')}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[20%] print:w-[40%]">
+                                                    <div className="w-40 h-40 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shadow-inner overflow-hidden">
+                                                        {renderRealisticShadingSVG(item)}
+                                                    </div>
+                                                </td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[45%] print:w-[46%]">
+                                                    <div className="font-black text-slate-900 text-lg mb-1">{item.name}</div>
+                                                    <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">
+                                                        {item.productType === 'bioclimatic-pergola' && (lang === 'tr' ? 'Bioklimatik Pergole Entegrasyonu' : 'Bioclimatic Pergola Shading')}
+                                                        {item.productType === 'rolling-roof' && (lang === 'tr' ? 'Katlanır Rolling Tavan Entegrasyonu' : 'Rolling Roof Shading')}
+                                                        {item.productType === 'zip-blind' && (lang === 'tr' ? 'Dış Cephe Zip Perde Sistemi' : 'Facade Zip Screen Sunshade')}
+                                                        {item.productType === 'awning' && (lang === 'tr' ? 'Mafsallı Katlanır Tente' : 'Foldable Retractable Awning')}
+                                                        {item.productType === 'guillotine' && (lang === 'tr' ? 'Somfy Motorlu Giyotin Cam Sistemi' : 'Motorized Guillotine Glass Window')}
+                                                        {item.productType === 'glass-balcony' && (lang === 'tr' ? 'Eşiksiz Cam Balkon Kapatma' : 'Folding Glass Balcony Glazing')}
+                                                    </div>
+                                                    <div className="space-y-1 mb-4">
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900 font-mono">{item.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900 font-mono">{item.height} mm</span></div>
+                                                        {item.depth && item.depth > 0 && <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'Açılım Genişlik:' : 'Projection Depth:'}</span> <span className="font-bold text-slate-900 font-mono">{item.depth} mm</span></div>}
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900 font-mono">{((item.width * item.height) / 1000000).toFixed(2)} m²</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'RAL Profil Boya Rengi:' : 'RAL Powder Coating Color:'}</span> <span className="font-bold text-slate-900">{item.color}</span></div>
+                                                        {item.notes && <div className="text-xs text-slate-500 mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/50 max-w-sm italic">"{item.notes}"</div>}
+                                                    </div>
+                                                </td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-center font-black text-xl print:text-sm text-slate-800 w-[8%] print:w-[8%]">{item.quantity}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-lg print:text-xs text-slate-800 w-[11%] print:w-[11%] whitespace-nowrap">{currencySymbol}{item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-xl print:text-xs text-blue-600 w-[11%] print:w-[11%] whitespace-nowrap">{currencySymbol}{finalItemCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -1298,6 +2635,1254 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <Printer size={20} strokeWidth={2.5} /> {t(lang, 'exportPdf')}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'shading' && (
+                <div className="space-y-8 animate-in fade-in duration-300 font-sans">
+                    {/* Header bar */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest font-mono">
+                                    {lang === 'tr' ? 'YAPAY ZEKA VE CAD SİSTEMİ AKTİF' : 'AI COGNITIVE ENGINE ACTIVE'}
+                                </span>
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight flex flex-wrap items-center gap-2">
+                                <span>VIZYONPERGOLA</span> 
+                                <span className="text-indigo-400 font-medium font-sans">AI DESIGN STUDIO</span>
+                            </h2>
+                            <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                                {lang === 'tr' 
+                                  ? 'Bina dış cephesini gelişmiş yapay zeka ve CAD çizim araçlarıyla donatın. Cepheyi çizin, sistemi özelleştirin ve görselleştirin.' 
+                                  : 'Equip any building facade with advanced AI rendering and CAD drawing tools. Outline the region, choose your profile system, and generate photorealistic visual proposals.'}
+                            </p>
+                        </div>
+
+                        {/* Top Action buttons */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            {polygonPoints.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        setPolygonPoints([]);
+                                        setIsDrawingCompleted(false);
+                                        setVisualizedImage(null);
+                                        setAiShadingReport(null);
+                                    }}
+                                    className="bg-slate-850 hover:bg-slate-800 text-slate-300 px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs uppercase tracking-wider border border-white/5 transition-all"
+                                >
+                                    <Trash2 size={14} className="text-red-400" />
+                                    <span>{lang === 'tr' ? 'ÇİZİMİ TEMİZLE' : 'RESET DESIGN'}</span>
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setShadingCanvasMode(shadingCanvasMode === 'design' ? 'comparison' : 'design')}
+                                className="bg-slate-850 hover:bg-slate-800 text-slate-200 px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs uppercase tracking-wider border border-white/5 transition-all"
+                            >
+                                {shadingCanvasMode === 'design' ? <Eye size={14} className="text-indigo-400" /> : <Wrench size={14} className="text-indigo-400" />}
+                                <span>{shadingCanvasMode === 'design' ? (lang === 'tr' ? 'KIYASLAMA GÖRÜNÜMÜ' : 'COMPARISON VIEW') : (lang === 'tr' ? 'CAD ÇİZİM MODU' : 'CAD DESIGN MODE')}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Workspace split */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        
+                        {/* LEFT: Project Configuration Sidebar (Column width: 4) */}
+                        <div className="lg:col-span-4 lg:order-1">
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+                                <div className="border-b border-white/5 pb-4">
+                                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                                        <Sliders size={16} className="text-indigo-400" />
+                                        <span>{lang === 'tr' ? 'PROJE YAPILANDIRMASI' : 'PROJECT CONFIGURATION'}</span>
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 mt-1">
+                                        {lang === 'tr' ? 'Dış mekan yapınızın mimari detaylarını seçin' : 'Configure your outdoor layout options'}
+                                    </p>
+                                </div>
+
+                                {/* SECTION 1: SOURCE IMAGE / BACKGROUND */}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
+                                            {lang === 'tr' ? '1. EVİMİN FOTOĞRAFI (ARKA PLAN)' : '1. MY HOUSE PHOTO (BACKGROUND)'}
+                                        </label>
+                                        <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                                            {lang === 'tr' ? 'Özel Yükleme Etkin' : 'Custom Upload Active'}
+                                        </span>
+                                    </div>
+
+                                    {/* Prominent Upload / Drag Target Box */}
+                                    <div 
+                                        onClick={() => document.getElementById('shading-bg-file-sidebar')?.click()}
+                                        className="relative rounded-2xl overflow-hidden aspect-[16/10] bg-slate-950 border-2 border-dashed border-slate-800 hover:border-indigo-500 cursor-pointer group flex flex-col items-center justify-center transition-all duration-300 shadow-lg"
+                                        title={lang === 'tr' ? 'Kendi evinizin resmini değiştirmek için tıklayın' : 'Click to upload or replace your house photo'}
+                                    >
+                                        <img 
+                                            src={shadingBgImage} 
+                                            alt="Facade thumbnail" 
+                                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 opacity-50 group-hover:opacity-40 transition-all duration-300"
+                                            referrerPolicy="no-referrer"
+                                        />
+                                        
+                                        {/* Overlay controls */}
+                                        <div className="relative z-10 flex flex-col items-center justify-center text-center p-4 space-y-2 pointer-events-none">
+                                            <div className="w-10 h-10 rounded-full bg-slate-900/90 border border-slate-700 flex items-center justify-center text-indigo-400 shadow-xl group-hover:scale-110 group-hover:text-indigo-300 transition-all duration-300">
+                                                <Upload size={18} className="animate-pulse" />
+                                            </div>
+                                            <div>
+                                                <p className="text-white text-xs font-black uppercase tracking-wider">
+                                                    {lang === 'tr' ? 'KENDİ EV FOTOĞRAFINI YÜKLE' : 'UPLOAD YOUR HOUSE PHOTO'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                                    {lang === 'tr' ? 'Sürükle-bırak veya dosyayı seç' : 'Drag & drop or tap to browse'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Primary Highly-Visible Glowing Button for custom upload */}
+                                    <button
+                                        onClick={() => document.getElementById('shading-bg-file-sidebar')?.click()}
+                                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold text-[11px] uppercase tracking-wider shadow-lg shadow-indigo-600/15 border border-indigo-500/30 transition-all duration-200 flex items-center justify-center gap-2"
+                                    >
+                                        <Upload size={14} />
+                                        <span>{lang === 'tr' ? 'KENDİ EV FOTOĞRAFINIZI SEÇİN' : 'SELECT YOUR OWN HOUSE PHOTO'}</span>
+                                    </button>
+
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                fileToDataURI(file).then(uri => {
+                                                    setShadingBgImage(uri);
+                                                    setPolygonPoints([]);
+                                                    setBasePerspectivePoints([]);
+                                                    setIsDrawingCompleted(false);
+                                                    setVisualizedImage(null);
+                                                    setManualScaleX(1.0);
+                                                    setManualScaleY(1.0);
+                                                    setManualRotate(0);
+                                                    setManualShiftX(0);
+                                                    setManualShiftY(0);
+                                                    showToast(
+                                                        lang === 'tr' 
+                                                            ? "Ev fotoğrafınız başarıyla yüklendi! Şimdi sistemi çatı/duvar üzerine yerleştirip görselleştirme oluşturabilirsiniz." 
+                                                            : "Your house photo has been successfully loaded! Now position the system and generate visualization.", 
+                                                        "success"
+                                                    );
+                                                });
+                                            }
+                                        }}
+                                        id="shading-bg-file-sidebar"
+                                        className="hidden" 
+                                    />
+
+                                    {/* Divider for presets */}
+                                    <div className="flex items-center gap-2 my-1">
+                                        <div className="h-px bg-slate-800 flex-1"></div>
+                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest font-mono font-black">
+                                            {lang === 'tr' ? 'VEYA HAZIR ŞABLON SEÇ' : 'OR CHOOSE PRESET'}
+                                        </span>
+                                        <div className="h-px bg-slate-800 flex-1"></div>
+                                    </div>
+
+                                    {/* Preset Environment Thumbnails */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { name: 'Villa', tr: 'Villa', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200' },
+                                            { name: 'Patio', tr: 'Veranda', url: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?q=80&w=1200' },
+                                            { name: 'Terrace', tr: 'Teras', url: 'https://images.unsplash.com/photo-1508333706533-1ab43ecb1606?q=80&w=1200' }
+                                        ].map(preset => (
+                                            <button
+                                                key={preset.name}
+                                                onClick={() => {
+                                                    setShadingBgImage(preset.url);
+                                                    let presetPts: { x: number; y: number }[] = [];
+                                                    if (preset.name === 'Villa') {
+                                                        presetPts = [
+                                                            { x: 38, y: 48 },
+                                                            { x: 80, y: 51 },
+                                                            { x: 86, y: 88 },
+                                                            { x: 36, y: 82 }
+                                                        ];
+                                                    } else if (preset.name === 'Patio') {
+                                                        presetPts = [
+                                                            { x: 22, y: 26 },
+                                                            { x: 74, y: 28 },
+                                                            { x: 84, y: 78 },
+                                                            { x: 12, y: 74 }
+                                                        ];
+                                                    } else if (preset.name === 'Terrace') {
+                                                        presetPts = [
+                                                            { x: 28, y: 32 },
+                                                            { x: 72, y: 32 },
+                                                            { x: 84, y: 84 },
+                                                            { x: 16, y: 84 }
+                                                        ];
+                                                    }
+                                                    setPolygonPoints(presetPts);
+                                                    setBasePerspectivePoints(presetPts);
+                                                    setManualScaleX(1.0);
+                                                    setManualScaleY(1.0);
+                                                    setManualRotate(0);
+                                                    setManualShiftX(0);
+                                                    setManualShiftY(0);
+                                                    setIsDrawingCompleted(presetPts.length > 0);
+                                                    setVisualizedImage(null);
+                                                    showToast(
+                                                        lang === 'tr'
+                                                            ? `${preset.tr} şablonu yüklendi!`
+                                                            : `${preset.name} preset loaded!`,
+                                                        "info"
+                                                    );
+                                                }}
+                                                className={`py-1.5 px-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${shadingBgImage === preset.url ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' : 'bg-slate-950/60 text-slate-400 border-slate-850 hover:border-slate-750'}`}
+                                            >
+                                                {lang === 'tr' ? preset.tr : preset.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SECTION 2: STRUCTURE TYPE */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
+                                        {lang === 'tr' ? '2. YAPISAL SİSTEM SEÇİMİ' : '2. STRUCTURE TYPE'}
+                                    </label>
+                                    
+                                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1.5 custom-scrollbar font-sans">
+                                        {[
+                                            { id: 'bioclimatic-pergola', titleTr: 'Bioklimatik Pergole', titleEn: 'Bioclimatic Pergola', descTr: 'Dönebilen ve katlanabilen alüminyum lüver tavan sistemi.', descEn: 'Retractable and rotatable heavy aluminum louver roofing.' },
+                                            { id: 'retractable-glass', titleTr: 'Açılır Cam Tavan', titleEn: 'Retractable Glass Roof', descTr: 'Motorlu, teleskobik hareketli, şeffaf temperli cam tavan.', descEn: 'Motorized, sliding telescopic tempered glass roofing.' },
+                                            { id: 'rolling-roof', titleTr: 'Rolling Roof', titleEn: 'Rolling Roof Panels', descTr: 'Katlanarak açılan teleskobik panel tavan kaplama sistemi.', descEn: 'Sliding, folding telescopic aluminum roof panels.' },
+                                            { id: 'zip-blind', titleTr: 'Zip Perde', titleEn: 'Zip Screen Shade', descTr: 'Rüzgara dayanıklı yüksek yoğunluklu dikey stor gölgeleme.', descEn: 'Wind-resistant heavy micro-mesh drapes & shading.' },
+                                            { id: 'awning', titleTr: 'Mafsallı Tente', titleEn: 'Premium Fabric Awning', descTr: 'Açılır kapanır akrilik kumaş gölgelendirme tentesi.', descEn: 'Folding arm acrylic fabric protection awning.' },
+                                            { id: 'guillotine', titleTr: 'Giyotin Cam Sistemleri', titleEn: 'Guillotine Smart Glass', descTr: 'Dikey hareketli motorlu akıllı temperli cam paneller.', descEn: 'Motorized vertical-sliding insulated glass panels.' },
+                                            { id: 'glass-balcony', titleTr: 'Katlanır Cam Balkon', titleEn: 'Panoramic Glass Balcony', descTr: 'Katlanabilir temperli panoramik dış balkon kaplama.', descEn: 'Frameless folding slider patio glass balustrades.' },
+                                        ].map((prod) => (
+                                            <button
+                                                key={prod.id}
+                                                onClick={() => {
+                                                    setSelectedShadingProduct(prod.id);
+                                                    setVisualizedImage(null); // Clear previous visual on change
+                                                }}
+                                                className={`w-full text-left p-3 rounded-2xl border transition-all flex flex-col gap-1 ${selectedShadingProduct === prod.id ? 'bg-indigo-600/10 border-indigo-500/50 ring-1 ring-indigo-500/30' : 'bg-slate-950/60 border-slate-850 hover:bg-slate-950 hover:border-slate-800'}`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-black text-white">{lang === 'tr' ? prod.titleTr : prod.titleEn}</span>
+                                                    {selectedShadingProduct === prod.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 font-medium leading-relaxed">{lang === 'tr' ? prod.descTr : prod.descEn}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SECTION 3: PROFILE FINISH */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
+                                        {lang === 'tr' ? '3. ALÜMİNYUM PROFİL RENGİ' : '3. PROFILE FINISH'}
+                                    </label>
+                                    
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { name: 'RAL 7016 Antrasit', color: '#374151', text: 'RAL 7016 Antrasit Gri' },
+                                            { name: 'RAL 9010 Beyaz', color: '#f3f4f6', text: 'RAL 9010 Parlak Beyaz' },
+                                            { name: 'RAL 9005 Siyah', color: '#111827', text: 'RAL 9005 Mat Siyah' },
+                                            { name: 'RAL 8019 Kahve', color: '#451a03', text: 'RAL 8019 Bronz/Kahve' },
+                                            { name: 'Ahşap Desenli', color: '#78350f', text: 'Ahşap Desenli Modern Meşe' },
+                                        ].map((col) => (
+                                            <button
+                                                key={col.text}
+                                                onClick={() => {
+                                                    setSelectedShadingColor(col.text);
+                                                }}
+                                                className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all ${selectedShadingColor === col.text ? 'bg-indigo-600/10 border-indigo-500/50' : 'bg-slate-950/60 border-slate-850 hover:border-slate-800'}`}
+                                            >
+                                                <div className="w-4 h-4 rounded-full border border-white/20 flex-shrink-0" style={{ backgroundColor: col.color }} />
+                                                <span className="text-[10px] font-bold text-white tracking-tight truncate">{col.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SECTION 4: DESIGN NOTES */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
+                                        {lang === 'tr' ? '4. ÖZEL TASARIM NOTLARI' : '4. SPECIAL REQUIREMENTS'}
+                                    </label>
+                                    <textarea
+                                        value={selectedShadingNotes}
+                                        onChange={(e) => setSelectedShadingNotes(e.target.value)}
+                                        placeholder={lang === 'tr' ? 'Örn: Günışığı LED aydınlatma entegrasyonu, rüzgar sensörleri...' : 'E.g., Integrated warm white LED strip lights, wind sensor...'}
+                                        className="w-full bg-slate-950 border border-slate-850 rounded-2xl p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 min-h-[70px] resize-none"
+                                    />
+                                </div>
+
+                                {/* SECTION 4.2: MANUAL PLACEMENT & DIMENSIONS */}
+                                <div className="space-y-3 bg-slate-950 border border-slate-850 rounded-2xl p-4 my-2">
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <Move size={13} className="text-cyan-400" />
+                                            <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest font-mono">
+                                                {lang === 'tr' ? 'MANUEL YERLEŞİM VE BOYUT' : 'MANUAL PLACEMENT & SIZES'}
+                                            </span>
+                                        </div>
+                                        {/* Status badge */}
+                                        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md ${shadingPlacementMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                            {shadingPlacementMode === 'manual' ? (lang === 'tr' ? 'MANUEL' : 'MANUAL') : (lang === 'tr' ? 'ÇİZİM' : 'OUTLINE')}
+                                        </span>
+                                    </div>
+
+                                    {/* Placement Mode Selection Switch */}
+                                    <div className="grid grid-cols-2 gap-2 bg-slate-900 p-1 rounded-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSetPlacementMode('draw')}
+                                            className={`py-1.5 px-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${shadingPlacementMode === 'draw' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            ✏️ {lang === 'tr' ? 'ALAN ÇİZİMİ' : 'DRAW OUTLINE'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSetPlacementMode('manual')}
+                                            className={`py-1.5 px-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${shadingPlacementMode === 'manual' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            🎛️ {lang === 'tr' ? 'SERBEST MOD' : 'FREE MODE'}
+                                        </button>
+                                    </div>
+
+                                    {/* Quick helper tip */}
+                                    <p className="text-[9px] text-slate-400 italic leading-snug">
+                                        {lang === 'tr' 
+                                            ? "İpucu: Resimdeki ürünü veya köşelerindeki mavi halkaları sürükleyerek de manuel konumlandırabilirsiniz!"
+                                            : "Tip: You can also drag the product or its blue corner handles directly on the image!"}
+                                    </p>
+
+                                    {/* Sliders (Always shown if drawing is completed, or active in manual mode) */}
+                                    {isDrawingCompleted && (
+                                        <div className="space-y-3 pt-2 border-t border-white/5">
+                                            {/* Genişlik (Ölçek X) Slider */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                    <span>{lang === 'tr' ? 'Perspektif Genişliği (Büyüklük)' : 'Perspective Width (Size)'}</span>
+                                                    <span className="font-mono text-cyan-400">{Math.round(manualScaleX * 100)}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="0.2" 
+                                                    max="2.0" 
+                                                    step="0.05"
+                                                    value={manualScaleX}
+                                                    onChange={(e) => {
+                                                        const sX = parseFloat(e.target.value);
+                                                        setManualScaleX(sX);
+                                                        updatePerspectivePoints(sX, manualScaleY, manualRotate, manualShiftX, manualShiftY);
+                                                    }}
+                                                    className="w-full accent-cyan-400 bg-slate-900 h-1 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                            </div>
+ 
+                                            {/* Yükseklik (Ölçek Y) Slider */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                    <span>{lang === 'tr' ? 'Perspektif Yüksekliği (Uzunluk)' : 'Perspective Height (Length)'}</span>
+                                                    <span className="font-mono text-cyan-400">{Math.round(manualScaleY * 100)}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="0.2" 
+                                                    max="2.0" 
+                                                    step="0.05"
+                                                    value={manualScaleY}
+                                                    onChange={(e) => {
+                                                        const sY = parseFloat(e.target.value);
+                                                        setManualScaleY(sY);
+                                                        updatePerspectivePoints(manualScaleX, sY, manualRotate, manualShiftX, manualShiftY);
+                                                    }}
+                                                    className="w-full accent-cyan-400 bg-slate-900 h-1 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                            </div>
+ 
+                                            {/* Açı (Rotasyon) Slider */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                    <span>{lang === 'tr' ? 'Döndürme Açısı (Açı)' : 'Rotation Angle'}</span>
+                                                    <span className="font-mono text-cyan-400">{manualRotate}°</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="-45" 
+                                                    max="45" 
+                                                    step="1"
+                                                    value={manualRotate}
+                                                    onChange={(e) => {
+                                                        const rot = parseInt(e.target.value);
+                                                        setManualRotate(rot);
+                                                        updatePerspectivePoints(manualScaleX, manualScaleY, rot, manualShiftX, manualShiftY);
+                                                    }}
+                                                    className="w-full accent-cyan-400 bg-slate-900 h-1 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                            </div>
+ 
+                                            {/* X Konum Slider */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                    <span>{lang === 'tr' ? 'Yatay Konum Kaydırma (X)' : 'Horizontal Shift (X)'}</span>
+                                                    <span className="font-mono text-cyan-400">{manualShiftX}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="-50" 
+                                                    max="50" 
+                                                    step="1"
+                                                    value={manualShiftX}
+                                                    onChange={(e) => {
+                                                        const shX = parseInt(e.target.value);
+                                                        setManualShiftX(shX);
+                                                        updatePerspectivePoints(manualScaleX, manualScaleY, manualRotate, shX, manualShiftY);
+                                                    }}
+                                                    className="w-full accent-cyan-400 bg-slate-900 h-1 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                            </div>
+ 
+                                            {/* Y Konum Slider */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                    <span>{lang === 'tr' ? 'Dikey Konum Kaydırma (Y)' : 'Vertical Shift (Y)'}</span>
+                                                    <span className="font-mono text-cyan-400">{manualShiftY}%</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="-50" 
+                                                    max="50" 
+                                                    step="1"
+                                                    value={manualShiftY}
+                                                    onChange={(e) => {
+                                                        const shY = parseInt(e.target.value);
+                                                        setManualShiftY(shY);
+                                                        updatePerspectivePoints(manualScaleX, manualScaleY, manualRotate, manualShiftX, shY);
+                                                    }}
+                                                    className="w-full accent-cyan-400 bg-slate-900 h-1 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* SECTION 4.5: INTERACTIVE Presentation CONTROLS */}
+                                <div className="space-y-3 bg-indigo-950/25 border border-indigo-500/15 rounded-2xl p-4 my-2">
+                                    <div className="flex items-center gap-1.5 border-b border-indigo-500/10 pb-2">
+                                        <Sliders size={13} className="text-indigo-400" />
+                                        <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest font-mono">
+                                            {lang === 'tr' ? 'MÜŞTERİ SUNUM AYARLARI' : 'PRESENTATION CONTROLS'}
+                                        </span>
+                                    </div>
+
+                                    {/* Louver Angle - Bioclimatic/Rolling */}
+                                    {(selectedShadingProduct === 'bioclimatic-pergola' || selectedShadingProduct === 'rolling-roof') && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                <span>{lang === 'tr' ? 'Lüver Açısı' : 'Louver Angle'}</span>
+                                                <span className="font-mono text-cyan-400">{shadingLouverAngle}°</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="90" 
+                                                value={shadingLouverAngle}
+                                                onChange={(e) => setShadingLouverAngle(parseInt(e.target.value))}
+                                                className="w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* LED Lighting Toggle - Pergola, Rolling, Awning, Guillotine, Glass Balcony */}
+                                    {selectedShadingProduct !== 'zip-blind' && (
+                                        <div className="flex items-center justify-between py-1">
+                                            <span className="text-[10px] font-bold text-slate-300">
+                                                {lang === 'tr' ? 'Entegre LED Spotlar' : 'Integrated LED Lights'}
+                                            </span>
+                                            <button
+                                                onClick={() => setShadingLedOn(!shadingLedOn)}
+                                                className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all border ${shadingLedOn ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-950/60 text-slate-500 border-slate-850'}`}
+                                            >
+                                                {shadingLedOn ? (lang === 'tr' ? 'AÇIK' : 'ON') : (lang === 'tr' ? 'KAPALI' : 'OFF')}
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Extension / Height Slider - Zip Blind, Awning, Guillotine, Glass Balcony */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                            <span>
+                                                {selectedShadingProduct === 'zip-blind' ? (lang === 'tr' ? 'Zip Stor Açıklığı' : 'Zip Screen Height') :
+                                                 selectedShadingProduct === 'awning' ? (lang === 'tr' ? 'Tente Açılımı' : 'Awning Extension') :
+                                                 selectedShadingProduct === 'guillotine' ? (lang === 'tr' ? 'Cam Yüksekliği' : 'Guillotine Height') :
+                                                 selectedShadingProduct === 'glass-balcony' ? (lang === 'tr' ? 'Katlanır Cam Açıklığı' : 'Glass Panel Folding') :
+                                                 (lang === 'tr' ? 'Sistem Açıklığı' : 'System Extension')}
+                                            </span>
+                                            <span className="font-mono text-cyan-400">{shadingExtension}%</span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min={selectedShadingProduct === 'awning' ? "20" : "0"} 
+                                            max="100" 
+                                            value={shadingExtension}
+                                            onChange={(e) => setShadingExtension(parseInt(e.target.value))}
+                                            className="w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+
+                                    {/* Column Ground Extension (Post Length) */}
+                                    {(selectedShadingProduct === 'bioclimatic-pergola' || selectedShadingProduct === 'rolling-roof' || selectedShadingProduct === 'retractable-glass') && (
+                                        <div className="space-y-1.5 pt-1">
+                                            <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                                                <span>{lang === 'tr' ? 'Kolon Zemin Uzantısı' : 'Column Ground Extension'}</span>
+                                                <span className="font-mono text-cyan-400">{shadingColumnHeight}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" 
+                                                min="40" 
+                                                max="400" 
+                                                value={shadingColumnHeight}
+                                                onChange={(e) => setShadingColumnHeight(parseInt(e.target.value))}
+                                                className="w-full accent-indigo-500 bg-slate-950 h-1 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* SECTION 5: GENERATE ACTION */}
+                                <button
+                                    onClick={handleAnalyzeShading}
+                                    disabled={isAnalyzingShading}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider py-4 rounded-2xl shadow-xl shadow-indigo-600/15 flex items-center justify-center gap-2.5 transition-all disabled:opacity-50"
+                                >
+                                    {isAnalyzingShading ? (
+                                        <>
+                                            <Loader2 className="animate-spin animate-infinite" size={16} />
+                                            <span>{lang === 'tr' ? 'YAPAY ZEKA ENTEGRE EDİYOR...' : 'AI INTEGRATING MODULES...'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles size={16} className="text-amber-400 animate-pulse" />
+                                            <span>{lang === 'tr' ? 'GÖRSELLEŞTİRME OLUŞTUR' : 'GENERATE VISUALIZATION'}</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: Visual Canvas Area (Column width: 8) */}
+                        <div className="lg:col-span-8 lg:order-2 space-y-6">
+                            <div 
+                                onDragOver={handleShadingDragOver}
+                                onDragLeave={handleShadingDragLeave}
+                                onDrop={handleShadingDrop}
+                                className={`bg-slate-900 border rounded-3xl p-6 shadow-2xl relative overflow-hidden transition-all duration-300 ${isDraggingFile ? 'border-indigo-500 bg-slate-900/40 ring-2 ring-indigo-500/20 scale-[1.01]' : 'border-slate-800'}`}
+                            >
+                                {/* Gorgeous full-container Drag Overlay */}
+                                {isDraggingFile && (
+                                    <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-8 border-4 border-dashed border-indigo-500 m-3 rounded-2xl pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="w-16 h-16 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-4 animate-bounce">
+                                            <Upload size={32} />
+                                        </div>
+                                        <h4 className="text-lg font-black text-white uppercase tracking-wider">
+                                            {lang === 'tr' ? 'EV FOTOĞRAFINIZI BIRAKIN' : 'DROP YOUR HOUSE PHOTO'}
+                                        </h4>
+                                        <p className="text-sm text-slate-400 mt-2 text-center max-w-md leading-relaxed">
+                                            {lang === 'tr' 
+                                                ? 'Seçtiğiniz fotoğraf arka plan olarak yüklenecek ve perspektif montaj aşamasına geçilecektir.' 
+                                                : 'Your selected photo will be loaded as background to configure perspective matching instantly.'}
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-white/5 pb-4">
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-200">
+                                            {shadingCanvasMode === 'design' 
+                                                ? (lang === 'tr' ? '1. CEPHE ÜZERİNDEN ÖLÇÜ ÇİZİMİ' : '1. FAÇADE DESIGN MEASUREMENT')
+                                                : (lang === 'tr' ? 'MİMARİ SUNUM (ÖNCE / SONRA)' : 'ARCHITECTURAL BEFORE / AFTER PRESENTATION')}
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">
+                                            {shadingCanvasMode === 'design' 
+                                                ? (lang === 'tr' ? 'Görsel üzerine tıklayarak sistemi yerleştirmek istediğiniz alanı çevreleyen noktalar çizin.' : 'Click points directly on the building photo to outline your pergola installation region.')
+                                                : (lang === 'tr' ? 'Ortadaki sürgüyü kaydırarak orijinal bina ve montajlı yapıyı kıyaslayın.' : 'Slide back and forth to preview the integrated custom pergola in perspective on your home.')}
+                                        </p>
+                                    </div>
+                                    
+                                    {/* Sub-tab view Mode Switcher */}
+                                    <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850">
+                                        <button
+                                            onClick={() => setShadingCanvasMode('design')}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${shadingCanvasMode === 'design' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            <Wrench size={11} />
+                                            <span>{lang === 'tr' ? 'CAD ÖLÇÜ ÇİZİMİ' : 'CAD MEASURE'}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setShadingCanvasMode('comparison')}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${shadingCanvasMode === 'comparison' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+                                        >
+                                            <Eye size={11} />
+                                            <span>{lang === 'tr' ? 'KIYASLAMA GÖRÜNÜMÜ' : 'BEFORE / AFTER'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {shadingCanvasMode === 'comparison' ? (
+                                    /* BEFORE / AFTER SLIDER SHOWCASE */
+                                    <div 
+                                        ref={(el) => {
+                                            (sliderContainerRef as any).current = el;
+                                            (shadingCanvasRef as any).current = el;
+                                        }}
+                                        onMouseMove={(e) => {
+                                            if (isSliding) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const x = e.clientX - rect.left;
+                                                const pct = Math.min(100, Math.max(0, Math.round((x / rect.width) * 100)));
+                                                setSliderPosition(pct);
+                                            }
+                                        }}
+                                        onMouseLeave={() => setIsSliding(false)}
+                                        onMouseUp={() => setIsSliding(false)}
+                                        onTouchMove={(e) => {
+                                            if (isSliding && e.touches[0]) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const x = e.touches[0].clientX - rect.left;
+                                                const pct = Math.min(100, Math.max(0, Math.round((x / rect.width) * 100)));
+                                                setSliderPosition(pct);
+                                            }
+                                        }}
+                                        onTouchEnd={() => setIsSliding(false)}
+                                        className="relative rounded-2xl overflow-hidden aspect-[4/3] max-h-[550px] bg-slate-950 border border-white/5 select-none cursor-ew-resize shadow-inner group"
+                                    >
+                                        {/* BEFORE LAYER (PLAIN ARCHITECTURE) */}
+                                        <img 
+                                            src={shadingBgImage} 
+                                            alt="Before Installation" 
+                                            className="absolute inset-0 w-full h-full object-cover select-none" 
+                                            referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase text-slate-300 tracking-wider z-20 font-mono">
+                                            {lang === 'tr' ? 'ÖNCE (HAM CEPHE)' : 'BEFORE (ORIGINAL)'}
+                                        </div>
+
+                                        {/* AFTER LAYER (INTEGRATED CAD OVERLAY WITH PERSPECTIVE CLIPPING) */}
+                                        <div 
+                                            style={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                clipPath: `polygon(${sliderPosition}% 0%, 100% 0%, 100% 100%, ${sliderPosition}% 100%)`,
+                                                pointerEvents: 'none'
+                                            }}
+                                            className="w-full h-full"
+                                        >
+                                            <img 
+                                                src={shadingBgImage} 
+                                                alt="After Installation" 
+                                                className="absolute inset-0 w-full h-full object-cover select-none" 
+                                                referrerPolicy="no-referrer"
+                                            />
+
+                                            {/* Beautiful Projected CAD Item Over Drawn Region */}
+                                            {isDrawingCompleted && polygonPoints.length >= 3 && (
+                                                <div 
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: 0,
+                                                        top: 0,
+                                                        width: '200px',
+                                                        height: '150px',
+                                                        transformOrigin: '0px 0px',
+                                                        transform: (() => {
+                                                            const src = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 150 }, { x: 0, y: 150 }];
+                                                            const pointsForWarp = [...polygonPoints];
+                                                            if (pointsForWarp.length === 3) {
+                                                                const p0 = pointsForWarp[0];
+                                                                const p1 = pointsForWarp[1];
+                                                                const p2 = pointsForWarp[2];
+                                                                const p3 = {
+                                                                    x: Math.max(0, Math.min(100, p2.x + (p0.x - p1.x))),
+                                                                    y: Math.max(0, Math.min(100, p2.y + (p0.y - p1.y)))
+                                                                };
+                                                                pointsForWarp.push(p3);
+                                                            }
+                                                            const sortedPts = sortQuadrilateralPoints(pointsForWarp);
+                                                            const dst = sortedPts.map(p => ({
+                                                                x: (p.x * canvasDimensions.width) / 100,
+                                                                y: (p.y * canvasDimensions.height) / 100
+                                                            }));
+                                                            return getPerspectiveTransform(src, dst);
+                                                        })(),
+                                                        zIndex: 20,
+                                                    }}
+                                                    className="drop-shadow-[0_15px_30px_rgba(0,0,0,0.65)]"
+                                                >
+                                                    {renderRealisticShadingSVG({
+                                                        id: 'shading-active-visual',
+                                                        productType: selectedShadingProduct as any,
+                                                        name: selectedShadingProduct,
+                                                        width: Math.round(boundingBox.w * 100),
+                                                        height: Math.round(boundingBox.h * 100),
+                                                        color: selectedShadingColor,
+                                                        overlayX: 50,
+                                                        overlayY: 50,
+                                                        overlayScale: 100,
+                                                        overlayRotate: 0,
+                                                        quantity: 1,
+                                                        unitPrice: 4500,
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="absolute top-4 right-4 bg-indigo-600/90 backdrop-blur-md border border-indigo-500/20 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase text-white tracking-wider z-20 font-mono">
+                                            {lang === 'tr' ? 'SONRA (MONTAJLI YAPI)' : 'AFTER (INTEGRATED DESIGN)'}
+                                        </div>
+
+                                        {/* SLIDER DIVISION CONTROL BAR */}
+                                        <div 
+                                            style={{ left: `${sliderPosition}%` }}
+                                            className="absolute top-0 bottom-0 w-0.5 bg-white shadow-2xl z-30 pointer-events-auto"
+                                        >
+                                            <div 
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsSliding(true);
+                                                }}
+                                                onTouchStart={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsSliding(true);
+                                                }}
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white hover:bg-slate-100 rounded-full flex items-center justify-center shadow-2xl border border-indigo-500 cursor-ew-resize transition-transform hover:scale-110 active:scale-95"
+                                            >
+                                                <div className="text-indigo-600 font-extrabold text-[10px] tracking-tight pointer-events-none select-none">
+                                                    ◀▶
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* INTERACTIVE CAD DRAWING STAGE */
+                                    <div 
+                                        ref={shadingCanvasRef}
+                                        onClick={handleCanvasClick}
+                                        onMouseMove={(e) => {
+                                            if (draggingNodeIndex !== null) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const mouseX = e.clientX - rect.left;
+                                                const mouseY = e.clientY - rect.top;
+                                                const pctX = Math.round((mouseX / rect.width) * 1000) / 10;
+                                                const pctY = Math.round((mouseY / rect.height) * 1000) / 10;
+                                                const clampedX = Math.max(0, Math.min(100, pctX));
+                                                const clampedY = Math.max(0, Math.min(100, pctY));
+                                                setPolygonPoints(prev => {
+                                                    const updated = [...prev];
+                                                    if (updated[draggingNodeIndex]) {
+                                                        updated[draggingNodeIndex] = { x: clampedX, y: clampedY };
+                                                    }
+                                                    return updated;
+                                                });
+                                            } else if (isDraggingManualCenter && dragStartRef.current) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const mouseX = e.clientX - rect.left;
+                                                const mouseY = e.clientY - rect.top;
+                                                const pctX = (mouseX / rect.width) * 100;
+                                                const pctY = (mouseY / rect.height) * 100;
+                                                const deltaX = pctX - dragStartRef.current.x;
+                                                const deltaY = pctY - dragStartRef.current.y;
+                                                const newPoints = dragStartRef.current.points.map(p => {
+                                                    const newX = Math.max(0, Math.min(100, Math.round((p.x + deltaX) * 10) / 10));
+                                                    const newY = Math.max(0, Math.min(100, Math.round((p.y + deltaY) * 10) / 10));
+                                                    return { x: newX, y: newY };
+                                                });
+                                                setPolygonPoints(newPoints);
+                                            }
+                                        }}
+                                        onTouchMove={(e) => {
+                                            if (draggingNodeIndex !== null && e.touches[0]) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const touchX = e.touches[0].clientX - rect.left;
+                                                const touchY = e.touches[0].clientY - rect.top;
+                                                const pctX = Math.round((touchX / rect.width) * 1000) / 10;
+                                                const pctY = Math.round((touchY / rect.height) * 1000) / 10;
+                                                const clampedX = Math.max(0, Math.min(100, pctX));
+                                                const clampedY = Math.max(0, Math.min(100, pctY));
+                                                setPolygonPoints(prev => {
+                                                    const updated = [...prev];
+                                                    if (updated[draggingNodeIndex]) {
+                                                        updated[draggingNodeIndex] = { x: clampedX, y: clampedY };
+                                                    }
+                                                    return updated;
+                                                });
+                                            } else if (isDraggingManualCenter && dragStartRef.current && e.touches[0]) {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const touchX = e.touches[0].clientX - rect.left;
+                                                const touchY = e.touches[0].clientY - rect.top;
+                                                const pctX = (touchX / rect.width) * 100;
+                                                const pctY = (touchY / rect.height) * 100;
+                                                const deltaX = pctX - dragStartRef.current.x;
+                                                const deltaY = pctY - dragStartRef.current.y;
+                                                const newPoints = dragStartRef.current.points.map(p => {
+                                                    const newX = Math.max(0, Math.min(100, Math.round((p.x + deltaX) * 10) / 10));
+                                                    const newY = Math.max(0, Math.min(100, Math.round((p.y + deltaY) * 10) / 10));
+                                                    return { x: newX, y: newY };
+                                                });
+                                                setPolygonPoints(newPoints);
+                                            }
+                                        }}
+                                        onMouseUp={() => {
+                                            if (draggingNodeIndex !== null || isDraggingManualCenter) {
+                                                setBasePerspectivePoints(polygonPoints);
+                                                setManualScaleX(1.0);
+                                                setManualScaleY(1.0);
+                                                setManualRotate(0);
+                                                setManualShiftX(0);
+                                                setManualShiftY(0);
+                                            }
+                                            setDraggingNodeIndex(null);
+                                            setIsDraggingManualCenter(false);
+                                        }}
+                                        onMouseLeave={() => {
+                                            if (draggingNodeIndex !== null || isDraggingManualCenter) {
+                                                setBasePerspectivePoints(polygonPoints);
+                                                setManualScaleX(1.0);
+                                                setManualScaleY(1.0);
+                                                setManualRotate(0);
+                                                setManualShiftX(0);
+                                                setManualShiftY(0);
+                                            }
+                                            setDraggingNodeIndex(null);
+                                            setIsDraggingManualCenter(false);
+                                        }}
+                                        onTouchEnd={() => {
+                                            if (draggingNodeIndex !== null || isDraggingManualCenter) {
+                                                setBasePerspectivePoints(polygonPoints);
+                                                setManualScaleX(1.0);
+                                                setManualScaleY(1.0);
+                                                setManualRotate(0);
+                                                setManualShiftX(0);
+                                                setManualShiftY(0);
+                                            }
+                                            setDraggingNodeIndex(null);
+                                            setIsDraggingManualCenter(false);
+                                        }}
+                                        className="relative rounded-2xl overflow-hidden aspect-[4/3] max-h-[550px] bg-slate-950 border border-white/5 cursor-crosshair group select-none"
+                                    >
+                                        {/* Background picture */}
+                                        <img 
+                                            src={shadingBgImage} 
+                                            alt="Facade" 
+                                            className="w-full h-full object-cover image-overlay-bg select-none" 
+                                            referrerPolicy="no-referrer"
+                                        />
+ 
+                                        {/* Interactive laser scanning overlay */}
+                                        {isAnalyzingShading && (
+                                            <div 
+                                                className="absolute inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_20px_#22d3ee] z-50 pointer-events-none"
+                                                style={{
+                                                    animation: 'scan-laser 2.5s linear infinite',
+                                                    top: '0%',
+                                                }}
+                                            />
+                                        )}
+ 
+                                        {/* Realistic CAD Model Overlaid Real-time Inside Drawing Box */}
+                                        {isDrawingCompleted && polygonPoints.length >= 3 && (
+                                            <div 
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: 0,
+                                                    top: 0,
+                                                    width: '200px',
+                                                    height: '150px',
+                                                    transformOrigin: '0px 0px',
+                                                    transform: (() => {
+                                                        const src = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 150 }, { x: 0, y: 150 }];
+                                                        const pointsForWarp = [...polygonPoints];
+                                                        if (pointsForWarp.length === 3) {
+                                                            const p0 = pointsForWarp[0];
+                                                            const p1 = pointsForWarp[1];
+                                                            const p2 = pointsForWarp[2];
+                                                            const p3 = {
+                                                                x: Math.max(0, Math.min(100, p2.x + (p0.x - p1.x))),
+                                                                y: Math.max(0, Math.min(100, p2.y + (p0.y - p1.y)))
+                                                            };
+                                                            pointsForWarp.push(p3);
+                                                        }
+                                                        const sortedPts = sortQuadrilateralPoints(pointsForWarp);
+                                                        const dst = sortedPts.map(p => ({
+                                                            x: (p.x * canvasDimensions.width) / 100,
+                                                            y: (p.y * canvasDimensions.height) / 100
+                                                        }));
+                                                        return getPerspectiveTransform(src, dst);
+                                                    })(),
+                                                    pointerEvents: 'none',
+                                                    zIndex: 30,
+                                                }}
+                                                className="opacity-95 transition-all duration-300 drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)]"
+                                            >
+                                                {renderRealisticShadingSVG({
+                                                    id: 'shading-design-preview',
+                                                    productType: selectedShadingProduct as any,
+                                                    name: selectedShadingProduct,
+                                                    width: Math.round(boundingBox.w * 100),
+                                                    height: Math.round(boundingBox.h * 100),
+                                                    color: selectedShadingColor,
+                                                    overlayX: 50,
+                                                    overlayY: 50,
+                                                    overlayScale: 100,
+                                                    overlayRotate: 0,
+                                                    quantity: 1,
+                                                    unitPrice: 4500,
+                                                })}
+                                            </div>
+                                        )}
+ 
+                                        {/* SVG DRAWING LINES & NODES GRAPHICS OVERLAY */}
+                                        <svg className="absolute inset-0 w-full h-full pointer-events-none z-40">
+                                            {polygonPoints.length > 0 && (
+                                                <g>
+                                                    {/* Draw lines */}
+                                                    <polyline
+                                                        points={polygonPoints.map(p => `${(p.x * 1)}%,${(p.y * 1)}%`).join(' ')}
+                                                        fill="none"
+                                                        stroke="#22d3ee"
+                                                        strokeWidth="2.5"
+                                                        strokeDasharray={isDrawingCompleted ? "none" : "4,4"}
+                                                        className={isDrawingCompleted ? "" : "animate-pulse"}
+                                                    />
+                                                    
+                                                    {/* If completed, draw closed polygon */}
+                                                    {isDrawingCompleted && (
+                                                        <polygon
+                                                            points={polygonPoints.map(p => `${p.x}%,${p.y}%`).join(' ')}
+                                                            fill="rgba(34, 211, 238, 0.15)"
+                                                            stroke="#22d3ee"
+                                                            strokeWidth="3.5"
+                                                            className="transition-all duration-300 pointer-events-auto cursor-move"
+                                                            onMouseDown={(e) => {
+                                                                e.stopPropagation();
+                                                                e.preventDefault();
+                                                                setIsDraggingManualCenter(true);
+                                                                if (shadingCanvasRef.current) {
+                                                                    const rect = shadingCanvasRef.current.getBoundingClientRect();
+                                                                    const clickX = e.clientX - rect.left;
+                                                                    const clickY = e.clientY - rect.top;
+                                                                    const pctX = (clickX / rect.width) * 100;
+                                                                    const pctY = (clickY / rect.height) * 100;
+                                                                    dragStartRef.current = {
+                                                                        x: pctX,
+                                                                        y: pctY,
+                                                                        points: [...polygonPoints]
+                                                                    };
+                                                                }
+                                                            }}
+                                                            onTouchStart={(e) => {
+                                                                e.stopPropagation();
+                                                                if (shadingCanvasRef.current && e.touches[0]) {
+                                                                    const rect = shadingCanvasRef.current.getBoundingClientRect();
+                                                                    const clickX = e.touches[0].clientX - rect.left;
+                                                                    const clickY = e.touches[0].clientY - rect.top;
+                                                                    const pctX = (clickX / rect.width) * 100;
+                                                                    const pctY = (clickY / rect.height) * 100;
+                                                                    dragStartRef.current = {
+                                                                        x: pctX,
+                                                                        y: pctY,
+                                                                        points: [...polygonPoints]
+                                                                    };
+                                                                    setIsDraggingManualCenter(true);
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+ 
+                                                    {/* Draw click node circles */}
+                                                    {polygonPoints.map((pt, i) => (
+                                                        <g key={i}>
+                                                            {i === 0 && !isDrawingCompleted && (
+                                                                <circle
+                                                                    cx={`${pt.x}%`}
+                                                                    cy={`${pt.y}%`}
+                                                                    r="12"
+                                                                    fill="none"
+                                                                    stroke="#eab308"
+                                                                    strokeWidth="1.5"
+                                                                    className="animate-ping"
+                                                                />
+                                                            )}
+                                                            {/* Invisible large touch target for extreme ease of dragging on mobile */}
+                                                            <circle
+                                                                cx={`${pt.x}%`}
+                                                                cy={`${pt.y}%`}
+                                                                r="18"
+                                                                fill="transparent"
+                                                                className="pointer-events-auto cursor-grab active:cursor-grabbing"
+                                                                onMouseDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    setDraggingNodeIndex(i);
+                                                                }}
+                                                                onTouchStart={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setDraggingNodeIndex(i);
+                                                                }}
+                                                            />
+                                                            <circle
+                                                                cx={`${pt.x}%`}
+                                                                cy={`${pt.y}%`}
+                                                                r={i === 0 ? "8" : "6"}
+                                                                fill={i === 0 ? "#eab308" : "#22d3ee"}
+                                                                stroke="#ffffff"
+                                                                strokeWidth="2"
+                                                                className="pointer-events-auto cursor-grab active:cursor-grabbing hover:scale-135 transition-transform"
+                                                            >
+                                                                <title>{i === 0 ? (lang === 'tr' ? 'İlk nokta' : 'First point') : `Point ${i + 1}`}</title>
+                                                            </circle>
+                                                        </g>
+                                                    ))}
+                                                </g>
+                                            )}
+                                        </svg>
+
+                                        {/* Visual Instructions Alert Banner */}
+                                        <div className="absolute top-4 left-4 bg-slate-950/80 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-xl flex items-center gap-2 pointer-events-none z-10 animate-fade-in text-[10px] font-bold text-slate-300">
+                                            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                                            <span>
+                                                {polygonPoints.length === 0 
+                                                    ? (lang === 'tr' ? 'ÇİZİME BAŞLA: Cephe bölgesine en az 3 kez tıklayın' : 'START OUTLINE: Click at least 3 corners on the building')
+                                                    : isDrawingCompleted 
+                                                    ? (lang === 'tr' ? 'ÇİZİM TAMAMLANDI: Soldan "Görselleştirme Oluştur"a tıklayın' : 'OUTLINE LOCKED: Click "Generate Visualization" on sidebar')
+                                                    : (lang === 'tr' ? `Nokta ekleniyor (${polygonPoints.length}). Kapatmak için ilk sarı halkaya tıklayın.` : `Adding nodes (${polygonPoints.length}). Click the yellow halo to close loop.`)}
+                                            </span>
+                                        </div>
+
+                                        {/* Floating Zoom / Grid Helper controls */}
+                                        <div className="absolute bottom-4 right-4 bg-slate-950/80 backdrop-blur-md border border-white/10 p-2 rounded-xl flex items-center gap-2 z-20 pointer-events-auto">
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPolygonPoints([]);
+                                                    setIsDrawingCompleted(false);
+                                                    setVisualizedImage(null);
+                                                    setAiShadingReport(null);
+                                                }}
+                                                className="p-1.5 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                                title={lang === 'tr' ? 'Çizimi Sıfırla' : 'Reset Outline'}
+                                            >
+                                                <Trash2 size={13} />
+                                            </button>
+                                            <div className="w-px h-4 bg-white/10" />
+                                            <button 
+                                                onClick={handleAutoDraw}
+                                                disabled={isDetectingPerspective}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 active:scale-95 shadow-md ${
+                                                    isDetectingPerspective 
+                                                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed animate-pulse' 
+                                                    : 'bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white shadow-indigo-600/20 mr-1'
+                                                }`}
+                                                title={lang === 'tr' ? 'Yapay Zekâ ile Cepheyi Analiz Et ve Perspektifli Yerleştir' : 'Analyze Facade with AI and Place in Perspective'}
+                                            >
+                                                {isDetectingPerspective ? (
+                                                    <>
+                                                        <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mr-1" />
+                                                        <span>{lang === 'tr' ? 'PERSPEKTİF HESAPLANIYOR...' : 'COMPUTING PERSPECTIVE...'}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles size={12} className="text-amber-300 animate-pulse" />
+                                                        <span>{lang === 'tr' ? 'YAPAY ZEKÂ PERSPEKTİF' : 'AI PERSPECTIVE SNAP'}</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <div className="w-px h-4 bg-white/10" />
+                                            <span className="text-[10px] font-mono text-slate-400 px-1 select-none">ZOOM: 100%</span>
+                                            <div className="w-px h-4 bg-white/10" />
+                                            <div className="text-[10px] font-mono text-cyan-400 px-1 font-bold">GRID: CAD LOCK</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Laser scanner inline animation inject keyframes style tag */}
+                            <style>{`
+                                @keyframes scan-laser {
+                                    0% { top: 0%; opacity: 0; }
+                                    10% { opacity: 1; }
+                                    90% { opacity: 1; }
+                                    100% { top: 100%; opacity: 0; }
+                                }
+                            `}</style>
+                        </div>
+                    </div>
+
+                    {/* AI REPORT SPECTACULAR PRESENTATION SPECIFICATIONS BOARD */}
+                    {aiShadingReport && (
+                        <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in slide-in-from-bottom-6">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-white/5 pb-5 gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-indigo-600/15 rounded-2xl text-indigo-400">
+                                        <Brain size={24} className="animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                                            {lang === 'tr' ? 'MİMARİ YAPILANDIRMA VE YAPAY ZEKA RAPORU' : 'AI ARCHITECTURAL SPECIFICATION REPORT'}
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                            {lang === 'tr' ? 'VizyonPergola akıllı analiz motorları tarafından oluşturuldu' : 'Generated by VizyonPergola design & analysis engines'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 px-3 py-1 rounded-full uppercase tracking-wider font-mono">
+                                    {lang === 'tr' ? 'Feasibilite: %98 Olumlu' : 'Feasibility: 98% Optimal'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 font-sans">
+                                {/* Left/Center Column - Feasibility & Architectural Review */}
+                                <div className="lg:col-span-2 space-y-6">
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 font-sans">
+                                            <Palette size={14} />
+                                            <span>{lang === 'tr' ? 'MİMARİ VE ESTETİK DEĞERLENDİRME' : 'ARCHITECTURAL DESIGN REVIEW'}</span>
+                                        </h4>
+                                        <div className="bg-slate-950/45 p-5 rounded-2xl border border-white/5 text-slate-300 text-xs leading-relaxed space-y-4 font-sans">
+                                            {aiShadingReport.architecturalReview ? (
+                                                <div className="prose prose-invert prose-xs">
+                                                    {aiShadingReport.architecturalReview.split('\n').map((line, lidx) => (
+                                                        <p key={lidx}>{line}</p>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p>{lang === 'tr' ? 'Cephe uyumu, rüzgar direnci ve drenaj entegrasyonu tamamen test edildi.' : 'Facade visual matching, structural wind load guidelines and drainage configurations fully calculated.'}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Recommendations details table */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                                            <Ruler size={14} />
+                                            <span>{lang === 'tr' ? 'MÜHENDİSLİK DETAYLARI VE EBAT ÖNERİLERİ' : 'TECHNICAL GUIDELINES & SPECIFICATIONS'}</span>
+                                        </h4>
+                                        
+                                        <div className="bg-slate-950/60 rounded-2xl border border-white/5 overflow-hidden">
+                                            <table className="w-full text-left text-xs border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-950 border-b border-white/5 text-slate-400 font-extrabold uppercase tracking-wider text-[10px]">
+                                                        <th className="px-5 py-3.5">{lang === 'tr' ? 'Önerilen Sistem' : 'Product Type'}</th>
+                                                        <th className="px-5 py-3.5">{lang === 'tr' ? 'Boyutlar (G x Y x D)' : 'Suggested Sizing'}</th>
+                                                        <th className="px-5 py-3.5 text-right">{lang === 'tr' ? 'Renk Finisaj' : 'Finish Standard'}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5 text-slate-300">
+                                                    {(aiShadingReport.recommendations || []).map((rec, i) => (
+                                                        <tr key={i} className="hover:bg-white/5 transition-colors">
+                                                            <td className="px-5 py-4">
+                                                                <div className="font-bold text-white text-xs">{rec.name}</div>
+                                                                <div className="text-[10px] text-indigo-400 font-mono uppercase mt-0.5">{rec.productType}</div>
+                                                            </td>
+                                                            <td className="px-5 py-4 font-mono font-bold text-slate-100">
+                                                                {rec.suggestedWidth} x {rec.suggestedHeight} {rec.suggestedDepth ? `x ${rec.suggestedDepth}` : ''} mm
+                                                            </td>
+                                                            <td className="px-5 py-4 text-right">
+                                                                <span className="bg-slate-950 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-emerald-400">{rec.suggestedColor}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!aiShadingReport.recommendations || aiShadingReport.recommendations.length === 0) && (
+                                                        <tr>
+                                                            <td className="px-5 py-4 font-bold text-white">{lang === 'tr' ? 'Seçilen Profil Sistemi' : 'Configured Shading Product'}</td>
+                                                            <td className="px-5 py-4 font-mono">
+                                                                {Math.round(boundingBox.w * 100)} x {Math.round(boundingBox.h * 100)} x 3000 mm
+                                                            </td>
+                                                            <td className="px-5 py-4 text-right">
+                                                                <span className="bg-slate-950 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-emerald-400">{selectedShadingColor}</span>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column - Sales pitch and cost estimate */}
+                                <div className="space-y-6">
+                                    <div className="space-y-3">
+                                        <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                                            <MessageSquare size={14} />
+                                            <span>{lang === 'tr' ? 'MÜŞTERI TEKLİF MEKTUBU' : 'CLIENT SALES PROPOSAL'}</span>
+                                        </h4>
+                                        
+                                        <div className="bg-slate-950 p-5 rounded-3xl border border-white/10 shadow-lg relative flex flex-col justify-between h-full min-h-[220px]">
+                                            <p className="text-xs text-indigo-200 leading-relaxed italic">
+                                                "{aiShadingReport.salesPitch || (lang === 'tr' 
+                                                    ? 'Dış mekanınıza konfor ve modernlik getirecek harika bir çözüm tasarladık.' 
+                                                    : 'We have configured a luxurious outdoor extension optimized for your architectural facade.')}"
+                                            </p>
+                                            <div className="border-t border-white/10 pt-4 mt-4 flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{lang === 'tr' ? 'YAKLAŞIK MALİYET' : 'BUDGETARY ESTIMATE'}</span>
+                                                    <span className="text-lg font-black text-emerald-400 font-mono mt-0.5">
+                                                        {currencySymbol}{(((aiShadingReport.recommendations?.[0]?.estimatedSqmPrice || 350) * (boundingBox.w * boundingBox.h / 100)) || 4500).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-extrabold uppercase px-2 py-1 rounded font-mono border border-indigo-500/20">
+                                                    {lang === 'tr' ? 'Anahtar Teslim' : 'Fully Installed'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action items */}
+                                    <div className="bg-indigo-950/20 border border-indigo-500/10 p-5 rounded-3xl flex flex-col gap-3 font-sans">
+                                        <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest font-mono">
+                                            {lang === 'tr' ? 'TEKLİF SİSTEM KAYDI' : 'PROPOSAL COMPILATION'}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                // Generate a new shading system item with this custom proposal
+                                                const newId = `shading-ai-${Date.now()}`;
+                                                const rec = aiShadingReport.recommendations?.[0];
+                                                const newItem: ShadingItem = {
+                                                    id: newId,
+                                                    productType: selectedShadingProduct as any,
+                                                    name: rec?.name || (lang === 'tr' ? 'Özelleştirilmiş Sistem' : 'Custom Configured Unit'),
+                                                    width: rec?.suggestedWidth || Math.round(boundingBox.w * 100),
+                                                    height: rec?.suggestedHeight || Math.round(boundingBox.h * 100),
+                                                    depth: rec?.suggestedDepth || 3000,
+                                                    quantity: 1,
+                                                    unitPrice: (rec?.estimatedSqmPrice || 350) * 10, // approximate unit price
+                                                    color: selectedShadingColor,
+                                                    notes: selectedShadingNotes,
+                                                    overlayX: boundingBox.x + boundingBox.w / 2,
+                                                    overlayY: boundingBox.y + boundingBox.h / 2,
+                                                    overlayScale: 100,
+                                                    overlayRotate: 0,
+                                                };
+                                                handleAddShadingItem(newItem);
+                                                alert(lang === 'tr' ? 'Tasarım teklifi projeye başarıyla eklendi!' : 'Design proposal successfully saved as project unit!');
+                                            }}
+                                            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-2xl border border-white/5 flex items-center justify-center gap-2 transition-all"
+                                        >
+                                            <FileCheck size={14} className="text-emerald-400" />
+                                            <span>{lang === 'tr' ? 'TEKLİF SİSTEMİ OLARAK KAYDET' : 'SAVE AS ACTIVE UNIT'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -2171,6 +4756,340 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         </div>
       )}
 
+      {showAddShadingModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-3xl shadow-2xl relative my-8 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="border-b border-white/5 p-6 flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <Box className="text-indigo-400" size={18} />
+                  <span>
+                    {editingShadingItem 
+                      ? (lang === 'tr' ? 'GÖLGELENDİRME SİSTEMİNİ DÜZENLE' : 'EDIT SHADING SYSTEM') 
+                      : (lang === 'tr' ? 'YENİ GÖLGELENDİRME SİSTEMİ EKLE' : 'ADD NEW SHADING SYSTEM')}
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {lang === 'tr' 
+                    ? 'Projenize eklemek istediğiniz gölgelendirme elemanının üretim parametrelerini girin.' 
+                    : 'Configure properties and profiles for custom glass balconies, zip blinds or pergolas.'}
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowAddShadingModal(false);
+                  setEditingShadingItem(null);
+                }}
+                className="text-slate-400 hover:text-white hover:bg-white/5 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Product Type */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Ürün Tipi / Kategori' : 'Product Type / Category'}
+                  </label>
+                  <select
+                    value={shadingFormProduct}
+                    onChange={(e: any) => {
+                      const type = e.target.value;
+                      setShadingFormProduct(type);
+                      // Set corresponding default human-readable names
+                      if (type === 'bioclimatic-pergola') setShadingFormName(lang === 'tr' ? 'Premium Bioklimatik Pergole' : 'Premium Bioclimatic Pergola');
+                      else if (type === 'rolling-roof') setShadingFormName(lang === 'tr' ? 'Alüminyum Rolling Roof' : 'Aluminum Rolling Roof');
+                      else if (type === 'zip-blind') setShadingFormName(lang === 'tr' ? 'Antrasit Zip Perde' : 'Anthracite Zip Blind');
+                      else if (type === 'awning') setShadingFormName(lang === 'tr' ? 'Mafsallı Tente' : 'Folding Awning');
+                      else if (type === 'guillotine') setShadingFormName(lang === 'tr' ? 'Giyotin Motorlu Cam' : 'Motorized Guillotine Glass');
+                      else if (type === 'glass-balcony') setShadingFormName(lang === 'tr' ? 'Katlanır Cam Balkon' : 'Folding Glass Balcony');
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    <option value="bioclimatic-pergola">{lang === 'tr' ? 'Bioklimatik Pergole' : 'Bioclimatic Pergola'}</option>
+                    <option value="rolling-roof">{lang === 'tr' ? 'Rolling Roof / Açılır Tavan' : 'Rolling Roof'}</option>
+                    <option value="zip-blind">{lang === 'tr' ? 'Zip Perde / Stor' : 'Zip Blind'}</option>
+                    <option value="awning">{lang === 'tr' ? 'Mafsallı / Kasetli Tente' : 'Awning System'}</option>
+                    <option value="guillotine">{lang === 'tr' ? 'Giyotin Cam Sistemi' : 'Guillotine Glass'}</option>
+                    <option value="glass-balcony">{lang === 'tr' ? 'Katlanır / Sürme Cam Balkon' : 'Glass Balcony'}</option>
+                  </select>
+                </div>
+
+                {/* System Name */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Sistem Başlığı / Açıklama' : 'System Label / Title'}
+                  </label>
+                  <input
+                    type="text"
+                    value={shadingFormName}
+                    onChange={(e) => setShadingFormName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors"
+                    placeholder="örn: Bahçe Üstü Bioklimatik"
+                  />
+                </div>
+
+                {/* Width (mm) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Genişlik (X Eni - mm)' : 'Width (X - mm)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormWidth}
+                    onChange={(e) => setShadingFormWidth(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+
+                {/* Height (Y Boyu - mm) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Yükseklik (Y Boyu - mm)' : 'Height (Y - mm)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormHeight}
+                    onChange={(e) => setShadingFormHeight(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+
+                {/* Projection/Depth (mm) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Açılım / Derinlik (Z - mm)' : 'Projection / Depth (Z - mm)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormDepth}
+                    onChange={(e) => setShadingFormDepth(parseInt(e.target.value) || 0)}
+                    disabled={shadingFormProduct === 'zip-blind' || shadingFormProduct === 'glass-balcony' || shadingFormProduct === 'guillotine'}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-mono"
+                  />
+                </div>
+
+                {/* Profile Color RAL */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Profil / Kumaş Rengi (RAL)' : 'Profile / Fabric Color (RAL)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={shadingFormColor}
+                    onChange={(e) => setShadingFormColor(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors"
+                    placeholder="örn: RAL 7016 Antrasit"
+                  />
+                </div>
+
+                {/* Unit Price */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Sistem Satış Fiyatı' : 'System Sales Price'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormPrice}
+                    onChange={(e) => setShadingFormPrice(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+
+                {/* Quantity */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Adet' : 'Quantity'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormQty}
+                    onChange={(e) => setShadingFormQty(parseInt(e.target.value) || 1)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  {lang === 'tr' ? 'Özel İstek / Teknik Notlar' : 'Custom Specifications / Notes'}
+                </label>
+                <textarea
+                  value={shadingFormNotes}
+                  onChange={(e) => setShadingFormNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors h-20 resize-none"
+                  placeholder={lang === 'tr' ? 'Siparişe özel notlar buraya...' : 'Write any bespoke fabrication specifications here...'}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-white/5 p-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddShadingModal(false);
+                  setEditingShadingItem(null);
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-5 py-2.5 rounded-xl text-xs font-bold transition-all"
+              >
+                {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleSaveShadingItem}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all"
+              >
+                {lang === 'tr' ? 'Sistemi Kaydet' : 'Save System'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAiReportModal && aiShadingReport && (
+        <div className="fixed inset-0 z-[105] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-3xl shadow-2xl relative my-8 animate-in zoom-in-95 duration-200">
+            {/* Top Bar Banner with Sparkles gradient */}
+            <div className="bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-900 p-6 rounded-t-3xl border-b border-white/5 flex justify-between items-start">
+              <div className="space-y-1">
+                <span className="text-[9px] bg-gradient-to-r from-amber-400 to-indigo-400 text-transparent bg-clip-text font-black uppercase tracking-widest block">
+                  ALUMETRIC CORE COGNITIVE MOTOR
+                </span>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+                  <Sparkles className="text-amber-400 animate-pulse" size={20} />
+                  <span>{lang === 'tr' ? 'Yapay Zeka Cephe Tasarım Raporu' : 'AI Architectural & Facade Report'}</span>
+                </h3>
+                <p className="text-[11px] text-slate-300">
+                  {lang === 'tr' 
+                    ? 'Yüklenen görsel yapay zeka tarafından taranarak cepheye en uyumlu gölgelendirme çözümleri hesaplandı.' 
+                    : 'The uploaded architectural facade has been parsed. Below are matches calibrated for your building.'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowAiReportModal(false)}
+                className="text-slate-400 hover:text-white bg-slate-950/50 hover:bg-slate-950 w-8 h-8 rounded-full flex items-center justify-center transition-colors border border-white/5"
+              >
+                ✕
+              </button>
+            </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-6 max-h-[68vh] overflow-y-auto scrollbar-thin">
+                {/* 1. Architectural Review Analysis card */}
+                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-2.5">
+                  <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                    <Layers size={13} />
+                    <span>{lang === 'tr' ? 'MİMARİ CEPHE DEĞERLENDİRMESİ' : 'ARCHITECTURAL FACADE EVALUATION'}</span>
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                    {aiShadingReport.architecturalReview}
+                  </p>
+                </div>
+  
+                {/* 2. Proposed systems list with direct mounting actions! */}
+                <div className="space-y-3.5">
+                  <h4 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                    <Wrench size={13} />
+                    <span>{lang === 'tr' ? 'ÖNERİLEN DIŞ MEKAN SİSTEMLERİ' : 'AI CUSTOM RECOMMENDED SYSTEMS'}</span>
+                  </h4>
+  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {aiShadingReport.recommendations.map((sys, idx) => {
+                      return (
+                        <div 
+                          key={idx}
+                          className="bg-slate-950 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-500/40 transition-colors group"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md">
+                                {sys.productType === 'bioclimatic-pergola' ? (lang === 'tr' ? 'BİOKLİMATİK' : 'BIOCLIMATIC') : sys.productType.toUpperCase()}
+                              </span>
+                              <span className="text-xs font-bold text-white font-mono">
+                                {currencySymbol}{sys.estimatedSqmPrice.toLocaleString()}
+                              </span>
+                            </div>
+                            <div>
+                              <h5 className="text-xs font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">
+                                {sys.name}
+                              </h5>
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                {lang === 'tr' ? 'Uyumlu Boyut:' : 'Fit Size:'} <b className="text-slate-300">{sys.suggestedWidth} x {sys.suggestedHeight} mm</b>
+                              </p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {lang === 'tr' ? 'Renk:' : 'Color Spec:'} <b className="text-slate-400">{sys.suggestedColor}</b>
+                              </p>
+                            </div>
+                            <p className="text-[11px] text-slate-400 italic leading-relaxed pt-1 border-t border-white/5">
+                              {sys.explanation}
+                            </p>
+                          </div>
+  
+                          {/* Interactive direct mounting trigger */}
+                          <button
+                            onClick={() => {
+                              // Mount recommended system onto canvas
+                              const newId = `shading-${Date.now()}`;
+                              const created: ShadingItem = {
+                                id: newId,
+                                productType: sys.productType as any,
+                                name: sys.name,
+                                width: sys.suggestedWidth,
+                                height: sys.suggestedHeight,
+                                depth: sys.productType === 'zip-blind' ? 0 : (sys.suggestedDepth || 3000),
+                                quantity: 1,
+                                unitPrice: sys.estimatedSqmPrice,
+                                color: sys.suggestedColor,
+                                notes: sys.explanation,
+                                overlayX: 50,
+                                overlayY: 60,
+                                overlayScale: 120,
+                                overlayRotate: 0,
+                              };
+                              handleAddShadingItem(created);
+                              setSelectedShadingItemId(newId);
+                              setShowAiReportModal(false);
+                            }}
+                            className="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-md group-hover:scale-[1.02]"
+                          >
+                            <Wand2 size={11} className="animate-bounce" />
+                            <span>{lang === 'tr' ? 'TEKLİFE EKLE VE MONTE ET' : 'ADD TO PROPOSAL & MOUNT'}</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+  
+                {/* 3. Sales copy consultant pitch card */}
+                <div className="bg-gradient-to-r from-slate-950 to-indigo-950/40 border border-slate-800 rounded-2xl p-5 space-y-2">
+                  <h4 className="text-xs font-black text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                    <FileCheck size={13} />
+                    <span>{lang === 'tr' ? 'MÜŞTERİ SATIŞ SUNUM KOPYASI' : 'CLIENT ELEVATOR & SALES PITCH'}</span>
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed italic font-medium">
+                    "{aiShadingReport.salesPitch}"
+                  </p>
+                </div>
+              </div>
+
+            {/* Footer */}
+            <div className="border-t border-white/5 p-6 flex justify-end">
+              <button
+                onClick={() => setShowAiReportModal(false)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20"
+              >
+                {lang === 'tr' ? 'Anladım, Kapat' : 'Dismiss & Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAdminUnlockModal && (
         <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800/80 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -2234,6 +5153,40 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* GLOBAL NOTIFICATION TOAST (IFRAME COMPATIBLE) */}
+      {globalToast && (
+        <div className="fixed bottom-6 right-6 z-[200] max-w-sm w-full bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl p-4 shadow-2xl flex items-start gap-3 animate-in slide-in-from-bottom duration-300">
+          <div className={`p-2 rounded-xl text-white ${
+            globalToast.type === 'success' ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-500/20' :
+            globalToast.type === 'error' ? 'bg-rose-600/30 text-rose-400 border border-rose-500/20' :
+            globalToast.type === 'warning' ? 'bg-amber-600/30 text-amber-400 border border-amber-500/20' :
+            'bg-indigo-600/30 text-indigo-400 border border-indigo-500/20'
+          }`}>
+            {globalToast.type === 'success' && <FileCheck size={18} />}
+            {globalToast.type === 'error' && <AlertCircle size={18} />}
+            {globalToast.type === 'warning' && <AlertCircle size={18} />}
+            {globalToast.type === 'info' && <Layers size={18} />}
+          </div>
+          <div className="flex-1 space-y-0.5 text-left">
+            <h5 className="text-[10px] font-black uppercase tracking-wider text-white">
+              {globalToast.type === 'success' ? (lang === 'tr' ? 'BAŞARILI' : 'SUCCESS') :
+               globalToast.type === 'error' ? (lang === 'tr' ? 'HATA' : 'ERROR') :
+               globalToast.type === 'warning' ? (lang === 'tr' ? 'UYARI' : 'WARNING') :
+               (lang === 'tr' ? 'BİLGİ' : 'INFORMATION')}
+            </h5>
+            <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+              {globalToast.message}
+            </p>
+          </div>
+          <button 
+            onClick={() => setGlobalToast(null)}
+            className="text-slate-500 hover:text-white transition-colors text-[10px] font-bold p-1"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

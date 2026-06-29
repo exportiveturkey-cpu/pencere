@@ -62,10 +62,10 @@ const Logo: React.FC<LogoProps> = ({ className = "w-10 h-10", showText = true, t
       {showText && (
         <div className="flex flex-col justify-center">
           <span className="font-bold text-xl tracking-tight leading-none" style={{ color: textColor }}>
-            Alu<span style={{ color: primaryColor }}>metric</span>
+            Vizyon<span style={{ color: primaryColor }}>Pergola</span>
           </span>
-          <span className="text-[9px] uppercase tracking-widest opacity-60 font-medium leading-none mt-1" style={{ color: textColor }}>
-            Engineering Suite
+          <span className="text-[9px] uppercase tracking-widest opacity-70 font-black leading-none mt-1" style={{ color: textColor }}>
+            Alumetric Engineering Suite
           </span>
         </div>
       )}

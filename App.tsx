@@ -77,6 +77,12 @@ const App: React.FC = () => {
   const [machines, setMachines] = useState<MachineConfig[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  
   const [companyName, setCompanyName] = useState<string>(() => sessionStorage.getItem('alumetric_company') || 'Unknown');
 
   const session = getSessionInfo();
@@ -182,13 +188,18 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (window.confirm(lang === 'tr' ? 'Bu projeyi tümüyle silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this project completely?')) {
-      setProjects(prev => prev.filter(p => p.id !== projectId));
-      setIsSyncing(true);
-      try { await cloud_deleteProject(session.key, projectId); } catch (e) {}
-      setIsSyncing(false);
-    }
+  const handleDeleteProject = (projectId: string) => {
+    setConfirmModal({
+      title: lang === 'tr' ? 'Projeyi Sil' : 'Delete Project',
+      message: lang === 'tr' ? 'Bu projeyi tümüyle silmek istediğinize emin misiniz? Bu işlem geri alınamaz.' : 'Are you sure you want to delete this project completely? This action cannot be undone.',
+      onConfirm: async () => {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        setIsSyncing(true);
+        try { await cloud_deleteProject(session.key, projectId); } catch (e) {}
+        setIsSyncing(false);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handleSaveUnit = async (unit: Unit) => {
@@ -211,23 +222,28 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteUnit = async (unitId: string) => {
+  const handleDeleteUnit = (unitId: string) => {
     if (!activeProjectId) return;
-    if (window.confirm(t(lang, 'deleteConfirm'))) {
-       let targetProject: Project | undefined;
-       setProjects(prevProjects => prevProjects.map(p => {
-        if (p.id === activeProjectId) {
-          targetProject = { ...p, units: p.units.filter(u => u.id !== unitId) };
-          return targetProject;
+    setConfirmModal({
+      title: lang === 'tr' ? 'Pozu Sil' : 'Delete Position',
+      message: lang === 'tr' ? 'Bu pozisyonu silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this position?',
+      onConfirm: async () => {
+        let targetProject: Project | undefined;
+        setProjects(prevProjects => prevProjects.map(p => {
+          if (p.id === activeProjectId) {
+            targetProject = { ...p, units: p.units.filter(u => u.id !== unitId) };
+            return targetProject;
+          }
+          return p;
+        }));
+        if (targetProject) {
+          setIsSyncing(true);
+          try { await cloud_saveProject(session.key, targetProject); } catch (e) {}
+          setIsSyncing(false);
         }
-        return p;
-      }));
-      if (targetProject) {
-        setIsSyncing(true);
-        try { await cloud_saveProject(session.key, targetProject); } catch (e) {}
-        setIsSyncing(false);
+        setConfirmModal(null);
       }
-    }
+    });
   };
   
   const handleAddSystem = async (newSystem: ProfileSystem) => {
@@ -325,12 +341,21 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
-  const handleDeleteCustomer = async (id: string) => {
-    const updated = customers.filter(c => c.id !== id);
-    setCustomers(updated);
-    setIsSyncing(true);
-    try { await cloud_saveCustomers(session.key, updated); } catch (e) {}
-    setIsSyncing(false);
+  const handleDeleteCustomer = (id: string) => {
+    const cust = customers.find(c => c.id === id);
+    const name = cust ? cust.name : '';
+    setConfirmModal({
+      title: lang === 'tr' ? 'Müşteriyi Sil' : 'Delete Customer',
+      message: lang === 'tr' ? `${name} isimli müşteriyi silmek istediğinizden emin misiniz?` : `Are you sure you want to delete customer ${name}?`,
+      onConfirm: async () => {
+        const updated = customers.filter(c => c.id !== id);
+        setCustomers(updated);
+        setIsSyncing(true);
+        try { await cloud_saveCustomers(session.key, updated); } catch (e) {}
+        setIsSyncing(false);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handleExportData = () => {
@@ -521,6 +546,42 @@ const App: React.FC = () => {
                 theme={theme}
                 onToggleTheme={toggleTheme}
             />
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="bg-rose-500/10 p-2.5 rounded-full text-rose-500 shrink-0 border border-rose-500/10">
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white leading-tight">
+                  {confirmModal.title}
+                </h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  {confirmModal.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-800/60 pt-4 mt-2">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl text-xs font-bold transition-all"
+              >
+                {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-rose-600/10"
+              >
+                {lang === 'tr' ? 'Evet, Sil' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

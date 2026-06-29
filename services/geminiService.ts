@@ -144,3 +144,66 @@ export const generateSalesPitch = async (project: {name: string, client: string}
     throw error;
   }
 };
+
+/**
+ * Performs architectural analysis of house facade and offers shading placements using Gemini via server API.
+ */
+export interface ShadingRecommendation {
+  productType: 'rolling-roof' | 'bioclimatic-pergola' | 'zip-blind' | 'awning' | 'guillotine' | 'glass-balcony';
+  name: string;
+  suggestedWidth: number;
+  suggestedHeight: number;
+  suggestedDepth?: number;
+  suggestedColor: string;
+  explanation: string;
+  estimatedSqmPrice: number;
+}
+
+export interface ShadingAnalysisResult {
+  architecturalReview: string;
+  recommendations: ShadingRecommendation[];
+  salesPitch: string;
+  suggestedPolygonPoints?: { x: number, y: number }[];
+}
+
+export const analyzeShadingImage = async (
+  base64Data: string, 
+  mimeType: string, 
+  lang: Language,
+  polygonPoints?: { x: number, y: number }[],
+  productType?: string,
+  color?: string,
+  notes?: string
+): Promise<ShadingAnalysisResult> => {
+  try {
+    const response = await fetch("/api/ai/analyze-shading", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base64Data, mimeType, lang, polygonPoints, productType, color, notes }),
+    });
+
+    if (!response.ok) {
+      let errorMsg = "Server error";
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        if (response.status === 413) {
+          errorMsg = lang === 'tr'
+            ? "Dosya boyutu çok büyük (Maksimum 4.5MB). Lütfen daha küçük bir dosya yükleyin."
+            : "File size too large (Vercel limit 4.5MB). Please upload a smaller file.";
+        } else {
+          errorMsg = `Server error (${response.status}): ${response.statusText}`;
+        }
+      }
+      throw new Error(errorMsg);
+    }
+
+    const data = await response.json();
+    const result: ShadingAnalysisResult = JSON.parse(data.text);
+    return result;
+  } catch (error: any) {
+    console.error("Shading vision analysis failed:", error);
+    throw error;
+  }
+};

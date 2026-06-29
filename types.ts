@@ -17,6 +17,7 @@ export interface Project {
   clientSignatureName?: string;
   clientSignatureDate?: string;
   clientSignatureData?: string;
+  shadingItems?: ShadingItem[];
 }
 
 export interface Accessory {
@@ -175,4 +176,26 @@ export interface CatalogProfileItem {
   type: 'frame' | 'sash' | 'mullion';
   nameTr: string;
   nameEn: string;
+}
+
+export interface ShadingItem {
+  id: string;
+  productType: 'rolling-roof' | 'bioclimatic-pergola' | 'zip-blind' | 'awning' | 'guillotine' | 'glass-balcony' | 'retractable-glass';
+  name: string;
+  modelStyle?: string;
+  width: number;       // in mm
+  height: number;      // in mm (or drop/projection/height)
+  depth?: number;      // in mm (projection depth for structures)
+  quantity: number;
+  unitPrice: number;    // set directly or based on m²
+  color: string;
+  notes?: string;
+  bgImageUrl?: string; // photo of house
+  overlayX?: number;   // X placement percentage of drawing on user image
+  overlayY?: number;   // Y placement percentage on user image
+  overlayScale?: number; // scale percent of drawing overlay (e.g. 1.0 = 100%)
+  overlayRotate?: number; // rotation in degrees
+  louverAngle?: number;
+  ledOn?: boolean;
+  extension?: number;
 }

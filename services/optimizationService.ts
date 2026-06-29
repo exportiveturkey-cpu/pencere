@@ -1,6 +1,6 @@
 
 import { Unit, ProfileSystem, WindowNode, GlassType, UnitShape, Accessory } from '../types';
-import { GLASS_TYPES, PROFILE_SYSTEMS, KURTOGLU_70T_CATALOG } from '../constants';
+import { GLASS_TYPES, PROFILE_SYSTEMS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 
 export interface OptimizedBar {
   barLength: number;
@@ -72,23 +72,27 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
   let mullionCode = system.profileCodes?.mullion;
   let mullionWeight = system.profileWeights?.mullion || 0;
 
-  if (system.id === 'kurt-70t-th') {
+  const catalogToUse = system.id === 'kurt-70t-th' 
+    ? KURTOGLU_70T_CATALOG 
+    : (system.id === 'kurt-51ls' ? KURTOGLU_51LS_CATALOG : null);
+
+  if (catalogToUse) {
     if (unit.selectedFrameProfile) {
-      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedFrameProfile);
+      const match = catalogToUse.find(c => c.code === unit.selectedFrameProfile);
       if (match) {
         frameCode = match.code;
         frameWeight = match.weight;
       }
     }
     if (unit.selectedSashProfile) {
-      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedSashProfile);
+      const match = catalogToUse.find(c => c.code === unit.selectedSashProfile);
       if (match) {
         sashCode = match.code;
         sashWeight = match.weight;
       }
     }
     if (unit.selectedMullionProfile) {
-      const match = KURTOGLU_70T_CATALOG.find(c => c.code === unit.selectedMullionProfile);
+      const match = catalogToUse.find(c => c.code === unit.selectedMullionProfile);
       if (match) {
         mullionCode = match.code;
         mullionWeight = match.weight;
