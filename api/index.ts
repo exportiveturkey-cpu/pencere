@@ -95,4 +95,119 @@ app.post("/api/ai/generate-pitch", async (req, res) => {
   }
 });
 
+// API Route: Analyze Shading
+app.post("/api/ai/analyze-shading", async (req, res) => {
+  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  try {
+    const { base64Data, mimeType, lang, polygonPoints, productType, color, notes } = req.body;
+
+    const imagePart = {
+      inlineData: {
+        mimeType: mimeType || "image/jpeg",
+        data: base64Data.split(',')[1] || base64Data,
+      },
+    };
+
+    const prompt = `
+      Perform an expert architectural and façade engineering analysis of this house facade or patio area for shading installation.
+      
+      User Selection Info (if any):
+      - Selected shading product type: ${productType || 'Any / None selected'}
+      - Selected color: ${color || 'Any / None selected'}
+      - User notes/request: ${notes || 'None'}
+      - Language: ${lang === 'tr' ? 'Turkish' : 'English'}
+
+      Please identify the architectural style, potential obstacles (windows, doors, gutters), and recommend suitable shading systems (like rolling-roof, bioclimatic-pergola, zip-blind, awning, guillotine, glass-balcony).
+      
+      Generate exactly 4 coordinates in percentage (%) for "suggestedPolygonPoints" (x from 0 to 100, y from 0 to 100) representing the 4 corners (top-left, top-right, bottom-right, bottom-left) of the main suggested shading system (e.g. pergola or awning) on the facade image, respecting the depth and perspective of the walls and ground. Place them nicely where a pergola/awning would naturally fit in the center or front yard/patio.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: { parts: [imagePart, { text: prompt }] },
+      config: {
+        systemInstruction: "You are an expert outdoor shading, pergola, and awning design system intelligence. Your task is to analyze the user's facade/patio image, suggest high-end architectural shading configurations, formulate professional sales pitches, and calculate perspective corners in % coordinates where the product can overlay perfectly.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            architecturalReview: {
+              type: Type.STRING,
+              description: "A professional design review of the facade layout, lighting, materials, and challenges in the requested language."
+            },
+            recommendations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  productType: {
+                    type: Type.STRING,
+                    description: "Must strictly be one of: 'rolling-roof', 'bioclimatic-pergola', 'zip-blind', 'awning', 'guillotine', 'glass-balcony'"
+                  },
+                  name: {
+                    type: Type.STRING,
+                    description: "Beautiful product line title in the requested language (e.g., 'Premium Bioclimatic Pergola')"
+                  },
+                  suggestedWidth: {
+                    type: Type.INTEGER,
+                    description: "Suggested width in millimeters (e.g., 4000)"
+                  },
+                  suggestedHeight: {
+                    type: Type.INTEGER,
+                    description: "Suggested height in millimeters (e.g., 2500)"
+                  },
+                  suggestedDepth: {
+                    type: Type.INTEGER,
+                    description: "Suggested depth in millimeters (e.g., 3000)"
+                  },
+                  suggestedColor: {
+                    type: Type.STRING,
+                    description: "Perfect color recommendation based on the facade color palette (e.g., 'RAL 7016 Anthracite Gray')"
+                  },
+                  explanation: {
+                    type: Type.STRING,
+                    description: "Explanation of why this product fits perfectly in the requested language."
+                  },
+                  estimatedSqmPrice: {
+                    type: Type.INTEGER,
+                    description: "Estimated base price per square meter in currency units."
+                  }
+                },
+                required: ["productType", "name", "suggestedWidth", "suggestedHeight", "suggestedColor", "explanation", "estimatedSqmPrice"]
+              }
+            },
+            salesPitch: {
+              type: Type.STRING,
+              description: "An elegant, highly compelling sales pitch for the client in the requested language, pointing out how this transforms their outdoor space and adds property value."
+            },
+            suggestedPolygonPoints: {
+              type: Type.ARRAY,
+              description: "Four polygon coordinate points in percent (0 to 100) representing top-left, top-right, bottom-right, bottom-left corners of the proposed system on the photo perspective.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  x: {
+                    type: Type.INTEGER,
+                    description: "X coordinate in % of image width (0 to 100)"
+                  },
+                  y: {
+                    type: Type.INTEGER,
+                    description: "Y coordinate in % of image height (0 to 100)"
+                  }
+                },
+                required: ["x", "y"]
+              }
+            }
+          },
+          required: ["architecturalReview", "recommendations", "salesPitch", "suggestedPolygonPoints"]
+        }
+      }
+    });
+
+    res.json({ text: response.text });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default app;

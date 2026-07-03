@@ -180,7 +180,7 @@ export interface CatalogProfileItem {
 
 export interface ShadingItem {
   id: string;
-  productType: 'rolling-roof' | 'bioclimatic-pergola' | 'zip-blind' | 'awning' | 'guillotine' | 'glass-balcony' | 'retractable-glass';
+  productType: string;
   name: string;
   modelStyle?: string;
   width: number;       // in mm
@@ -191,6 +191,7 @@ export interface ShadingItem {
   color: string;
   notes?: string;
   bgImageUrl?: string; // photo of house
+  imageUrl?: string;   // custom product/render image url from ShadeVision
   overlayX?: number;   // X placement percentage of drawing on user image
   overlayY?: number;   // Y placement percentage on user image
   overlayScale?: number; // scale percent of drawing overlay (e.g. 1.0 = 100%)

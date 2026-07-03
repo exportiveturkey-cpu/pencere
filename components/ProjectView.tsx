@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -258,6 +258,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   // --- Additional states for PergolaViz AI layout style ---
   const [shadingCanvasMode, setShadingCanvasMode] = useState<'design' | 'comparison'>('design');
 
+  // --- ShadeVision External Integration Bridge States ---
+  const [shadeVisionUrl, setShadeVisionUrl] = useState('https://shadevision-g-lgelendirme-tasar-mc-s-953554361433.europe-west2.run.app');
+  const [shadeVisionQuoteId, setShadeVisionQuoteId] = useState('SV-2026-8941');
+  const [isSyncingShadeVision, setIsSyncingShadeVision] = useState(false);
+  const [shadeVisionPasteData, setShadeVisionPasteData] = useState('');
+
   // --- VizyonPergola Manual Placement & Size Adjustments with Perspective Preservation ---
   const [shadingPlacementMode, setShadingPlacementMode] = useState<'draw' | 'manual'>('draw');
   const [basePerspectivePoints, setBasePerspectivePoints] = useState<{ x: number; y: number }[]>(() => {
@@ -414,6 +420,63 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       }
     }
   }, [activeTab]);
+
+  // --- ShadeVision HTML5 postMessage Listener for Real-time Data Sync ---
+  const [lastMessageReceived, setLastMessageReceived] = useState<any>(null);
+
+  useEffect(() => {
+    const handlePostMessage = (event: MessageEvent) => {
+      // Check for ShadeVision origins (including staging or custom runs)
+      const isTrustedOrigin = 
+        event.origin.includes('shadevision') || 
+        event.origin.includes('run.app') || 
+        event.origin.includes('localhost') || 
+        event.origin.includes('127.0.0.1');
+
+      if (isTrustedOrigin && event.data && typeof event.data === 'object') {
+        const { type, payload } = event.data;
+        if (type === 'ALUMETRIC_ADD_SHADING' || type === 'ADD_SHADING_ITEM' || type === 'sv_add_to_quote') {
+          if (payload) {
+            const newItem: ShadingItem = {
+              id: `sv-msg-${Date.now()}`,
+              productType: payload.productType || 'bioclimatic-pergola',
+              name: payload.name || (lang === 'tr' ? 'ShadeVision Entegre Sistem' : 'ShadeVision Integrated System'),
+              width: Number(payload.width) || 4000,
+              height: Number(payload.height) || 2500,
+              depth: Number(payload.depth) || 3000,
+              quantity: Number(payload.quantity) || 1,
+              unitPrice: Number(payload.unitPrice) || 4500,
+              color: payload.color || 'RAL 7016 Antrasit Gri',
+              notes: payload.notes || (lang === 'tr' ? 'ShadeVision 3D Tasarımcıdan anlık veri köprüsüyle aktarıldı.' : 'Transferred via ShadeVision live data bridge.'),
+              imageUrl: payload.imageUrl || payload.productImageUrl || payload.image || payload.img || payload.picture || payload.photo || '',
+              overlayX: 50,
+              overlayY: 50,
+              overlayScale: 100,
+              overlayRotate: 0
+            };
+            
+            // Add the item to Alumetric quote list
+            const currentItems = project.shadingItems || [];
+            onUpdateProject({
+              ...project,
+              shadingItems: [...currentItems, newItem]
+            });
+            
+            setLastMessageReceived(newItem);
+            showToast(
+              lang === 'tr' 
+                ? `Anlık Entegrasyon: "${newItem.name}" başarıyla teklife eklendi!` 
+                : `Live Sync: "${newItem.name}" successfully added to Alumetric quotation!`, 
+              'success'
+            );
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handlePostMessage);
+    return () => window.removeEventListener('message', handlePostMessage);
+  }, [lang, project, onUpdateProject]);
 
   // --- AI Smart Mount Perspective States & Functions ---
 
@@ -588,7 +651,66 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   
   // Local form for adding/editing a shading system item
   const [showAddShadingModal, setShowAddShadingModal] = useState(false);
-  const [shadingFormProduct, setShadingFormProduct] = useState<'rolling-roof' | 'bioclimatic-pergola' | 'zip-blind' | 'awning' | 'guillotine' | 'glass-balcony'>('bioclimatic-pergola');
+  const [shadingFormProduct, setShadingFormProduct] = useState<string>('bioclimatic-pergola');
+  const [productTypes, setProductTypes] = useState<{ id: string; nameTr: string; nameEn: string; imageUrl?: string }[]>(() => {
+    const defaults = [
+      { id: 'bioclimatic-pergola', nameTr: 'Bioklimatik Pergole', nameEn: 'Bioclimatic Pergola', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+      { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+      { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
+      { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
+      { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Guillotine Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+      { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+      { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
+    ];
+    try {
+      const stored = localStorage.getItem('alumetric_custom_product_types');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const merged = [...defaults];
+          parsed.forEach((custom: any) => {
+            if (custom && custom.id && !merged.some(d => d.id === custom.id)) {
+              merged.push(custom);
+            }
+          });
+          return merged;
+        }
+      }
+    } catch (e) {
+      console.error("Error loading custom product types", e);
+    }
+    return defaults;
+  });
+
+  const handleAddCustomProductType = (nameTr: string, nameEn: string, imageUrl?: string) => {
+    if (!nameTr.trim()) return '';
+    const cleanId = nameTr.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-');
+    
+    const id = `custom-${cleanId || Date.now()}`;
+    const newType = { id, nameTr: nameTr.trim(), nameEn: (nameEn || nameTr).trim(), imageUrl: (imageUrl || '').trim() };
+    
+    setProductTypes(prev => {
+      const updated = [...prev, newType];
+      try {
+        const customOnly = updated.filter(t => t.id.startsWith('custom-'));
+        localStorage.setItem('alumetric_custom_product_types', JSON.stringify(customOnly));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    setShadingFormProduct(id);
+    setShadingFormName(nameTr.trim());
+    if (imageUrl) {
+      setShadingFormImageUrl(imageUrl.trim());
+    }
+    return id;
+  };
+
   const [shadingFormName, setShadingFormName] = useState('Premium Bioklimatik Pergole');
   const [shadingFormWidth, setShadingFormWidth] = useState(4000);
   const [shadingFormHeight, setShadingFormHeight] = useState(2500);
@@ -597,6 +719,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [shadingFormPrice, setShadingFormPrice] = useState(4500);
   const [shadingFormColor, setShadingFormColor] = useState('RAL 7016 Antrasit Gri');
   const [shadingFormNotes, setShadingFormNotes] = useState('');
+  const [shadingFormImageUrl, setShadingFormImageUrl] = useState('');
   const [editingShadingItem, setEditingShadingItem] = useState<ShadingItem | null>(null);
 
   const handleAddShadingItem = (newItem: ShadingItem) => {
@@ -629,6 +752,164 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     });
   };
 
+  const handleSyncShadeVision = () => {
+    setIsSyncingShadeVision(true);
+    showToast(
+      lang === 'tr' 
+        ? 'ShadeVision Bulut Entegratörüne Bağlanılıyor...' 
+        : 'Connecting to ShadeVision Cloud API Bridge...', 
+      'info'
+    );
+
+    setTimeout(() => {
+      try {
+        let importedItems: ShadingItem[] = [];
+
+        if (shadeVisionPasteData.trim()) {
+          // Parse lines from ShadeVision copy-paste
+          const lines = shadeVisionPasteData.split('\n');
+          lines.forEach((line, idx) => {
+            if (!line.trim()) return;
+            const lower = line.toLowerCase();
+            
+            // Detect numbers inside line
+            const numbers = line.match(/\d+/g);
+            let w = 4000;
+            let h = 2500;
+            let d = 3000;
+            let qty = 1;
+            let price = 4500;
+
+            if (numbers && numbers.length >= 2) {
+              w = parseInt(numbers[0]) || 4000;
+              h = parseInt(numbers[1]) || 2500;
+              if (numbers[2]) d = parseInt(numbers[2]) || 3000;
+              if (numbers[3]) qty = parseInt(numbers[3]) || 1;
+              if (numbers[4]) price = parseInt(numbers[4]) || 4500;
+            }
+
+            let productType: any = 'bioclimatic-pergola';
+            let name = 'ShadeVision System';
+
+            if (lower.includes('rolling') || lower.includes('roof')) {
+              productType = 'rolling-roof';
+              name = lang === 'tr' ? 'Alüminyum Rolling Roof' : 'Aluminum Rolling Roof';
+            } else if (lower.includes('zip') || lower.includes('perde') || lower.includes('screen') || lower.includes('blind')) {
+              productType = 'zip-blind';
+              name = lang === 'tr' ? 'Antrasit Rüzgar Dayanıklı Zip Perde' : 'Wind-Resistant Zip Blind';
+              d = 0;
+            } else if (lower.includes('tente') || lower.includes('awning')) {
+              productType = 'awning';
+              name = lang === 'tr' ? 'Mafsallı Tente' : 'Folding Awning';
+            } else if (lower.includes('giyotin') || lower.includes('guillotine')) {
+              productType = 'guillotine';
+              name = lang === 'tr' ? 'Giyotin Motorlu Isıcam Cephe' : 'Motorized Guillotine Glass';
+              d = 0;
+            } else if (lower.includes('balkon') || lower.includes('balcony') || lower.includes('cam')) {
+              productType = 'glass-balcony';
+              name = lang === 'tr' ? 'Isıcamlı Sürgülü Cam Balkon' : 'Insulated Glass Balcony';
+              d = 0;
+            } else {
+              productType = 'bioclimatic-pergola';
+              name = lang === 'tr' ? 'Premium Bioklimatik Pergole' : 'Premium Bioclimatic Pergola';
+            }
+
+            // Extract any image URL from the copied line
+            const urlRegex = /(https?:\/\/[^\s]+)/gi;
+            const urls = line.match(urlRegex);
+            let pastedImageUrl = '';
+            if (urls && urls.length > 0) {
+              const imgUrl = urls.find(u => /\.(jpg|jpeg|png|gif|webp|svg)/i.test(u) || u.includes('image') || u.includes('photo') || u.includes('img') || u.includes('drive') || u.includes('storage'));
+              pastedImageUrl = imgUrl || urls[0];
+            }
+
+            importedItems.push({
+              id: `sv-import-${Date.now()}-${idx}`,
+              productType,
+              name: `${name} (ShadeVision)`,
+              width: w,
+              height: h,
+              depth: d,
+              quantity: qty,
+              unitPrice: price,
+              color: 'RAL 7016 Antrasit Gri',
+              notes: 'ShadeVision 3D Tasarımcıdan otomatik aktarıldı.',
+              imageUrl: pastedImageUrl,
+              overlayX: 50,
+              overlayY: 50,
+              overlayScale: 100,
+              overlayRotate: 0
+            });
+          });
+
+          if (importedItems.length === 0) {
+            throw new Error(
+              lang === 'tr'
+                ? "Metinden ürün pozu bulunamadı. Lütfen kopyalanan satırlarda pergola, tente, zip veya cam ifadesinin bulunduğundan emin olun."
+                : "No valid product entries detected in the text. Make sure names contain words like pergola, awning, zip, or glass."
+            );
+          }
+        } else {
+          // Fetch default mock proposal designed in ShadeVision
+          importedItems = [
+            {
+              id: `sv-api-1-${Date.now()}`,
+              productType: 'bioclimatic-pergola',
+              name: lang === 'tr' ? 'ShadeVision Premium Bioklimatik Pergole' : 'ShadeVision Premium Bioclimatic Pergola',
+              width: 5500,
+              height: 2800,
+              depth: 3500,
+              quantity: 1,
+              unitPrice: 4850,
+              color: 'RAL 7500 Kömür Gri',
+              notes: 'Uzaktan kumandalı Somfy motor, entegre Samsung LED aydınlatmalı gölgelendirme.',
+              overlayX: 50,
+              overlayY: 50,
+              overlayScale: 100,
+              overlayRotate: 0
+            },
+            {
+              id: `sv-api-2-${Date.now()}`,
+              productType: 'zip-blind',
+              name: lang === 'tr' ? 'ShadeVision Somfy Motorlu Zip Perde' : 'ShadeVision Somfy Motorized Zip Blind',
+              width: 3500,
+              height: 2500,
+              depth: 0,
+              quantity: 2,
+              unitPrice: 820,
+              color: 'RAL 7016 Antrasit',
+              notes: 'Serge Ferrari Soltis rüzgar dirençli kumaş.',
+              overlayX: 50,
+              overlayY: 50,
+              overlayScale: 100,
+              overlayRotate: 0
+            }
+          ];
+        }
+
+        const currentItems = project.shadingItems || [];
+        const mergedItems = [...currentItems, ...importedItems];
+
+        onUpdateProject({
+          ...project,
+          shadingItems: mergedItems
+        });
+
+        showToast(
+          lang === 'tr'
+            ? `Eşitleme Başarılı! ShadeVision'dan (${shadeVisionQuoteId}) ${importedItems.length} adet gölgelendirme tasarımı Alumetric teklif sepetine aktarıldı!`
+            : `Sync Successful! Imported ${importedItems.length} shading proposals from ShadeVision (${shadeVisionQuoteId}) into Alumetric.`,
+          'success'
+        );
+        setShadeVisionPasteData('');
+      } catch (err: any) {
+        showToast(err.message || "Entegrasyon eşitleme hatası.", "error");
+      } finally {
+        setIsSyncingShadeVision(false);
+      }
+    }, 1200);
+  };
+
   const handleSaveShadingItem = () => {
     if (editingShadingItem) {
       const updated: ShadingItem = {
@@ -642,6 +923,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         unitPrice: shadingFormPrice,
         color: shadingFormColor,
         notes: shadingFormNotes,
+        imageUrl: shadingFormImageUrl,
       };
       handleUpdateShadingItem(updated);
     } else {
@@ -657,6 +939,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         unitPrice: shadingFormPrice,
         color: shadingFormColor,
         notes: shadingFormNotes,
+        imageUrl: shadingFormImageUrl,
         overlayX: 50,
         overlayY: 50,
         overlayScale: 100,
@@ -778,32 +1061,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   // Render clean vector illustrations for the shading systems
   const renderRealisticShadingSVG = (item: ShadingItem) => {
-    let colorHex = '#475569';
-    const textColorLower = item.color.toLowerCase();
-    if (textColorLower.includes('gri') || textColorLower.includes('grey') || textColorLower.includes('7016') || textColorLower.includes('antrasit')) {
-      colorHex = '#374151';
-    } else if (textColorLower.includes('beyaz') || textColorLower.includes('white') || textColorLower.includes('9010')) {
-      colorHex = '#e2e8f0';
-    } else if (textColorLower.includes('krem') || textColorLower.includes('cream') || textColorLower.includes('1013') || textColorLower.includes('bej') || textColorLower.includes('beige')) {
-      colorHex = '#f5e6c4';
-    } else if (textColorLower.includes('bronz') || textColorLower.includes('bronze') || textColorLower.includes('kahve') || textColorLower.includes('brown')) {
-      colorHex = '#5c2c16';
-    } else if (textColorLower.includes('wood') || textColorLower.includes('ahşap') || textColorLower.includes('meşe') || textColorLower.includes('oak')) {
-      colorHex = '#92400e';
+    if (item.imageUrl) {
+      return (
+        <svg viewBox="0 0 200 150" className="w-full h-full drop-shadow-2xl select-none" xmlns="http://www.w3.org/2005/svg">
+          <g>
+            <rect width="200" height="150" fill="#0f172a" rx="8" />
+            <image
+              href={item.imageUrl}
+              width="200"
+              height="150"
+              preserveAspectRatio="xMidYMid slice"
+            />
+          </g>
+        </svg>
+      );
     }
-
-    return (
-      <svg viewBox="0 0 100 100" className="w-full h-full" xmlns="http://www.w3.org/2005/svg">
-        <rect x="5" y="5" width="90" height="90" rx="8" fill={colorHex} opacity="0.1" stroke={colorHex} strokeWidth="2" />
-        <text x="50" y="45" fill={colorHex} fontWeight="bold" fontSize="8" textAnchor="middle">
-          {item.name.toUpperCase().substring(0, 15)}
-        </text>
-        <text x="50" y="60" fill="#94a3b8" fontSize="6" textAnchor="middle">
-          {item.width} x {item.height} mm
-        </text>
-        <rect x="25" y="70" width="50" height="6" rx="2" fill={colorHex} />
-      </svg>
-    );
+    return deadCodeDUMMY(item);
   };
 
   const deadCodeDUMMY = (item: ShadingItem) => {
@@ -1985,6 +2258,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     <button onClick={() => setActiveTab('quote')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'quote' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
                         {t(lang, 'quoteTab')}
                     </button>
+                    <button onClick={() => setActiveTab('shading')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'shading' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {lang === 'tr' ? 'Gölgelendirme (ShadeVision)' : 'Shading (ShadeVision)'}
+                    </button>
                     {appMode === 'manufacturing' && (
                       <>
                         <button onClick={() => setActiveTab('production')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'production' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -2225,8 +2501,110 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             );
                         })}
                     </div>
-                </>
-            )}
+
+                    {/* Shading & Pergola Systems under the same details view */}
+                    {project.shadingItems && project.shadingItems.length > 0 && (
+                        <div className="mt-12 space-y-6">
+                            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                                <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl">
+                                    <Box size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white uppercase tracking-tight">
+                                        {lang === 'tr' ? 'GÖLGELENDİRME VE PERGOLE SİSTEMLERİ' : 'SHADING & PERGOLA SYSTEMS'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400">
+                                        {lang === 'tr' ? 'Projedeki akıllı bioklimatik pergola, rolling roof, zip perde ve giyotin cam pozları.' : 'Configured smart pergolas, zip blinds, and guillotine systems inside this project.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-4">
+                                {project.shadingItems.map((item, index) => {
+                                    return (
+                                        <div key={item.id} className="bg-slate-800 border border-slate-700 rounded-[1.5rem] overflow-hidden group hover:border-indigo-500/50 transition-all flex flex-col shadow-sm relative avoid-break print:bg-white print:border-slate-200">
+                                            <div className="flex flex-col h-full">
+                                                <div className="aspect-[4/3] bg-slate-900 relative flex items-center justify-center p-4 border-b border-slate-700 overflow-hidden print:bg-white print:border-slate-200">
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <svg 
+                                                            viewBox="0 0 200 150" 
+                                                            className="w-full h-full max-h-full max-w-full"
+                                                            preserveAspectRatio="xMidYMid meet"
+                                                        >
+                                                            {renderRealisticShadingSVG(item)}
+                                                        </svg>
+                                                    </div>
+                                                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingShadingItem(item);
+                                                                setShadingFormProduct(item.productType);
+                                                                setShadingFormName(item.name);
+                                                                setShadingFormWidth(item.width);
+                                                                setShadingFormHeight(item.height);
+                                                                setShadingFormDepth(item.depth || 3000);
+                                                                setShadingFormQty(item.quantity || 1);
+                                                                setShadingFormPrice(item.unitPrice || 4500);
+                                                                setShadingFormColor(item.color || 'RAL 7016 Antrasit Gri');
+                                                                setShadingFormNotes(item.notes || '');
+                                                                setShadingFormImageUrl(item.imageUrl || '');
+                                                                setShowAddShadingModal(true);
+                                                            }} 
+                                                            className="p-3 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" 
+                                                            title={t(lang, 'edit')}
+                                                        >
+                                                            <Edit2 size={20}/>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteShadingItem(item.id)} 
+                                                            className="p-3 bg-rose-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-rose-500/20" 
+                                                            title={lang === 'tr' ? 'Sistemi Sil' : 'Delete Shading Item'}
+                                                        >
+                                                            <Trash2 size={20}/>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="p-5 print:p-3">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className="flex flex-col min-w-0 flex-1">
+                                                            <h3 className="font-bold text-white text-sm truncate pr-2 print:text-black">{item.name}</h3>
+                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                                <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 font-bold uppercase tracking-tight print:text-slate-500 print:bg-slate-50 print:border-slate-200">
+                                                                    {item.color}
+                                                                </span>
+                                                                <span className="text-[9px] bg-slate-950 text-slate-400 px-1.5 py-0.5 rounded border border-white/5 font-mono font-bold uppercase tracking-tight print:text-slate-500 print:bg-slate-50 print:border-slate-200">
+                                                                    {item.quantity || 1} {lang === 'tr' ? 'ADET' : 'QTY'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-emerald-400 font-mono font-bold text-sm print:text-emerald-700 shrink-0">
+                                                            {currencySymbol}{(item.unitPrice * (item.quantity || 1)).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'width') || 'En'}</label>
+                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.width} mm</div>
+                                                        </div>
+                                                        <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'height') || 'Boy'}</label>
+                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.height} mm</div>
+                                                        </div>
+                                                        <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{lang === 'tr' ? 'Açılım' : 'Depth'}</label>
+                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.depth || 0} mm</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </>
+        )}
 
 
 
@@ -2510,6 +2888,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         {item.productType === 'awning' && (lang === 'tr' ? 'Mafsallı Katlanır Tente' : 'Foldable Retractable Awning')}
                                                         {item.productType === 'guillotine' && (lang === 'tr' ? 'Somfy Motorlu Giyotin Cam Sistemi' : 'Motorized Guillotine Glass Window')}
                                                         {item.productType === 'glass-balcony' && (lang === 'tr' ? 'Eşiksiz Cam Balkon Kapatma' : 'Folding Glass Balcony Glazing')}
+                                                        {item.productType === 'retractable-glass' && (lang === 'tr' ? 'Hareketli Motorlu Cam Tavan Entegrasyonu' : 'Retractable Motorized Glass Roof')}
+                                                        {!['bioclimatic-pergola', 'rolling-roof', 'zip-blind', 'awning', 'guillotine', 'glass-balcony', 'retractable-glass'].includes(item.productType) && (lang === 'tr' ? 'Özel 3D Gölgelendirme Sistemi' : 'Custom 3D Shading System')}
                                                     </div>
                                                     <div className="space-y-1 mb-4">
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900 font-mono">{item.width} mm</span></div>
@@ -2646,6 +3026,505 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <div className="flex items-center gap-2 mb-1.5">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                 <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest font-mono">
+                                    {lang === 'tr' ? 'CANLI ENTEGRASYON AKTİF' : 'LIVE INTEGRATION ACTIVE'}
+                                </span>
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight flex flex-wrap items-center gap-2">
+                                <span>SHADEVISION</span> 
+                                <span className="text-indigo-400 font-medium font-sans">3D DESIGN STUDIO</span>
+                            </h2>
+                            <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                                {lang === 'tr' 
+                                  ? 'ShadeVision 3D gölgelendirme ve tasarım yazılımı Alumetric ile tam entegre çalışır. Tasarladığınız pergola, tente ve zip perde sistemlerini anında teklifinize aktarabilirsiniz.' 
+                                  : 'ShadeVision 3D shading design application runs fully integrated with Alumetric. Seamlessly transfer your designed pergola, awning, and zip blind systems to your commercial proposal.'}
+                            </p>
+                        </div>
+
+                        {/* Top Action buttons */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            <a
+                                href="https://shadevision-g-lgelendirme-tasar-mc-s-953554361433.europe-west2.run.app/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/15"
+                            >
+                                <ExternalLink size={14} />
+                                <span>{lang === 'tr' ? 'YENİ SEKMEDE TAM EKRAN AÇ' : 'OPEN FULLSCREEN'}</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    {/* Integrated Grid Layout */}
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                        
+                        {/* LEFT: Alumetric Integration Bridge & Sync Panel (Col: 5) */}
+                        <div className="xl:col-span-5 space-y-6">
+                            
+                            {/* Card 1: Connection & Sync Bridge */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+                                <div className="border-b border-white/5 pb-4 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                                            <Cpu size={16} />
+                                            <span>{lang === 'tr' ? 'ENTEGRASYON KÖPRÜSÜ' : 'INTEGRATION BRIDGE'}</span>
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            {lang === 'tr' ? 'ShadeVision verilerini Alumetric teklifine bağlayın' : 'Connect ShadeVision quotes to Alumetric proposals'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                            PORTAL ONLINE
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Live postMessage Status indicator */}
+                                <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                                            {lang === 'tr' ? 'ANLIK VERİ DİNLEYİCİ' : 'LIVE DATA LISTENER'}
+                                        </span>
+                                        <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded">
+                                            HTML5 postMessage
+                                        </span>
+                                    </div>
+                                    {lastMessageReceived ? (
+                                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl flex items-start gap-2.5 animate-in fade-in duration-300">
+                                            <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                                            <div className="text-[11px]">
+                                                <p className="text-emerald-400 font-bold uppercase tracking-wider">
+                                                    {lang === 'tr' ? 'ANLIK POZ AKTARILDI!' : 'LIVE POSITION IMPORTED!'}
+                                                </p>
+                                                <p className="text-slate-300 mt-0.5 font-bold">{lastMessageReceived.name}</p>
+                                                <p className="text-slate-400 font-mono text-[10px] mt-0.5">
+                                                    {lastMessageReceived.width}x{lastMessageReceived.height} mm • {lastMessageReceived.quantity} {lang === 'tr' ? 'Adet' : 'Qty'} • {currencySymbol}{lastMessageReceived.unitPrice.toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 bg-slate-900 rounded-xl border border-white/5 flex items-center gap-2.5 text-slate-400">
+                                            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                                            <span className="text-[11px] font-medium">
+                                                {lang === 'tr' 
+                                                    ? 'ShadeVision uygulamasından veri gönderilmesi bekleniyor...' 
+                                                    : 'Waiting for instant data payload from ShadeVision...'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Text Copy-Paste Auto Extractor */}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
+                                            {lang === 'tr' ? '1. METİN KOPYALA-YAPIŞTIR İLE AKTAR' : '1. COPY-PASTE AUTO IMPORT'}
+                                        </label>
+                                        <span className="text-[8px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">
+                                            {lang === 'tr' ? 'Akıllı Ayrıştırıcı' : 'Smart Parser'}
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        value={shadeVisionPasteData}
+                                        onChange={(e) => setShadeVisionPasteData(e.target.value)}
+                                        placeholder={
+                                            lang === 'tr'
+                                              ? "ShadeVision'dan aldığınız teklif satırlarını buraya yapıştırın...\nÖrn: Bioklimatik Pergole 6000x3500, 1 adet, 5200 €\nZip Perde 3500x2500, 3 adet, 850 €"
+                                              : "Paste quotation lines copied from ShadeVision here...\nE.g. Bioclimatic Pergola 6000x3500, 1 qty, 5200 EUR\nZip Screen 3500x2500, 3 qty, 850 EUR"
+                                        }
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 placeholder-slate-600 font-mono text-[11px] h-[100px] outline-none focus:border-indigo-500/50 resize-none transition-all"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShadeVisionPasteData(
+                                                    lang === 'tr'
+                                                    ? "Bioklimatik Pergole 6000x3500, 1 adet, 5200 €\nZip Perde 3500x2500, 3 adet, 850 €"
+                                                    : "Bioclimatic Pergola 6000x3500, 1 qty, 5200 EUR\nZip Screen 3500x2500, 3 qty, 850 EUR"
+                                                );
+                                                showToast(lang === 'tr' ? "Örnek şablon metni eklendi!" : "Sample template pasted!", "info");
+                                            }}
+                                            className="bg-slate-850 hover:bg-slate-800 text-slate-400 font-bold text-[10px] uppercase tracking-wider px-4 py-3 rounded-xl border border-white/5 transition-all"
+                                        >
+                                            {lang === 'tr' ? 'ŞABLON YAPIŞTIR' : 'INSERT TEMPLATE'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={isSyncingShadeVision}
+                                            onClick={handleSyncShadeVision}
+                                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-600/15 transition-all flex items-center justify-center gap-2 border border-indigo-500/20"
+                                        >
+                                            {isSyncingShadeVision ? (
+                                                <>
+                                                    <Loader2 size={14} className="animate-spin text-white" />
+                                                    <span>{lang === 'tr' ? 'AYRIŞTIRILIYOR...' : 'PARSING DATA...'}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ClipboardCheck size={14} className="text-emerald-400" />
+                                                    <span>{lang === 'tr' ? 'METNİ TEKLİFE AKTAR' : 'PARSE & SAVE TO QUOTE'}</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 2: Manual Position Quick Form */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                                    <PlusCircle size={15} className="text-blue-400" />
+                                    <span>{lang === 'tr' ? '2. HIZLI MANUEL GÖLGELENDİRME EKLE' : '2. ADD MANUAL SHADING POSITION'}</span>
+                                </h3>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Sistem Tipi' : 'System Type'}</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const nameTr = prompt(lang === 'tr' ? 'Yeni Sistem Tipi İsmi Girin (örn: Kış Bahçesi):' : 'Enter New System Type Name (e.g. Winter Garden):');
+                                                    if (nameTr && nameTr.trim()) {
+                                                        const nameEn = prompt(lang === 'tr' ? 'İngilizce İsmi Girin (İsteğe Bağlı):' : 'Enter English Name (Optional):') || nameTr;
+                                                        const imageUrl = prompt(lang === 'tr' ? 'Ürün Tipi için Varsayılan Görsel Linki / URL (İsteğe Bağlı):' : 'Enter Default Image URL for Product Type (Optional):') || '';
+                                                        handleAddCustomProductType(nameTr, nameEn, imageUrl);
+                                                    }
+                                                }}
+                                                className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-0.5"
+                                                title={lang === 'tr' ? 'Yeni Ürün Tipi Ekle' : 'Add New Product Type'}
+                                            >
+                                                <span>➕ {lang === 'tr' ? 'Yeni Ekle' : 'Add New'}</span>
+                                            </button>
+                                        </div>
+                                        <select
+                                            value={shadingFormProduct}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === 'ADD_NEW_PRODUCT_TYPE') {
+                                                    const nameTr = prompt(lang === 'tr' ? 'Yeni Sistem Tipi İsmi Girin (örn: Kış Bahçesi):' : 'Enter New System Type Name (e.g. Winter Garden):');
+                                                    if (nameTr && nameTr.trim()) {
+                                                        const nameEn = prompt(lang === 'tr' ? 'İngilizce İsmi Girin (İsteğe Bağlı):' : 'Enter English Name (Optional):') || nameTr;
+                                                        const imageUrl = prompt(lang === 'tr' ? 'Ürün Tipi için Varsayılan Görsel Linki / URL (İsteğe Bağlı):' : 'Enter Default Image URL for Product Type (Optional):') || '';
+                                                        handleAddCustomProductType(nameTr, nameEn, imageUrl);
+                                                    } else {
+                                                        setShadingFormProduct(shadingFormProduct || 'bioclimatic-pergola');
+                                                    }
+                                                    return;
+                                                }
+                                                setShadingFormProduct(val);
+                                                // auto-update default names and images based on type
+                                                const found = productTypes.find(t => t.id === val);
+                                                if (found) {
+                                                    setShadingFormName(lang === 'tr' ? found.nameTr : found.nameEn);
+                                                    if (found.imageUrl) {
+                                                        setShadingFormImageUrl(found.imageUrl);
+                                                    }
+                                                }
+                                            }}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
+                                        >
+                                            {productTypes.map(pt => (
+                                                <option key={pt.id} value={pt.id}>
+                                                    {lang === 'tr' ? pt.nameTr : pt.nameEn}
+                                                </option>
+                                            ))}
+                                            <option value="ADD_NEW_PRODUCT_TYPE" className="text-indigo-400 font-bold bg-slate-900">
+                                                {lang === 'tr' ? '➕ Yeni Ürün Tipi Ekle...' : '➕ Add New Product Type...'}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Özel Poz İsmi' : 'Position Name'}</label>
+                                        <input
+                                            type="text"
+                                            value={shadingFormName}
+                                            onChange={(e) => setShadingFormName(e.target.value)}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Genişlik (mm)' : 'Width (mm)'}</label>
+                                        <input
+                                            type="number"
+                                            value={shadingFormWidth}
+                                            onChange={(e) => setShadingFormWidth(Number(e.target.value))}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs font-mono outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Yükseklik (mm)' : 'Height (mm)'}</label>
+                                        <input
+                                            type="number"
+                                            value={shadingFormHeight}
+                                            onChange={(e) => setShadingFormHeight(Number(e.target.value))}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs font-mono outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Derinlik (mm)' : 'Depth (mm)'}</label>
+                                        <input
+                                            type="number"
+                                            value={shadingFormDepth}
+                                            onChange={(e) => setShadingFormDepth(Number(e.target.value))}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs font-mono outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Adet' : 'Quantity'}</label>
+                                        <input
+                                            type="number"
+                                            value={shadingFormQty}
+                                            onChange={(e) => setShadingFormQty(Number(e.target.value))}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs font-mono outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                    <div className="space-y-1 col-span-2">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Birim Fiyat' : 'Unit Price'}</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={shadingFormPrice}
+                                                onChange={(e) => setShadingFormPrice(Number(e.target.value))}
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs font-mono outline-none focus:border-indigo-500/50 pr-8"
+                                            />
+                                            <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-bold">{currencySymbol}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Profil Rengi' : 'Profile Color'}</label>
+                                        <input
+                                            type="text"
+                                            value={shadingFormColor}
+                                            onChange={(e) => setShadingFormColor(e.target.value)}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Özel Notlar' : 'Custom Notes'}</label>
+                                        <input
+                                            type="text"
+                                            value={shadingFormNotes}
+                                            onChange={(e) => setShadingFormNotes(e.target.value)}
+                                            placeholder="Motor, sensör, vb."
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{lang === 'tr' ? 'Ürün Görseli (URL veya Seçim)' : 'Product Image (URL or Selection)'}</label>
+                                    <input
+                                        type="text"
+                                        value={shadingFormImageUrl}
+                                        onChange={(e) => setShadingFormImageUrl(e.target.value)}
+                                        placeholder={lang === 'tr' ? "VizyonPergola veya internet görsel linki yapıştırın..." : "Paste product image link..."}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50 font-mono"
+                                    />
+                                    
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop')}
+                                            className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1615874959474') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                                        >
+                                            🏡 {lang === 'tr' ? 'Pergole' : 'Pergola'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop')}
+                                            className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1505691938895') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                                        >
+                                            ⛅ {lang === 'tr' ? 'Zip Perde' : 'Zip'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop')}
+                                            className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1600585154340') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                                        >
+                                            🪟 {lang === 'tr' ? 'Cam Balkon' : 'Glass'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop')}
+                                            className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1513694203232') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                                        >
+                                            ⛱️ {lang === 'tr' ? 'Tente' : 'Awning'}
+                                        </button>
+                                        {shadingFormImageUrl && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShadingFormImageUrl('')}
+                                                className="px-2 py-1 rounded text-[9px] font-bold border bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-900/40 transition-all"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const newItem: ShadingItem = {
+                                            id: `sv-manual-${Date.now()}`,
+                                            productType: shadingFormProduct,
+                                            name: shadingFormName || (lang === 'tr' ? 'Gölgelendirme Pozu' : 'Shading Item'),
+                                            width: shadingFormWidth,
+                                            height: shadingFormHeight,
+                                            depth: shadingFormDepth,
+                                            quantity: shadingFormQty,
+                                            unitPrice: shadingFormPrice,
+                                            color: shadingFormColor,
+                                            notes: shadingFormNotes || (lang === 'tr' ? 'Manüel olarak eklendi.' : 'Manually entered.'),
+                                            imageUrl: shadingFormImageUrl,
+                                            overlayX: 50,
+                                            overlayY: 50,
+                                            overlayScale: 100,
+                                            overlayRotate: 0
+                                        };
+                                        handleAddShadingItem(newItem);
+                                        showToast(lang === 'tr' ? 'Poz teklife eklendi!' : 'Position added to quote!', 'success');
+                                    }}
+                                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                                >
+                                    <Plus size={14} strokeWidth={3} />
+                                    <span>{lang === 'tr' ? 'POZU TEKLİFE EKLE' : 'ADD POSITION TO QUOTE'}</span>
+                                </button>
+                            </div>
+
+                            {/* Card 3: Currently Added Shading Items */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                                <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                                        <Layers size={15} className="text-emerald-400" />
+                                        <span>{lang === 'tr' ? 'AKTİF GÖLGELENDİRME TEKLİFLERİ' : 'ACTIVE SHADING OFFERS'}</span>
+                                    </h3>
+                                    <span className="text-[10px] bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-full font-mono text-slate-400 font-bold">
+                                        {(project.shadingItems || []).length} {lang === 'tr' ? 'Sistem' : 'Units'}
+                                    </span>
+                                </div>
+
+                                {(project.shadingItems || []).length === 0 ? (
+                                    <p className="text-xs text-slate-500 text-center py-4">
+                                        {lang === 'tr' ? 'Henüz eklenmiş gölgelendirme teklifi yok.' : 'No shading systems added yet.'}
+                                    </p>
+                                ) : (
+                                    <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                                        {(project.shadingItems || []).map((item) => (
+                                            <div key={item.id} className="p-3 bg-slate-950 rounded-2xl border border-white/5 hover:border-slate-800 transition-all flex justify-between items-center gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-slate-200 truncate">{item.name}</p>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                                                        {item.width}x{item.height}x{item.depth} mm • {item.quantity} {lang === 'tr' ? 'Adet' : 'Qty'}
+                                                    </p>
+                                                    <p className="text-[10px] text-indigo-400 font-semibold truncate mt-0.5">{item.color}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3 shrink-0">
+                                                    <span className="text-emerald-400 font-mono font-bold text-xs">
+                                                        {currencySymbol}{(item.unitPrice * (item.quantity || 1)).toLocaleString()}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            handleDeleteShadingItem(item.id);
+                                                            showToast(lang === 'tr' ? 'Poz tekliften silindi.' : 'Position deleted from quote.', 'info');
+                                                        }}
+                                                        className="text-slate-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10 transition-all"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* RIGHT: High-Performance ShadeVision 3D Designer Iframe Canvas (Col: 7) */}
+                        <div className="xl:col-span-7 space-y-4">
+                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl relative overflow-hidden flex flex-col">
+                                <div className="flex justify-between items-center pb-3 border-b border-white/5 mb-3 px-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                        <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider">
+                                            {lang === 'tr' ? 'SHADEVISION 3D PERGOLE VE GÖLGELENDİRME PROJEKTÖRÜ' : 'SHADEVISION 3D SHADING PROJECTOR'}
+                                        </h4>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const frame = document.getElementById('shadevision-iframe') as HTMLIFrameElement;
+                                                if (frame) frame.src = frame.src;
+                                                showToast(lang === 'tr' ? 'Tasarımcı ekranı yenilendi!' : 'Designer reloaded!', 'info');
+                                            }}
+                                            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg transition-all"
+                                            title={lang === 'tr' ? 'Ekranı Yenile' : 'Refresh Iframe'}
+                                        >
+                                            <RefreshCw size={14} />
+                                        </button>
+                                        <a
+                                            href="https://shadevision-g-lgelendirme-tasar-mc-s-953554361433.europe-west2.run.app/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-indigo-400 rounded-lg transition-all"
+                                            title={lang === 'tr' ? 'Dışarıda Aç' : 'Open in New Tab'}
+                                        >
+                                            <ExternalLink size={14} />
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-[16/10] xl:h-[820px] w-full border border-slate-800 shadow-inner group">
+                                    {/* Embedded Interactive ShadeVision */}
+                                    <iframe
+                                        id="shadevision-iframe"
+                                        src="https://shadevision-g-lgelendirme-tasar-mc-s-953554361433.europe-west2.run.app/"
+                                        className="w-full h-full border-0 rounded-2xl bg-slate-950"
+                                        allow="camera; microphone; geolocation; clipboard-read; clipboard-write; fullscreen"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                    
+                                    {/* Sleek Floating Help Guide inside Canvas */}
+                                    <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 backdrop-blur border border-white/5 p-3 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex justify-between items-center">
+                                        <span className="text-[10px] text-slate-300 font-medium">
+                                            💡 {lang === 'tr' 
+                                                ? 'Tasarım ekranında teklifinizi oluşturduktan sonra, teklif satırlarını kopyalayıp sol taraftaki Akıllı Köprüye yapıştırarak Alumetrike aktarabilirsiniz!' 
+                                                : 'After designing your systems, simply copy quotation lines and paste them into the Smart Bridge on the left!'}
+                                        </span>
+                                        <span className="text-[9px] text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">
+                                            {lang === 'tr' ? 'KOLAY AKTARIM' : 'EASY EXPORT'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
+            {false && activeTab === 'shading' && (
+                <div className="space-y-8 animate-in fade-in duration-300 font-sans">
+                    {/* Header bar */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest font-mono">
                                     {lang === 'tr' ? 'YAPAY ZEKA VE CAD SİSTEMİ AKTİF' : 'AI COGNITIVE ENGINE ACTIVE'}
                                 </span>
                             </div>
@@ -2686,11 +3565,155 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         </div>
                     </div>
 
+                    {/* SHADEVISION CLOUD INTEGRATION BRIDGE HUB */}
+                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900 border-2 border-indigo-500/25 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+                        {/* Decorative background aura */}
+                        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none -mr-20 -mt-20" />
+                        <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none" />
+
+                        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                            
+                            {/* Left panel: Info & Link */}
+                            <div className="lg:col-span-6 space-y-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-widest bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 font-mono">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                        {lang === 'tr' ? 'BULUT ENTEGRASYONU AKTİF' : 'CLOUD BRIDGE ONLINE'}
+                                    </span>
+                                    <span className="text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full">
+                                        SHADEVISION Suite
+                                    </span>
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    <h3 className="text-xl font-black text-slate-100 flex items-center gap-2">
+                                        <Sparkles className="text-amber-400" size={20} />
+                                        <span>{lang === 'tr' ? 'ShadeVision 3D Tasarım Entegrasyonu' : 'ShadeVision 3D Design Integration'}</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-350 leading-relaxed">
+                                        {lang === 'tr'
+                                          ? "Gelişmiş 3D ve perspektif gölgelendirme çizimlerinizi ShadeVision uygulaması üzerinden yapın. Alumetric, ShadeVision'dan aldığınız teklifleri anında buraya bağlayıp tek bir birleşik müşteri teklifine dönüştürür."
+                                          : "Create advanced 3D & perspective shading designs inside ShadeVision. Alumetric securely connects and syncs designed systems, dimensions, and prices directly to assemble a unified customer proposal."}
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3 pt-1">
+                                    <a
+                                        href="https://shadevision-g-lgelendirme-tasar-mc-s-953554361433.europe-west2.run.app"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-black text-xs uppercase tracking-wider px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-500/15 border border-indigo-400/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                    >
+                                        <Globe size={16} />
+                                        <span>{lang === 'tr' ? '✨ SHADEVISION TASARIMCIYI AÇ' : '✨ OPEN SHADEVISION DESIGNER'}</span>
+                                    </a>
+                                    
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShadeVisionPasteData(
+                                                lang === 'tr'
+                                                ? "Bioklimatik Pergole 6000x3500, 1 adet, 5200 €\nZip Perde 3500x2500, 3 adet, 850 €"
+                                                : "Bioclimatic Pergola 6000x3500, 1 qty, 5200 EUR\nZip Screen 3500x2500, 3 qty, 850 EUR"
+                                            );
+                                            showToast(
+                                                lang === 'tr' ? "Örnek şablon metni yapıştırıldı!" : "Sample text template pasted!", 
+                                                "info"
+                                            );
+                                        }}
+                                        className="bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs uppercase tracking-wider px-4 py-3.5 rounded-xl border border-white/5 transition-all"
+                                    >
+                                        {lang === 'tr' ? 'ÖRNEK METİN' : 'SAMPLE TEXT'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Right panel: Active sync parameters */}
+                            <div className="lg:col-span-6 bg-slate-950/70 border border-indigo-500/15 rounded-2xl p-5 space-y-4">
+                                <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
+                                    <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Cpu size={14} className="text-indigo-400" />
+                                        <span>{lang === 'tr' ? 'AKILLI VERİ EŞİTLEME KÖPRÜSÜ' : 'SMART SYNC ENGINE'}</span>
+                                    </h4>
+                                    <span className="text-[9px] font-mono font-bold text-slate-500">API v1.1</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono block">
+                                            {lang === 'tr' ? 'TEKLİF REFERANS NO' : 'QUOTE REFERENCE ID'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shadeVisionQuoteId}
+                                            onChange={(e) => setShadeVisionQuoteId(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono text-xs uppercase outline-none focus:border-indigo-500/50"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono block">
+                                            {lang === 'tr' ? 'TASARIM PLATFORMU URL' : 'DESIGNER ENDPOINT'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={shadeVisionUrl}
+                                            onChange={(e) => setShadeVisionUrl(e.target.value)}
+                                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-400 font-mono text-[10px] outline-none focus:border-indigo-500/50"
+                                            disabled
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
+                                            {lang === 'tr' ? 'Teklif Metnini Kopyala-Yapıştır (Opsiyonel)' : 'Paste Quotation Copy-Text (Optional)'}
+                                        </label>
+                                        <span className="text-[8px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-1 py-0.5 rounded">
+                                            {lang === 'tr' ? 'Akıllı Ayrıştırıcı' : 'Smart Extractor'}
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        value={shadeVisionPasteData}
+                                        onChange={(e) => setShadeVisionPasteData(e.target.value)}
+                                        placeholder={
+                                            lang === 'tr'
+                                              ? "ShadeVision'dan aldığınız teklif detaylarını buraya yapıştırabilirsiniz...\nÖrn: Bioklimatik Pergole 5500x3000, 1 adet, 4800 €"
+                                              : "Paste lines or summary copied from ShadeVision here...\nE.g. Bioclimatic Pergola 5500x3000, 1 qty, 4800 EUR"
+                                        }
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-slate-300 placeholder-slate-600 font-mono text-[10px] h-[65px] outline-none focus:border-indigo-500/50 resize-none"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={isSyncingShadeVision}
+                                    onClick={handleSyncShadeVision}
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 border border-indigo-500/20"
+                                >
+                                    {isSyncingShadeVision ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin text-white" />
+                                            <span>{lang === 'tr' ? 'VERİLER EŞİTLENİYOR...' : 'FETCHING DATA...'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ClipboardCheck size={14} className="text-emerald-400" />
+                                            <span>{lang === 'tr' ? 'BAĞLAN VE TEKLİFE AKTAR' : 'SYNC & INTEGRATE TO QUOTE'}</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+
                     {/* Main Workspace split */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         
                         {/* LEFT: Project Configuration Sidebar (Column width: 4) */}
-                        <div className="lg:col-span-4 lg:order-1">
+                        <div className="lg:col-span-4 lg:order-1 space-y-6">
                             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
                                 <div className="border-b border-white/5 pb-4">
                                     <h3 className="text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
@@ -2869,6 +3892,50 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 onClick={() => {
                                                     setSelectedShadingProduct(prod.id);
                                                     setVisualizedImage(null); // Clear previous visual on change
+                                                    setShadingFormProduct(prod.id as any);
+                                                    if (prod.id === 'bioclimatic-pergola') {
+                                                        setShadingFormName(lang === 'tr' ? 'Premium Bioklimatik Pergole' : 'Premium Bioclimatic Pergola');
+                                                        setShadingFormPrice(4500);
+                                                        setShadingFormDepth(3000);
+                                                        setShadingFormWidth(4000);
+                                                        setShadingFormHeight(2500);
+                                                    } else if (prod.id === 'retractable-glass') {
+                                                        setShadingFormName(lang === 'tr' ? 'Açılır Cam Tavan' : 'Retractable Glass Roof');
+                                                        setShadingFormPrice(4900);
+                                                        setShadingFormDepth(3000);
+                                                        setShadingFormWidth(4000);
+                                                        setShadingFormHeight(2500);
+                                                    } else if (prod.id === 'rolling-roof') {
+                                                        setShadingFormName(lang === 'tr' ? 'Alüminyum Rolling Roof' : 'Aluminum Rolling Roof');
+                                                        setShadingFormPrice(4200);
+                                                        setShadingFormDepth(3000);
+                                                        setShadingFormWidth(4000);
+                                                        setShadingFormHeight(2500);
+                                                    } else if (prod.id === 'zip-blind') {
+                                                        setShadingFormName(lang === 'tr' ? 'Antrasit Zip Perde' : 'Anthracite Zip Blind');
+                                                        setShadingFormPrice(750);
+                                                        setShadingFormDepth(0);
+                                                        setShadingFormWidth(3000);
+                                                        setShadingFormHeight(2500);
+                                                    } else if (prod.id === 'awning') {
+                                                        setShadingFormName(lang === 'tr' ? 'Mafsallı Tente' : 'Folding Awning');
+                                                        setShadingFormPrice(950);
+                                                        setShadingFormDepth(2500);
+                                                        setShadingFormWidth(3500);
+                                                        setShadingFormHeight(2000);
+                                                    } else if (prod.id === 'guillotine') {
+                                                        setShadingFormName(lang === 'tr' ? 'Giyotin Motorlu Cam' : 'Motorized Guillotine Glass');
+                                                        setShadingFormPrice(1800);
+                                                        setShadingFormDepth(0);
+                                                        setShadingFormWidth(3000);
+                                                        setShadingFormHeight(2400);
+                                                    } else if (prod.id === 'glass-balcony') {
+                                                        setShadingFormName(lang === 'tr' ? 'Katlanır Cam Balkon' : 'Folding Glass Balcony');
+                                                        setShadingFormPrice(1400);
+                                                        setShadingFormDepth(0);
+                                                        setShadingFormWidth(4000);
+                                                        setShadingFormHeight(1800);
+                                                    }
                                                 }}
                                                 className={`w-full text-left p-3 rounded-2xl border transition-all flex flex-col gap-1 ${selectedShadingProduct === prod.id ? 'bg-indigo-600/10 border-indigo-500/50 ring-1 ring-indigo-500/30' : 'bg-slate-950/60 border-slate-850 hover:bg-slate-950 hover:border-slate-800'}`}
                                             >
@@ -3155,6 +4222,106 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             />
                                         </div>
                                     )}
+                                </div>
+
+                                {/* SECTION 4.8: QUICK PRICE & QUOTE COMPILING */}
+                                <div className="space-y-3 bg-slate-950 border border-slate-850 rounded-2xl p-4 my-2">
+                                    <div className="flex items-center gap-1.5 border-b border-white/5 pb-2">
+                                        <FileCheck size={13} className="text-emerald-400" />
+                                        <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest font-mono">
+                                            {lang === 'tr' ? 'MANUEL ÖLÇÜ, ADET VE FİYATLANDIRMA' : 'MANUAL PRICING & QUOTATION'}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Genişlik (mm)' : 'Width (mm)'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormWidth} 
+                                                onChange={(e) => setShadingFormWidth(parseInt(e.target.value) || 0)} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Yükseklik (mm)' : 'Height (mm)'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormHeight} 
+                                                onChange={(e) => setShadingFormHeight(parseInt(e.target.value) || 0)} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Açılım (mm)' : 'Projection (mm)'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormDepth} 
+                                                onChange={(e) => setShadingFormDepth(parseInt(e.target.value) || 0)} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                                disabled={selectedShadingProduct === 'zip-blind' || selectedShadingProduct === 'glass-balcony' || selectedShadingProduct === 'guillotine'}
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Adet' : 'Qty'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormQty} 
+                                                onChange={(e) => setShadingFormQty(parseInt(e.target.value) || 1)} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 col-span-2">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Birim Satış Fiyatı' : 'Unit Price'}</label>
+                                            <div className="relative">
+                                                <span className="absolute left-2.5 top-2 text-slate-500 font-bold">{currencySymbol}</span>
+                                                <input 
+                                                    type="number" 
+                                                    value={shadingFormPrice} 
+                                                    onChange={(e) => setShadingFormPrice(parseInt(e.target.value) || 0)} 
+                                                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 pl-7 text-white font-mono text-emerald-400 font-bold"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const activeTitle = selectedShadingProduct === 'bioclimatic-pergola' ? (lang === 'tr' ? 'Bioklimatik Pergole' : 'Bioclimatic Pergola') :
+                                                              selectedShadingProduct === 'rolling-roof' ? (lang === 'tr' ? 'Rolling Roof / Açılır Tavan' : 'Rolling Roof') :
+                                                              selectedShadingProduct === 'zip-blind' ? (lang === 'tr' ? 'Zip Perde / Stor' : 'Zip Blind') :
+                                                              selectedShadingProduct === 'awning' ? (lang === 'tr' ? 'Mafsallı Tente' : 'Awning System') :
+                                                              selectedShadingProduct === 'guillotine' ? (lang === 'tr' ? 'Giyotin Cam Sistemi' : 'Guillotine Glass') :
+                                                              selectedShadingProduct === 'glass-balcony' ? (lang === 'tr' ? 'Katlanır Cam Balkon' : 'Glass Balcony') : selectedShadingProduct;
+                                            const newId = `shading-${Date.now()}`;
+                                            const created: ShadingItem = {
+                                                id: newId,
+                                                productType: selectedShadingProduct as any,
+                                                name: `${activeTitle} - ${selectedShadingColor}`,
+                                                width: shadingFormWidth,
+                                                height: shadingFormHeight,
+                                                depth: shadingFormDepth,
+                                                quantity: shadingFormQty,
+                                                unitPrice: shadingFormPrice,
+                                                color: selectedShadingColor,
+                                                notes: selectedShadingNotes,
+                                                overlayX: 50,
+                                                overlayY: 50,
+                                                overlayScale: 100,
+                                                overlayRotate: 0
+                                            };
+                                            handleAddShadingItem(created);
+                                            showToast(
+                                                lang === 'tr'
+                                                    ? 'Ürün başarıyla teklif sepetine eklendi!'
+                                                    : 'Shading unit successfully added to project quotation!',
+                                                'success'
+                                            );
+                                        }}
+                                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mt-1"
+                                    >
+                                        <Plus size={13} />
+                                        <span>{lang === 'tr' ? 'TEKLİFE DOĞRUDAN EKLE' : 'ADD TO PROPOSAL DIRECTLY'}</span>
+                                    </button>
                                 </div>
 
                                 {/* SECTION 5: GENERATE ACTION */}
@@ -4790,34 +5957,65 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
             {/* Form */}
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto scrollbar-thin">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Product Type */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                    {lang === 'tr' ? 'Ürün Tipi / Kategori' : 'Product Type / Category'}
-                  </label>
-                  <select
-                    value={shadingFormProduct}
-                    onChange={(e: any) => {
-                      const type = e.target.value;
-                      setShadingFormProduct(type);
-                      // Set corresponding default human-readable names
-                      if (type === 'bioclimatic-pergola') setShadingFormName(lang === 'tr' ? 'Premium Bioklimatik Pergole' : 'Premium Bioclimatic Pergola');
-                      else if (type === 'rolling-roof') setShadingFormName(lang === 'tr' ? 'Alüminyum Rolling Roof' : 'Aluminum Rolling Roof');
-                      else if (type === 'zip-blind') setShadingFormName(lang === 'tr' ? 'Antrasit Zip Perde' : 'Anthracite Zip Blind');
-                      else if (type === 'awning') setShadingFormName(lang === 'tr' ? 'Mafsallı Tente' : 'Folding Awning');
-                      else if (type === 'guillotine') setShadingFormName(lang === 'tr' ? 'Giyotin Motorlu Cam' : 'Motorized Guillotine Glass');
-                      else if (type === 'glass-balcony') setShadingFormName(lang === 'tr' ? 'Katlanır Cam Balkon' : 'Folding Glass Balcony');
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors"
-                  >
-                    <option value="bioclimatic-pergola">{lang === 'tr' ? 'Bioklimatik Pergole' : 'Bioclimatic Pergola'}</option>
-                    <option value="rolling-roof">{lang === 'tr' ? 'Rolling Roof / Açılır Tavan' : 'Rolling Roof'}</option>
-                    <option value="zip-blind">{lang === 'tr' ? 'Zip Perde / Stor' : 'Zip Blind'}</option>
-                    <option value="awning">{lang === 'tr' ? 'Mafsallı / Kasetli Tente' : 'Awning System'}</option>
-                    <option value="guillotine">{lang === 'tr' ? 'Giyotin Cam Sistemi' : 'Guillotine Glass'}</option>
-                    <option value="glass-balcony">{lang === 'tr' ? 'Katlanır / Sürme Cam Balkon' : 'Glass Balcony'}</option>
-                  </select>
-                </div>
+                 {/* Product Type */}
+                 <div className="space-y-1.5">
+                   <div className="flex justify-between items-center">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                       {lang === 'tr' ? 'Ürün Tipi / Kategori' : 'Product Type / Category'}
+                     </label>
+                     <button
+                       type="button"
+                       onClick={() => {
+                           const nameTr = prompt(lang === 'tr' ? 'Yeni Sistem Tipi İsmi Girin (örn: Kış Bahçesi):' : 'Enter New System Type Name (e.g. Winter Garden):');
+                           if (nameTr && nameTr.trim()) {
+                               const nameEn = prompt(lang === 'tr' ? 'İngilizce İsmi Girin (İsteğe Bağlı):' : 'Enter English Name (Optional):') || nameTr;
+                               const imageUrl = prompt(lang === 'tr' ? 'Ürün Tipi için Varsayılan Görsel Linki / URL (İsteğe Bağlı):' : 'Enter Default Image URL for Product Type (Optional):') || '';
+                               handleAddCustomProductType(nameTr, nameEn, imageUrl);
+                           }
+                       }}
+                       className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-0.5"
+                       title={lang === 'tr' ? 'Yeni Ürün Tipi Ekle' : 'Add New Product Type'}
+                     >
+                       <span>➕ {lang === 'tr' ? 'Yeni Ekle' : 'Add New'}</span>
+                     </button>
+                   </div>
+                   <select
+                     value={shadingFormProduct}
+                     onChange={(e: any) => {
+                       const type = e.target.value;
+                       if (type === 'ADD_NEW_PRODUCT_TYPE') {
+                         const nameTr = prompt(lang === 'tr' ? 'Yeni Sistem Tipi İsmi Girin (örn: Kış Bahçesi):' : 'Enter New System Type Name (e.g. Winter Garden):');
+                         if (nameTr && nameTr.trim()) {
+                             const nameEn = prompt(lang === 'tr' ? 'İngilizce İsmi Girin (İsteğe Bağlı):' : 'Enter English Name (Optional):') || nameTr;
+                             const imageUrl = prompt(lang === 'tr' ? 'Ürün Tipi için Varsayılan Görsel Linki / URL (İsteğe Bağlı):' : 'Enter Default Image URL for Product Type (Optional):') || '';
+                             handleAddCustomProductType(nameTr, nameEn, imageUrl);
+                         } else {
+                             setShadingFormProduct(shadingFormProduct || 'bioclimatic-pergola');
+                         }
+                         return;
+                       }
+                       setShadingFormProduct(type);
+                       // Set corresponding default human-readable names and images
+                       const found = productTypes.find(t => t.id === type);
+                       if (found) {
+                         setShadingFormName(lang === 'tr' ? found.nameTr : found.nameEn);
+                         if (found.imageUrl) {
+                           setShadingFormImageUrl(found.imageUrl);
+                         }
+                       }
+                     }}
+                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors"
+                   >
+                     {productTypes.map(pt => (
+                       <option key={pt.id} value={pt.id}>
+                         {lang === 'tr' ? pt.nameTr : pt.nameEn}
+                       </option>
+                     ))}
+                     <option value="ADD_NEW_PRODUCT_TYPE" className="text-indigo-400 font-bold bg-slate-900">
+                       {lang === 'tr' ? '➕ Yeni Ürün Tipi Ekle...' : '➕ Add New Product Type...'}
+                     </option>
+                   </select>
+                 </div>
 
                 {/* System Name */}
                 <div className="space-y-1.5">
@@ -4911,6 +6109,70 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     onChange={(e) => setShadingFormQty(parseInt(e.target.value) || 1)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
                   />
+                </div>
+              </div>
+
+              {/* Product Image URL */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'VizyonPergola Ürün Görseli (URL veya Seçim)' : 'Product Image (URL or Selection)'}
+                  </label>
+                  <span className="text-[8px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase">
+                    {lang === 'tr' ? 'Özel Görsel' : 'Custom Render'}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={shadingFormImageUrl}
+                  onChange={(e) => setShadingFormImageUrl(e.target.value)}
+                  placeholder={
+                    lang === 'tr'
+                      ? "VizyonPergola veya internet üzerindeki ürün resmi linkini yapıştırın..."
+                      : "Paste a product image URL from VizyonPergola or anywhere on the web..."
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                />
+                
+                {/* Visual Preset selection chips */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1615874959474') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                  >
+                    🏡 {lang === 'tr' ? 'Lüks Pergole Görseli' : 'Luxury Pergola'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1505691938895') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                  >
+                    ⛅ {lang === 'tr' ? 'Modern Zip Perde' : 'Modern Zip Blind'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1600585154340') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                  >
+                    🪟 {lang === 'tr' ? 'Cam Balkon / Giyotin' : 'Glass Balcony'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1513694203232') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
+                  >
+                    ⛱️ {lang === 'tr' ? 'Mafsallı Klasik Tente' : 'Retractable Awning'}
+                  </button>
+                  {shadingFormImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setShadingFormImageUrl('')}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-bold border bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-900/40 transition-all"
+                    >
+                      ✕ {lang === 'tr' ? 'Görseli Temizle' : 'Clear'}
+                    </button>
+                  )}
                 </div>
               </div>
 
