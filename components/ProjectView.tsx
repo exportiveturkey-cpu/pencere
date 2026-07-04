@@ -663,6 +663,16 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
     ];
     try {
+      const storedDefaultImages = localStorage.getItem('alumetric_default_product_type_images');
+      if (storedDefaultImages) {
+        const parsedDefaults = JSON.parse(storedDefaultImages);
+        defaults.forEach(d => {
+          if (parsedDefaults[d.id] !== undefined) {
+            d.imageUrl = parsedDefaults[d.id];
+          }
+        });
+      }
+
       const stored = localStorage.getItem('alumetric_custom_product_types');
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -681,6 +691,27 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     }
     return defaults;
   });
+
+  const handleUpdateProductTypeImage = (productTypeId: string, newImageUrl: string) => {
+    setProductTypes(prev => {
+      const updated = prev.map(pt => pt.id === productTypeId ? { ...pt, imageUrl: newImageUrl } : pt);
+      try {
+        const customOnly = updated.filter(t => t.id.startsWith('custom-'));
+        localStorage.setItem('alumetric_custom_product_types', JSON.stringify(customOnly));
+        
+        const defaultCustomImages: Record<string, string> = {};
+        updated.forEach(pt => {
+          if (!pt.id.startsWith('custom-')) {
+            defaultCustomImages[pt.id] = pt.imageUrl || '';
+          }
+        });
+        localStorage.setItem('alumetric_default_product_type_images', JSON.stringify(defaultCustomImages));
+      } catch (e) {
+        console.error("Error saving customized product type images", e);
+      }
+      return updated;
+    });
+  };
 
   const handleAddCustomProductType = (nameTr: string, nameEn: string, imageUrl?: string) => {
     if (!nameTr.trim()) return '';
@@ -3329,7 +3360,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     <input
                                         type="text"
                                         value={shadingFormImageUrl}
-                                        onChange={(e) => setShadingFormImageUrl(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setShadingFormImageUrl(val);
+                                            handleUpdateProductTypeImage(shadingFormProduct, val);
+                                        }}
                                         placeholder={lang === 'tr' ? "VizyonPergola veya internet görsel linki yapıştırın..." : "Paste product image link..."}
                                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50 font-mono"
                                     />
@@ -3337,28 +3372,44 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     <div className="flex flex-wrap gap-1.5 pt-1">
                                         <button
                                             type="button"
-                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop')}
+                                            onClick={() => {
+                                                const url = 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop';
+                                                setShadingFormImageUrl(url);
+                                                handleUpdateProductTypeImage(shadingFormProduct, url);
+                                            }}
                                             className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1615874959474') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                                         >
                                             🏡 {lang === 'tr' ? 'Pergole' : 'Pergola'}
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop')}
+                                            onClick={() => {
+                                                const url = 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop';
+                                                setShadingFormImageUrl(url);
+                                                handleUpdateProductTypeImage(shadingFormProduct, url);
+                                            }}
                                             className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1505691938895') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                                         >
                                             ⛅ {lang === 'tr' ? 'Zip Perde' : 'Zip'}
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop')}
+                                            onClick={() => {
+                                                const url = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop';
+                                                setShadingFormImageUrl(url);
+                                                handleUpdateProductTypeImage(shadingFormProduct, url);
+                                            }}
                                             className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1600585154340') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                                         >
                                             🪟 {lang === 'tr' ? 'Cam Balkon' : 'Glass'}
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop')}
+                                            onClick={() => {
+                                                const url = 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop';
+                                                setShadingFormImageUrl(url);
+                                                handleUpdateProductTypeImage(shadingFormProduct, url);
+                                            }}
                                             className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1513694203232') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                                         >
                                             ⛱️ {lang === 'tr' ? 'Tente' : 'Awning'}
@@ -3366,7 +3417,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         {shadingFormImageUrl && (
                                             <button
                                                 type="button"
-                                                onClick={() => setShadingFormImageUrl('')}
+                                                onClick={() => {
+                                                    setShadingFormImageUrl('');
+                                                    handleUpdateProductTypeImage(shadingFormProduct, '');
+                                                }}
                                                 className="px-2 py-1 rounded text-[9px] font-bold border bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-900/40 transition-all"
                                             >
                                                 ✕
@@ -6125,7 +6179,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <input
                   type="text"
                   value={shadingFormImageUrl}
-                  onChange={(e) => setShadingFormImageUrl(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setShadingFormImageUrl(val);
+                    handleUpdateProductTypeImage(shadingFormProduct, val);
+                  }}
                   placeholder={
                     lang === 'tr'
                       ? "VizyonPergola veya internet üzerindeki ürün resmi linkini yapıştırın..."
@@ -6138,28 +6196,44 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div className="flex flex-wrap gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop')}
+                    onClick={() => {
+                      const url = 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop';
+                      setShadingFormImageUrl(url);
+                      handleUpdateProductTypeImage(shadingFormProduct, url);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1615874959474') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                   >
                     🏡 {lang === 'tr' ? 'Lüks Pergole Görseli' : 'Luxury Pergola'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop')}
+                    onClick={() => {
+                      const url = 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop';
+                      setShadingFormImageUrl(url);
+                      handleUpdateProductTypeImage(shadingFormProduct, url);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1505691938895') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                   >
                     ⛅ {lang === 'tr' ? 'Modern Zip Perde' : 'Modern Zip Blind'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop')}
+                    onClick={() => {
+                      const url = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop';
+                      setShadingFormImageUrl(url);
+                      handleUpdateProductTypeImage(shadingFormProduct, url);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1600585154340') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                   >
                     🪟 {lang === 'tr' ? 'Cam Balkon / Giyotin' : 'Glass Balcony'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShadingFormImageUrl('https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop')}
+                    onClick={() => {
+                      const url = 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop';
+                      setShadingFormImageUrl(url);
+                      handleUpdateProductTypeImage(shadingFormProduct, url);
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${shadingFormImageUrl.includes('photo-1513694203232') ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
                   >
                     ⛱️ {lang === 'tr' ? 'Mafsallı Klasik Tente' : 'Retractable Awning'}
@@ -6167,7 +6241,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   {shadingFormImageUrl && (
                     <button
                       type="button"
-                      onClick={() => setShadingFormImageUrl('')}
+                      onClick={() => {
+                        setShadingFormImageUrl('');
+                        handleUpdateProductTypeImage(shadingFormProduct, '');
+                      }}
                       className="px-3 py-1.5 rounded-lg text-[10px] font-bold border bg-red-950/20 border-red-900/30 text-red-400 hover:bg-red-900/40 transition-all"
                     >
                       ✕ {lang === 'tr' ? 'Görseli Temizle' : 'Clear'}
