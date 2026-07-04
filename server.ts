@@ -87,17 +87,34 @@ async function startServer() {
     throw lastError || new Error("Failed to generate content with fallback models");
   };
 
+  // Helper to fetch with a timeout
+  async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 3000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  }
+
   // API Routes for Gemini AI Features
   app.get("/api/tcmb-rates", async (req, res) => {
-    // 1. Try TCMB first
+    // 1. Try TCMB first (Tight 2.5s timeout as government servers can hang when blocking cloud IPs)
     try {
       console.log("Fetching rates from TCMB...");
-      const rawTcmbResponse = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
+      const rawTcmbResponse = await fetchWithTimeout("https://www.tcmb.gov.tr/kurlar/today.xml", {
         headers: {
           'Accept': 'application/xml, text/xml',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
         }
-      });
+      }, 2500);
       
       if (rawTcmbResponse.ok) {
         const xml = await rawTcmbResponse.text();
@@ -126,13 +143,13 @@ async function startServer() {
       }
       console.warn("TCMB fetch returned non-ok status or could not be parsed.");
     } catch (err: any) {
-      console.warn("TCMB fetch failed:", err?.message || err);
+      console.warn("TCMB fetch failed or timed out:", err?.message || err);
     }
 
     // 2. Try ExchangeRate-API V4 (Very rapid and reliable, free, high limit)
     try {
       console.log("Falling back to ExchangeRate-API...");
-      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+      const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 2500);
       if (response.ok) {
         const data = await response.json();
         if (data && data.rates && data.rates.TRY) {
@@ -157,7 +174,7 @@ async function startServer() {
     // 3. Try Fawaz Ahmed's CDN Currency API (Served by jsDelivr, extremely reliable, mirrors of central bank data)
     try {
       console.log("Falling back to jsDelivr Currency API CDN...");
-      const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+      const response = await fetchWithTimeout('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', {}, 2500);
       if (response.ok) {
         const data = await response.json();
         if (data && data.usd && data.usd.try) {
@@ -182,7 +199,7 @@ async function startServer() {
     // 4. Try Mirror Currency API CDN
     try {
       console.log("Falling back to Mirror Currency API CDN...");
-      const response = await fetch('https://latest.currency-api.pages.dev/v1/currencies/usd.json');
+      const response = await fetchWithTimeout('https://latest.currency-api.pages.dev/v1/currencies/usd.json', {}, 2500);
       if (response.ok) {
         const data = await response.json();
         if (data && data.usd && data.usd.try) {
@@ -207,7 +224,7 @@ async function startServer() {
     // 5. Try Open Exchange Rates (Fallback)
     try {
       console.log("Falling back to Open ER API...");
-      const response = await fetch('https://open.er-api.com/v6/latest/USD');
+      const response = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 2500);
       if (response.ok) {
         const data = await response.json();
         if (data && data.rates && data.rates.TRY) {

@@ -13,6 +13,168 @@ const ai = apiKey ? new GoogleGenAI({
   httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
 }) : null;
 
+// Helper to fetch with a timeout
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 3000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
+// API Route: TCMB and Fallback Exchange Rates
+app.get("/api/tcmb-rates", async (req, res) => {
+  // 1. Try TCMB first (Tight 2.5s timeout as government servers can hang when blocking cloud IPs)
+  try {
+    console.log("Fetching rates from TCMB...");
+    const rawTcmbResponse = await fetchWithTimeout("https://www.tcmb.gov.tr/kurlar/today.xml", {
+      headers: {
+        'Accept': 'application/xml, text/xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
+    }, 2500);
+    
+    if (rawTcmbResponse.ok) {
+      const xml = await rawTcmbResponse.text();
+      const getRate = (code: string) => {
+        const regex = new RegExp(`<Currency[^>]*?(?:CurrencyCode|Kod)="${code}"[^>]*?>([\\s\\S]*?)<\\/Currency>`, 'i');
+        const match = xml.match(regex);
+        if (match) {
+          const forexBuyingMatch = match[1].match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i);
+          if (forexBuyingMatch) {
+            return parseFloat(forexBuyingMatch[1]);
+          }
+        }
+        return null;
+      };
+
+      const usd = getRate("USD");
+      const eur = getRate("EUR");
+      const gbp = getRate("GBP");
+
+      if (usd && eur && gbp) {
+        return res.json({
+          source: "tcmb",
+          rates: { USD: usd, EUR: eur, GBP: gbp }
+        });
+      }
+    }
+    console.warn("TCMB fetch returned non-ok status or could not be parsed.");
+  } catch (err: any) {
+    console.warn("TCMB fetch failed or timed out:", err?.message || err);
+  }
+
+  // 2. Try ExchangeRate-API V4 (Very rapid and reliable, free, high limit)
+  try {
+    console.log("Falling back to ExchangeRate-API...");
+    const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 2500);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.rates && data.rates.TRY) {
+        const tryRate = data.rates.TRY;
+        const usdRate = tryRate;
+        const eurRate = tryRate / (data.rates.EUR || 0.92);
+        const gbpRate = tryRate / (data.rates.GBP || 0.79);
+        return res.json({
+          source: "exchangerate-api",
+          rates: {
+            USD: parseFloat(usdRate.toFixed(4)),
+            EUR: parseFloat(eurRate.toFixed(4)),
+            GBP: parseFloat(gbpRate.toFixed(4))
+          }
+        });
+      }
+    }
+  } catch (err: any) {
+    console.warn("ExchangeRate-API failed:", err?.message || err);
+  }
+
+  // 3. Try Fawaz Ahmed's CDN Currency API (Served by jsDelivr, extremely reliable, mirrors of central bank data)
+  try {
+    console.log("Falling back to jsDelivr Currency API CDN...");
+    const response = await fetchWithTimeout('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', {}, 2500);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.usd && data.usd.try) {
+        const tryRate = data.usd.try;
+        const usdRate = tryRate;
+        const eurRate = tryRate / (data.usd.eur || 0.92);
+        const gbpRate = tryRate / (data.usd.gbp || 0.79);
+        return res.json({
+          source: "currency-api-cdn",
+          rates: {
+            USD: parseFloat(usdRate.toFixed(4)),
+            EUR: parseFloat(eurRate.toFixed(4)),
+            GBP: parseFloat(gbpRate.toFixed(4))
+          }
+        });
+      }
+    }
+  } catch (err: any) {
+    console.warn("jsDelivr CDN Currency API failed:", err?.message || err);
+  }
+
+  // 4. Try Mirror Currency API CDN
+  try {
+    console.log("Falling back to Mirror Currency API CDN...");
+    const response = await fetchWithTimeout('https://latest.currency-api.pages.dev/v1/currencies/usd.json', {}, 2500);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.usd && data.usd.try) {
+        const tryRate = data.usd.try;
+        const usdRate = tryRate;
+        const eurRate = tryRate / (data.usd.eur || 0.92);
+        const gbpRate = tryRate / (data.usd.gbp || 0.79);
+        return res.json({
+          source: "currency-api-mirror",
+          rates: {
+            USD: parseFloat(usdRate.toFixed(4)),
+            EUR: parseFloat(eurRate.toFixed(4)),
+            GBP: parseFloat(gbpRate.toFixed(4))
+          }
+        });
+      }
+    }
+  } catch (err: any) {
+    console.warn("Mirror Currency API CDN failed:", err?.message || err);
+  }
+
+  // 5. Try Open Exchange Rates (Fallback)
+  try {
+    console.log("Falling back to Open ER API...");
+    const response = await fetchWithTimeout('https://open.er-api.com/v6/latest/USD', {}, 2500);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.rates && data.rates.TRY) {
+        const tryRate = data.rates.TRY;
+        const usdRate = tryRate;
+        const eurRate = tryRate / (data.rates.EUR || 0.92);
+        const gbpRate = tryRate / (data.rates.GBP || 0.79);
+        return res.json({
+          source: "global",
+          rates: {
+            USD: parseFloat(usdRate.toFixed(4)),
+            EUR: parseFloat(eurRate.toFixed(4)),
+            GBP: parseFloat(gbpRate.toFixed(4))
+          }
+        });
+      }
+    }
+  } catch (err: any) {
+    console.warn("Open ER API failed:", err?.message || err);
+  }
+
+  res.status(500).json({ error: "Failed to retrieve rates from TCMB and fallback networks." });
+});
+
 // API Route: Analyze Structure
 app.post("/api/ai/analyze-structure", async (req, res) => {
   if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
