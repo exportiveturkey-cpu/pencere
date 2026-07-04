@@ -2478,7 +2478,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 className="w-full h-full max-h-full max-w-full p-2"
                                                 preserveAspectRatio="xMidYMid meet"
                                               >
-                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} />
+                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
                                               </svg>
                                             </div>
                                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
@@ -2510,6 +2510,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                       {lang === 'tr' ? 'EŞİKLİ' : 'THRESHOLD'}
                                                     </span>
                                                   )}
+                                                  <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-tight ${unit.viewPerspective === 'exterior' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 print:text-amber-800 print:bg-amber-50 print:border-amber-200' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 print:text-indigo-800 print:bg-indigo-50 print:border-indigo-200'}`}>
+                                                    {unit.viewPerspective === 'exterior' ? (lang === 'tr' ? 'Görünüm: Dıştan' : 'View: Exterior') : (lang === 'tr' ? 'Görünüm: İçten' : 'View: Interior')}
+                                                  </span>
                                                 </div>
                                               </div>
                                               <span className="text-emerald-400 font-mono font-bold text-sm print:text-emerald-700 shrink-0">
@@ -2777,7 +2780,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 <tbody>
                                     {project.units.map((unit, idx) => {
                                         const stats = getUnitStats(unit);
-                                        const sys = systems.find(s => s.id === unit.system);
+                                        const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
 
                                         return (
                                             <tr key={unit.id} className="border-b border-slate-100 group print:break-inside-avoid">
@@ -2789,7 +2792,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                          className="w-full h-full max-h-full max-w-full"
                                                          preserveAspectRatio="xMidYMid meet"
                                                        >
-                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} />
+                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
                                                        </svg>
                                                     </div>
                                                 </td>
@@ -2797,7 +2800,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
                                                     <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
                                                     <div className="space-y-1 mb-4">
-                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}:</span> <span className="font-bold text-blue-700">{sys?.name}</span></div><div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
                                                         {(() => {
@@ -2842,6 +2845,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                           </div>
                                                         )}
                                                          <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{lang === 'tr' ? 'Eşik' : 'Threshold'}:</span> <span className={`font-bold ${unit.hasThreshold ? 'text-amber-600 dark:text-amber-500' : 'text-slate-400'}`}>{unit.hasThreshold ? (lang === 'tr' ? 'Evet (Alüminyum Eşik)' : 'Yes (Alu Threshold)') : (lang === 'tr' ? 'Hayır (Standart Kasa)' : 'No (Standard Frame)')}</span></div>
+                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                           <span>{lang === 'tr' ? 'Bakış / Görünüm' : 'View Perspective'}:</span>
+                                                           <span className={`font-bold ${unit.viewPerspective === 'exterior' ? 'text-amber-600' : 'text-indigo-600'}`}>
+                                                             {unit.viewPerspective === 'exterior' ? (lang === 'tr' ? 'Dıştan Görünüm' : 'Exterior View') : (lang === 'tr' ? 'İçten Görünüm (Standart)' : 'Interior View (Standard)')}
+                                                           </span>
+                                                         </div>
                                                     </div>
                                                     
                                                     {/* Accessory Listing in Quotation */}
@@ -5657,7 +5666,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                   {project.units.map((unit) => {
                     const isChecked = bulkCheckedUnitIds.includes(unit.id);
-                    const sys = systems.find(s => s.id === unit.system) || systems[0];
+                    const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
                     return (
                       <div 
                         key={unit.id}

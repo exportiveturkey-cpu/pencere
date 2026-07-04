@@ -724,6 +724,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [quantity, setQuantity] = useState(initialUnit?.quantity || 1);
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
+  const [viewPerspective, setViewPerspective] = useState<'interior' | 'exterior'>(initialUnit?.viewPerspective || 'interior');
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
     if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
@@ -999,6 +1000,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       }
     };
 
+    // View Perspective (Interior/Exterior) support
+    ctx.save();
+    if (viewPerspective === 'exterior') {
+      ctx.translate(startX + drawW / 2, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-(startX + drawW / 2), 0);
+    }
+
     // 1. Draw outer frame background
     ctx.save();
     setShapeClipPath(false);
@@ -1179,6 +1188,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     drawNode(rootNode, startX + frameWidthScaled, startY + frameWidthScaled, drawW - 2 * frameWidthScaled, drawH - frameWidthScaled - bottomFwScaled);
 
     ctx.restore(); // Restore from clipping path
+    ctx.restore(); // Restore from viewPerspective transform
 
     // 3. Dimensions drawing
     ctx.strokeStyle = isDark ? '#475569' : '#94a3b8';
@@ -1233,7 +1243,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     ctx.fillText(hText, 0, 3);
     ctx.restore();
 
-  }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems]);
+  }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems, viewPerspective]);
 
   useEffect(() => {
     if (previewType === 'canvas') {
@@ -1457,7 +1467,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedFrameProfileImage,
       selectedSashProfileImage,
       selectedMullionProfileImage,
-      customProfileImages
+      customProfileImages,
+      viewPerspective
     });
   };
 
@@ -1664,7 +1675,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     name, width, height, system: systemId,
     color, specificColor, glassType: glassTypeId, glassThickness: 24,
     rootNode, quantity, shape, archHeight, hasThreshold, includeGlass,
-    customGlassPrice: customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined
+    customGlassPrice: customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined,
+    viewPerspective
   };
 
   // Check if any part is openable for section view
@@ -1702,27 +1714,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                 <BoxSelect size={14} /> 3D PREVIEW
               </button>
             </div>
-            {viewMode === '2d' && (
-              <button 
-                onClick={() => {
-                  setPreviewType('canvas');
-                  setIsVisualizing(true);
-                  setTimeout(() => {
-                    drawCanvasPreview();
-                    setIsVisualizing(false);
-                  }, 400);
-                }} 
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center gap-2 transition-all border border-indigo-500 shadow-lg shadow-indigo-900/30 mr-2"
-                title={lang === 'tr' ? 'Gerçekçi Tuval Görselleştirmesini Yenile' : 'Trigger Canvas Visualization Redraw'}
-              >
-                {isVisualizing ? (
-                  <Loader2 className="animate-spin text-amber-300" size={16} />
-                ) : (
-                  <Sparkles size={16} className="text-amber-300 animate-pulse" />
-                )}
-                <span>{lang === 'tr' ? 'Görselleştirme' : 'Visualization'}</span>
-              </button>
-            )}
             <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
               <Undo2 size={18} /> {t(lang, 'undo')}
             </button>
@@ -1755,6 +1746,25 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         <div className="flex items-center gap-2">
                            <input type="number" min="1" value={quantity} onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="bg-transparent text-blue-400 font-mono font-bold w-full outline-none text-sm" />
                            <span className="text-[10px] text-slate-600 font-bold uppercase">{t(lang, 'unitPce')}</span>
+                        </div>
+                    </div>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
+                        <label className="block text-[9px] text-slate-500 mb-1.5 uppercase">{lang === 'tr' ? 'Bakış Açısı / Görünüm' : 'View Perspective'}</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setViewPerspective('interior')} 
+                            className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${viewPerspective === 'interior' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400 font-black' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                          >
+                            🚪 {lang === 'tr' ? 'İçten (Standart)' : 'Interior (Std)'}
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setViewPerspective('exterior')} 
+                            className={`py-1.5 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1 ${viewPerspective === 'exterior' ? 'bg-amber-600/20 border-amber-500 text-amber-400 font-black' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                          >
+                            🌳 {lang === 'tr' ? 'Dıştan' : 'Exterior'}
+                          </button>
                         </div>
                     </div>
                     <div className="space-y-3 pt-2">
@@ -2323,6 +2333,27 @@ max="0.95"
 
         <div className={`flex-1 ${viewMode === '3d' ? 'bg-slate-100' : 'bg-slate-900'} relative flex items-center justify-center p-8 overflow-auto`} onClick={() => setSelectedNodeId(null)}>
              
+             {/* Floating Toggle for View Perspective */}
+             <div className="absolute top-6 right-6 flex items-center bg-slate-800/85 p-1.5 rounded-2xl border border-white/10 z-45 gap-1.5 backdrop-blur-md shadow-2xl" onClick={e => e.stopPropagation()}>
+               <div className="text-[9px] font-black text-slate-400 px-2 uppercase tracking-widest">
+                 {lang === 'tr' ? 'Görünüm:' : 'View:'}
+               </div>
+               <button 
+                 type="button"
+                 onClick={() => setViewPerspective('interior')} 
+                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewPerspective === 'interior' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+               >
+                 🚪 {lang === 'tr' ? 'İçten (Standart)' : 'Interior (Std)'}
+               </button>
+               <button 
+                 type="button"
+                 onClick={() => setViewPerspective('exterior')} 
+                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewPerspective === 'exterior' ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+               >
+                 🌳 {lang === 'tr' ? 'Dıştan' : 'Exterior'}
+               </button>
+             </div>
+
              {/* Common Floating Zoom Controls */}
              <div className="absolute bottom-6 right-6 flex flex-col bg-slate-800 border border-white/10 rounded-2xl shadow-2xl p-2 z-40 gap-1" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setVisualScale(Math.min(0.5, visualScale + 0.05))} className="p-2.5 hover:bg-slate-700 rounded-xl text-slate-300 transition-colors" title="Zoom In"><ZoomIn size={18} /></button>
@@ -2384,6 +2415,7 @@ max="0.95"
                               theme={theme}
                               hasThreshold={hasThreshold}
                               lang={lang}
+                              viewPerspective={viewPerspective}
                           />
                       </svg>
                     </div>

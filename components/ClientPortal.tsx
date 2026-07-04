@@ -400,7 +400,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                   </div>
                 ) : (
                   projectTotalStats.itemsStats.map(({ unit, bom, totalCost }, idx) => {
-                    const sys = systems.find(s => s.id === unit.system) || systems[0];
+                    const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
                     return (
                       <div key={unit.id} className="bg-slate-950/30 border border-white/5 rounded-3xl overflow-hidden print:bg-white print:border-slate-200 print:text-black">
                         
@@ -444,6 +444,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                                 archHeight={unit.archHeight} 
                                 hasThreshold={unit.hasThreshold} 
                                 lang={lang} 
+                                viewPerspective={unit.viewPerspective}
                               />
                             </div>
                           </div>
@@ -455,6 +456,12 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                             </span>
                             
                             <div className="grid grid-cols-2 gap-4 text-xs font-medium">
+                              <div>
+                                <span className="text-slate-500 block">{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}</span>
+                                <span className="font-bold text-blue-400 print:text-blue-700 text-sm block">
+                                  {sys.name}
+                                </span>
+                              </div>
                               <div>
                                 <span className="text-slate-500 block">{lang === 'tr' ? 'Genişlik x Yükseklik' : 'Width x Height'}</span>
                                 <span className="font-mono text-white print:text-slate-900 font-bold text-sm">
@@ -477,6 +484,12 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                                 <span className="text-slate-500 block">{lang === 'tr' ? 'Profil Renk Grubu' : 'Color Finish'}</span>
                                 <span className="text-white print:text-slate-900 font-bold capitalize">
                                   {unit.specificColor || (unit.color === 'group1' ? (lang === 'tr' ? 'Ral 9016 Beyaz' : 'Ral 9016 White') : (lang === 'tr' ? 'Ral 7016 Antrasit' : 'Ral 7016 Anthracite'))}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block">{lang === 'tr' ? 'Bakış / Görünüm' : 'View Perspective'}</span>
+                                <span className="text-white print:text-slate-900 font-bold">
+                                  {unit.viewPerspective === 'exterior' ? (lang === 'tr' ? 'Dıştan Görünüm' : 'Exterior View') : (lang === 'tr' ? 'İçten Görünüm (Standart)' : 'Interior View (Standard)')}
                                 </span>
                               </div>
                             </div>

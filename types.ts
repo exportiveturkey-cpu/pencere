@@ -67,6 +67,7 @@ export interface Unit {
   selectedSashProfileImage?: string;
   selectedMullionProfileImage?: string;
   customProfileImages?: Record<string, string>;
+  viewPerspective?: 'interior' | 'exterior';
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';

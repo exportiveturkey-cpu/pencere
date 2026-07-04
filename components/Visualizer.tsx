@@ -16,10 +16,11 @@ interface VisualizerProps {
   archHeight?: number;
   hasThreshold?: boolean;
   lang?: string;
+  viewPerspective?: 'interior' | 'exterior';
 }
 
 const Visualizer: React.FC<VisualizerProps> = ({ 
-  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr'
+  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr', viewPerspective = 'interior'
 }) => {
   const isSelected = node.id === selectedNodeId;
   const isRoot = x === 0 && y === 0;
@@ -36,7 +37,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
   const strokeColor = isSelected ? (theme === 'dark' ? "#60a5fa" : "#3b82f6") : (theme === 'dark' ? "#475569" : "#64748b"); 
   
   const glassFill = "#bae6fd"; 
-  const symbolColor = "#1e293b"; // Oklar ve semboller için daha koyu renk
+  const symbolColor = theme === 'dark' ? "#f8fafc" : "#0f172a"; // Oklar ve semboller için daha koyu/belirgin renk
   const hardwareColor = "#1e293b";
   const lineLight = theme === 'dark' ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)";
 
@@ -115,7 +116,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
     if (!type || type === 'fixed') return null;
     const dash = "6,4";
     const color = symbolColor;
-    const weight = 1.2;
+    const weight = 2.2;
     const symbols = [];
     
     // Sürme (Sliding) Sembolü - OK Çizimi
@@ -191,11 +192,11 @@ const Visualizer: React.FC<VisualizerProps> = ({
             </>
           )}
           <g clipPath={isRoot ? `url(#${clipId})` : undefined}>
-            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} />
+            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} />
             <g onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }}>
                {renderProfileRect(isVerticalSplit ? x + firstSize : x, isVerticalSplit ? y : y + firstSize, isVerticalSplit ? frameWidth : width, isVerticalSplit ? height : frameWidth)}
             </g>
-            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} />
+            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} />
           </g>
         </g>
       );
@@ -256,7 +257,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
                     })}
 
                     {/* Proportional, bold centered overlay badge designed to survive high scale down */}
-                    <g className="select-none pointer-events-none">
+                    <g className="select-none pointer-events-none" transform={viewPerspective === 'exterior' ? `translate(${width}, 0) scale(-1, 1)` : undefined}>
                       {/* Badge Background Card */}
                       <rect 
                         x={width / 2 - Math.max(160, width * 0.25)} 
@@ -299,7 +300,15 @@ const Visualizer: React.FC<VisualizerProps> = ({
     );
   };
 
-  return renderContent();
+  const rendered = renderContent();
+  if (isRoot && viewPerspective === 'exterior') {
+    return (
+      <g transform={`translate(${width}, 0) scale(-1, 1)`}>
+        {rendered}
+      </g>
+    );
+  }
+  return rendered;
 };
 
 export default Visualizer;

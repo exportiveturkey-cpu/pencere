@@ -20,9 +20,10 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
   useEffect(() => {
     if (groupRef.current) {
       const s = scale * 5; 
-      groupRef.current.scale.setScalar(s);
+      const isExterior = unit.viewPerspective === 'exterior';
+      groupRef.current.scale.set(isExterior ? -s : s, s, s);
     }
-  }, [scale]);
+  }, [scale, unit.viewPerspective]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -98,7 +99,9 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
 
     const group = new THREE.Group();
     groupRef.current = group;
-    group.scale.setScalar(scale * 5);
+    const s = scale * 5;
+    const isExterior = unit.viewPerspective === 'exterior';
+    group.scale.set(isExterior ? -s : s, s, s);
 
     const centerX = unit.width / 2;
     const centerY = unit.height / 2;
