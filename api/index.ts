@@ -13,6 +13,51 @@ const ai = apiKey ? new GoogleGenAI({
   httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
 }) : null;
 
+// Helper for resilient Gemini API content generation with retry & fallback
+const generateWithRetryAndFallback = async (params: {
+  contents: any;
+  config?: any;
+}) => {
+  if (!ai) throw new Error("Gemini API key not configured");
+  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest"];
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    let retries = 3;
+    let delay = 1000;
+    while (retries > 0) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          ...params
+        });
+        return response;
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error.message || "";
+        const isTransient = errorMsg.includes("503") || 
+                            errorMsg.includes("UNAVAILABLE") || 
+                            errorMsg.includes("Resource exhausted") ||
+                            errorMsg.includes("rate limit") ||
+                            error.status === 503 ||
+                            error.code === 503;
+        
+        if (isTransient) {
+          retries--;
+          if (retries > 0) {
+            console.warn(`Transient error calling model ${model} (remaining retries: ${retries}): ${errorMsg}. Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+            continue;
+          }
+        }
+        break;
+      }
+    }
+  }
+  throw lastError || new Error("Failed to generate content with fallback models");
+};
+
 // Helper to fetch with a timeout
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 3000): Promise<Response> {
   const controller = new AbortController();
@@ -177,14 +222,9 @@ app.get("/api/tcmb-rates", async (req, res) => {
 
 // API Route: Analyze Structure
 app.post("/api/ai/analyze-structure", async (req, res) => {
-  if (!ai) {
-    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
-    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
-  }
   try {
     const { prompt } = req.body;
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
       contents: prompt
     });
     res.json({ text: response.text });
@@ -196,10 +236,6 @@ app.post("/api/ai/analyze-structure", async (req, res) => {
 
 // API Route: Analyze Drawing
 app.post("/api/ai/analyze-drawing", async (req, res) => {
-  if (!ai) {
-    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
-    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
-  }
   try {
     const { base64Data, mimeType, prompt } = req.body;
     
@@ -210,8 +246,7 @@ app.post("/api/ai/analyze-drawing", async (req, res) => {
       },
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
       contents: { parts: [imagePart, { text: prompt }] },
       config: {
         systemInstruction: "You are an expert façade engineering assistant specialized in extracting high-accuracy window and door schedule data from technical drawings, joinery schedules, and architectural plan images or PDFs. Your goal is to deliver clean, precise dimensions in millimeters and identify correct opening types based on standardized drafting symbols.",
@@ -252,14 +287,9 @@ app.post("/api/ai/analyze-drawing", async (req, res) => {
 
 // API Route: Generate Pitch
 app.post("/api/ai/generate-pitch", async (req, res) => {
-  if (!ai) {
-    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
-    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
-  }
   try {
     const { prompt } = req.body;
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
       contents: prompt
     });
     res.json({ text: response.text });
@@ -267,14 +297,8 @@ app.post("/api/ai/generate-pitch", async (req, res) => {
     console.error("API error in generate-pitch:", error);
     res.status(500).json({ error: error.message || error });
   }
-});
-
-// API Route: Analyze Shading
+});// API Route: Analyze Shading
 app.post("/api/ai/analyze-shading", async (req, res) => {
-  if (!ai) {
-    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
-    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
-  }
   try {
     const { base64Data, mimeType, lang, polygonPoints, productType, color, notes } = req.body;
 
@@ -293,14 +317,13 @@ app.post("/api/ai/analyze-shading", async (req, res) => {
       - Selected color: ${color || 'Any / None selected'}
       - User notes/request: ${notes || 'None'}
       - Language: ${lang === 'tr' ? 'Turkish' : 'English'}
-
+ 
       Please identify the architectural style, potential obstacles (windows, doors, gutters), and recommend suitable shading systems (like rolling-roof, bioclimatic-pergola, zip-blind, awning, guillotine, glass-balcony).
       
       Generate exactly 4 coordinates in percentage (%) for "suggestedPolygonPoints" (x from 0 to 100, y from 0 to 100) representing the 4 corners (top-left, top-right, bottom-right, bottom-left) of the main suggested shading system (e.g. pergola or awning) on the facade image, respecting the depth and perspective of the walls and ground. Place them nicely where a pergola/awning would naturally fit in the center or front yard/patio.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
       contents: { parts: [imagePart, { text: prompt }] },
       config: {
         systemInstruction: "You are an expert outdoor shading, pergola, and awning design system intelligence. Your task is to analyze the user's facade/patio image, suggest high-end architectural shading configurations, formulate professional sales pitches, and calculate perspective corners in % coordinates where the product can overlay perfectly.",
