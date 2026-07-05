@@ -292,6 +292,7 @@ export const getAggregatedGlassOrder = (units: Unit[], systems: ProfileSystem[])
   if (!units) return [];
 
   units.forEach(u => {
+    if (u.includeGlass === false) return; // Skip if glass is excluded
     const system = findSystem(u.system, systems);
     if (!system) return;
     const unitPanes = extractGlassPanes(u, system);

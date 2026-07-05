@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ProfileSystem, Accessory, Language, AppData, MachineConfig } from '../types';
-import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon, RefreshCw, Camera } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
@@ -106,6 +106,48 @@ const Settings: React.FC<SettingsProps> = ({
   const [accForm, setAccForm] = useState<Partial<Accessory>>({
     name: '', type: 'handle', unit: 'pce', price: 0, maxWeightKg: 0, compatibility: 'both'
   });
+
+  const [customAccessoryImages, setCustomAccessoryImages] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('alumetric_custom_accessory_images');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error loading custom accessory images', e);
+    }
+    return {};
+  });
+
+  const [accessoryImageModal, setAccessoryImageModal] = useState<{ isOpen: boolean, accessory: Accessory | null }>({
+    isOpen: false,
+    accessory: null
+  });
+
+  const handleAccessoryImageUploaded = (id: string, base64: string) => {
+    setCustomAccessoryImages(prev => {
+      const updated = { ...prev, [id]: base64 };
+      try {
+        localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Quota limit reached', e);
+      }
+      return updated;
+    });
+  };
+
+  const handleAccessoryImageCleared = (id: string) => {
+    setCustomAccessoryImages(prev => {
+      const updated = { ...prev };
+      delete updated[id];
+      try {
+        localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving to localStorage', e);
+      }
+      return updated;
+    });
+  };
 
   // Machine Form State
   const [editingMachId, setEditingMachId] = useState<string | null>(null);
@@ -621,20 +663,43 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
                     </div>
 
-                    {accessories.map(acc => (
-                        <div key={acc.id} className="bg-slate-900/50 border border-white/5 p-4 rounded-2xl flex justify-between items-center group hover:border-blue-500/30 transition-all">
-                            <div>
-                                <h3 className="font-bold text-white text-base">{acc.name}</h3>
-                                <p className="text-xs text-slate-500 uppercase font-black tracking-widest">{t(lang, acc.type as any)} • ${acc.price} / {t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')} {acc.maxWeightKg ? `• ${acc.maxWeightKg}kg` : ''}</p>
+                    {accessories.map(acc => {
+                        const accImg = customAccessoryImages[acc.id] || '';
+                        return (
+                            <div key={acc.id} className="bg-slate-900/50 border border-white/5 p-4 rounded-2xl flex justify-between items-center group hover:border-blue-500/30 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setAccessoryImageModal({ isOpen: true, accessory: acc })}
+                                        className={`w-12 h-12 rounded-xl border flex items-center justify-center overflow-hidden transition-all shrink-0 ${
+                                            accImg 
+                                                ? 'border-blue-500/30 bg-white hover:border-blue-500' 
+                                                : 'border-white/5 bg-slate-950/60 hover:bg-slate-950 text-slate-500 hover:text-slate-300'
+                                        }`}
+                                        title={lang === 'tr' ? 'Resim Yükle / Gör' : 'Upload / View Image'}
+                                    >
+                                        {accImg ? (
+                                            <img src={accImg} alt={acc.name} className="w-full h-full object-contain p-0.5" />
+                                        ) : (
+                                            <Camera size={18} />
+                                        )}
+                                    </button>
+                                    <div>
+                                        <h3 className="font-bold text-white text-base leading-tight">{acc.name}</h3>
+                                        <p className="text-xs text-slate-500 uppercase font-black tracking-widest mt-1">
+                                            {t(lang, acc.type as any)} • ${acc.price} / {t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')} {acc.maxWeightKg ? `• ${acc.maxWeightKg}kg` : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setEditingAccId(acc.id); setAccForm(acc); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={16} /></button>
+                                    {onDeleteAccessory && (
+                                        <button onClick={() => setDeleteConfirm({ type: 'accessory', id: acc.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-100 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={16} /></button>
+                                    )}
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => { setEditingAccId(acc.id); setAccForm(acc); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={16} /></button>
-                                {onDeleteAccessory && (
-                                    <button onClick={() => setDeleteConfirm({ type: 'accessory', id: acc.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-100 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={16} /></button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         )}
@@ -1123,7 +1188,7 @@ const Settings: React.FC<SettingsProps> = ({
                     setDeleteConfirm(null);
                     setPendingImportData(null);
                   }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold py-2.5 rounded-xl transition-all"
+                  className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-white text-xs font-bold py-2.5 rounded-xl transition-all"
                 >
                   {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
                 </button>
@@ -1146,6 +1211,108 @@ const Settings: React.FC<SettingsProps> = ({
                     : (lang === 'tr' ? 'Evet, Sil' : 'Yes, Delete')}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {accessoryImageModal.isOpen && accessoryImageModal.accessory && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200" onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}>
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-md w-full shadow-2xl relative space-y-6" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/5 transition-all"
+            >
+              <X size={18} />
+            </button>
+            
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
+                {lang === 'tr' ? 'AKSESUAR RESMİ' : 'ACCESSORY IMAGE'}
+              </span>
+              <h3 className="text-lg font-extrabold text-white leading-snug">
+                {accessoryImageModal.accessory.name}
+              </h3>
+            </div>
+
+            <div className="aspect-video bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center overflow-hidden relative group">
+              {customAccessoryImages[accessoryImageModal.accessory.id] ? (
+                <>
+                  <img
+                    src={customAccessoryImages[accessoryImageModal.accessory.id]}
+                    alt={accessoryImageModal.accessory.name}
+                    className="w-full h-full object-contain p-4"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fileInput = document.getElementById('settings-accessory-file') as HTMLInputElement;
+                        fileInput?.click();
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
+                    >
+                      <Upload size={14} />
+                      {lang === 'tr' ? 'Değiştir' : 'Change'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAccessoryImageCleared(accessoryImageModal.accessory!.id)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} />
+                      {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div
+                  onClick={() => {
+                    const fileInput = document.getElementById('settings-accessory-file') as HTMLInputElement;
+                    fileInput?.click();
+                  }}
+                  className="w-full h-full border-2 border-dashed border-white/5 hover:border-blue-500/50 rounded-2xl flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500"
+                >
+                  <div className="p-3 bg-white/5 rounded-2xl group-hover:bg-blue-500/10 text-slate-400 group-hover:text-blue-400 transition-all mb-3">
+                    <Camera size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-slate-300 mb-1">
+                    {lang === 'tr' ? 'Resim Seçin' : 'Select Image'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {lang === 'tr' ? 'Sürükleyin veya tıklayarak yükleyin' : 'Drag & drop or click to upload'}
+                  </p>
+                </div>
+              )}
+              
+              <input
+                id="settings-accessory-file"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && accessoryImageModal.accessory) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (typeof reader.result === 'string') {
+                        handleAccessoryImageUploaded(accessoryImageModal.accessory!.id, reader.result);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl transition-all text-sm"
+              >
+                {lang === 'tr' ? 'Kapat' : 'Close'}
+              </button>
             </div>
           </div>
         </div>

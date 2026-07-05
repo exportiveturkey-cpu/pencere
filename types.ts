@@ -28,6 +28,7 @@ export interface Accessory {
   price: number;
   maxWeightKg?: number;
   compatibility?: 'sliding' | 'hinged' | 'both';
+  imageUrl?: string;
 }
 
 export type UnitShape = 'rect' | 'triangle' | 'arch';

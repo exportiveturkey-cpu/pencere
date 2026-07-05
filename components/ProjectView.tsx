@@ -1754,6 +1754,67 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [bulkLockId, setBulkLockId] = useState<string>('');
   const [bulkQuantity, setBulkQuantity] = useState<number>(0);
 
+  // Auto-detect and populate bulk options from selected positions when they share the same state
+  useEffect(() => {
+    if (!showBulkEditModal || bulkCheckedUnitIds.length === 0) return;
+
+    const selectedUnits = project.units.filter(u => bulkCheckedUnitIds.includes(u.id));
+    if (selectedUnits.length === 0) return;
+
+    // 1. Infer glass inclusion (Default is true if not explicitly false)
+    const firstInclude = selectedUnits[0].includeGlass !== false;
+    const allSameInclude = selectedUnits.every(u => (u.includeGlass !== false) === firstInclude);
+    if (allSameInclude) {
+      setBulkIncludeGlass(firstInclude ? 'yes' : 'no');
+    } else {
+      setBulkIncludeGlass('keep');
+    }
+
+    // 2. Infer threshold
+    const firstThreshold = selectedUnits[0].hasThreshold === true;
+    const allSameThreshold = selectedUnits.every(u => (u.hasThreshold === true) === firstThreshold);
+    if (allSameThreshold) {
+      setBulkHasThreshold(firstThreshold ? 'yes' : 'no');
+    } else {
+      setBulkHasThreshold('keep');
+    }
+
+    // 3. Infer glass type
+    const firstGlassType = selectedUnits[0].glassType || '';
+    const allSameGlassType = selectedUnits.every(u => (u.glassType || '') === firstGlassType);
+    if (allSameGlassType) {
+      setBulkGlassType(firstGlassType);
+    } else {
+      setBulkGlassType('');
+    }
+
+    // 4. Infer system
+    const firstSystem = selectedUnits[0].system || '';
+    const allSameSystem = selectedUnits.every(u => (u.system || '') === firstSystem);
+    if (allSameSystem) {
+      setBulkSystemId(firstSystem);
+    } else {
+      setBulkSystemId('');
+    }
+
+    // 5. Infer color
+    const firstColor = selectedUnits[0].color || '';
+    const allSameColor = selectedUnits.every(u => (u.color || '') === firstColor);
+    if (allSameColor) {
+      setBulkColor(firstColor);
+    } else {
+      setBulkColor('');
+    }
+
+    const firstSpecificColor = selectedUnits[0].specificColor || '';
+    const allSameSpecificColor = selectedUnits.every(u => (u.specificColor || '') === firstSpecificColor);
+    if (allSameSpecificColor) {
+      setBulkSpecificColor(firstSpecificColor);
+    } else {
+      setBulkSpecificColor('');
+    }
+  }, [showBulkEditModal, bulkCheckedUnitIds, project.units]);
+
   const handleApplyBulkEdit = () => {
     if (bulkCheckedUnitIds.length === 0) {
       alert(lang === 'tr' ? "Lütfen düzenleme yapmak istediğiniz en az bir poz seçin." : "Please select at least one unit/position to modify.");

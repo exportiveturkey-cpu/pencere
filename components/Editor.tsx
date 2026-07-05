@@ -6,7 +6,7 @@ import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -809,6 +809,48 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       return updated;
     });
   };
+
+  const [customAccessoryImages, setCustomAccessoryImages] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('alumetric_custom_accessory_images');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error loading custom accessory images', e);
+    }
+    return {};
+  });
+
+  const [accessoryImageModal, setAccessoryImageModal] = useState<{ isOpen: boolean, accessory: Accessory | null }>({
+    isOpen: false,
+    accessory: null
+  });
+
+  const handleAccessoryImageUploaded = (id: string, base64: string) => {
+    setCustomAccessoryImages(prev => {
+      const updated = { ...prev, [id]: base64 };
+      try {
+        localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Quota limit for accessory images reached', e);
+      }
+      return updated;
+    });
+  };
+
+  const handleAccessoryImageCleared = (id: string) => {
+    setCustomAccessoryImages(prev => {
+      const updated = { ...prev };
+      delete updated[id];
+      try {
+        localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving to localStorage', e);
+      }
+      return updated;
+    });
+  };
   const [selectedTypology, setSelectedTypology] = useState<string>(() => {
     if (initialUnit?.typology) return initialUnit.typology;
     const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
@@ -1574,52 +1616,77 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       a.type === type && 
       (a.compatibility === 'both' || a.compatibility === selectedSystem.type || !a.compatibility)
     );
+    
+    const selectedAcc = accessories.find(a => a.id === value);
+    const accImage = selectedAcc ? (customAccessoryImages[selectedAcc.id] || '') : '';
+
     return (
       <div className="space-y-1">
         <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{label}</label>
-        <div className="relative">
-          <select 
-            value={value} 
-            onChange={e => {
-              setActivePack(null);
-              onChange(e.target.value);
-            }}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500/50 appearance-none"
-          >
-            <option value="">{t(lang, 'selectAccessories')}</option>
-            {filtered.map(acc => {
-              const isHingeType = acc.type === 'hinge';
-              const isRollerType = acc.type === 'other' && selectedSystem.type === 'sliding';
-              
-              let suffix = '';
-              let isInsufficient = false;
-              
-              if ((isHingeType || isRollerType) && acc.maxWeightKg) {
-                if (acc.maxWeightKg < totalGlassWeight) {
-                  isInsufficient = true;
-                  suffix = lang === 'tr' 
-                    ? ` - ⚠️ KAPASİTE Yetersiz (Max: ${acc.maxWeightKg} kg)` 
-                    : ` - ⚠️ CAPACITY Insufficient (Max: ${acc.maxWeightKg} kg)`;
-                } else {
-                  const isRec = isHingeType 
-                    ? recommendedHinge?.id === acc.id 
-                    : recommendedRoller?.id === acc.id;
-                  if (isRec) {
-                    suffix = lang === 'tr' ? ' - [⭐ ÖNERİLEN]' : ' - [⭐ RECOMMENDED]';
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <select 
+              value={value} 
+              onChange={e => {
+                setActivePack(null);
+                onChange(e.target.value);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 pr-8 text-xs text-white outline-none focus:border-blue-500/50 appearance-none"
+            >
+              <option value="">{t(lang, 'selectAccessories')}</option>
+              {filtered.map(acc => {
+                const isHingeType = acc.type === 'hinge';
+                const isRollerType = acc.type === 'other' && selectedSystem.type === 'sliding';
+                
+                let suffix = '';
+                let isInsufficient = false;
+                
+                if ((isHingeType || isRollerType) && acc.maxWeightKg) {
+                  if (acc.maxWeightKg < totalGlassWeight) {
+                    isInsufficient = true;
+                    suffix = lang === 'tr' 
+                      ? ` - ⚠️ KAPASİTE Yetersiz (Max: ${acc.maxWeightKg} kg)` 
+                      : ` - ⚠️ CAPACITY Insufficient (Max: ${acc.maxWeightKg} kg)`;
+                  } else {
+                    const isRec = isHingeType 
+                      ? recommendedHinge?.id === acc.id 
+                      : recommendedRoller?.id === acc.id;
+                    if (isRec) {
+                      suffix = lang === 'tr' ? ' - [⭐ ÖNERİLEN]' : ' - [⭐ RECOMMENDED]';
+                    }
                   }
                 }
-              }
-              const displayText = `${acc.name} (${acc.price} USD)${suffix}`;
-              return (
-                <option key={acc.id} value={acc.id} className={isInsufficient ? 'text-red-500 font-bold bg-red-950/20' : ''}>
-                  {displayText}
-                </option>
-              );
-            })}
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
-             <ChevronUp size={12} className="rotate-180" />
+                const displayText = `${acc.name} (${acc.price} USD)${suffix}`;
+                return (
+                  <option key={acc.id} value={acc.id} className={isInsufficient ? 'text-red-500 font-bold bg-red-950/20' : ''}>
+                    {displayText}
+                  </option>
+                );
+              })}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
+               <ChevronUp size={12} className="rotate-180" />
+            </div>
           </div>
+
+          {selectedAcc && (
+            <button
+              type="button"
+              onClick={() => setAccessoryImageModal({ isOpen: true, accessory: selectedAcc })}
+              className={`w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center transition-all overflow-hidden ${
+                accImage 
+                  ? 'border-blue-500/50 bg-white hover:border-blue-400' 
+                  : 'border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-white'
+              }`}
+              title={lang === 'tr' ? 'Aksesuar Resmi Yükle / Gör' : 'Upload / View Accessory Image'}
+            >
+              {accImage ? (
+                <img src={accImage} alt={selectedAcc.name} className="w-full h-full object-contain" />
+              ) : (
+                <Camera size={16} />
+              )}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -2446,6 +2513,108 @@ max="0.95"
           lang={lang} 
           onClose={() => setShowSection(false)} 
         />
+      )}
+
+      {accessoryImageModal.isOpen && accessoryImageModal.accessory && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200" onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}>
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-md w-full shadow-2xl relative space-y-6" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/5 transition-all"
+            >
+              <X size={18} />
+            </button>
+            
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
+                {lang === 'tr' ? 'AKSESUAR RESMİ' : 'ACCESSORY IMAGE'}
+              </span>
+              <h3 className="text-lg font-extrabold text-white leading-snug">
+                {accessoryImageModal.accessory.name}
+              </h3>
+            </div>
+
+            <div className="aspect-video bg-slate-950 rounded-2xl border border-white/5 flex flex-col items-center justify-center overflow-hidden relative group">
+              {customAccessoryImages[accessoryImageModal.accessory.id] ? (
+                <>
+                  <img
+                    src={customAccessoryImages[accessoryImageModal.accessory.id]}
+                    alt={accessoryImageModal.accessory.name}
+                    className="w-full h-full object-contain p-4"
+                  />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fileInput = document.getElementById('modal-accessory-file') as HTMLInputElement;
+                        fileInput?.click();
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
+                    >
+                      <Upload size={14} />
+                      {lang === 'tr' ? 'Değiştir' : 'Change'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAccessoryImageCleared(accessoryImageModal.accessory!.id)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} />
+                      {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div
+                  onClick={() => {
+                    const fileInput = document.getElementById('modal-accessory-file') as HTMLInputElement;
+                    fileInput?.click();
+                  }}
+                  className="w-full h-full border-2 border-dashed border-white/5 hover:border-blue-500/50 rounded-2xl flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500"
+                >
+                  <div className="p-3 bg-white/5 rounded-2xl group-hover:bg-blue-500/10 text-slate-400 group-hover:text-blue-400 transition-all mb-3">
+                    <Camera size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-slate-300 mb-1">
+                    {lang === 'tr' ? 'Resim Seçin' : 'Select Image'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {lang === 'tr' ? 'Sürükleyin veya tıklayarak yükleyin' : 'Drag & drop or click to upload'}
+                  </p>
+                </div>
+              )}
+              
+              <input
+                id="modal-accessory-file"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && accessoryImageModal.accessory) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (typeof reader.result === 'string') {
+                        handleAccessoryImageUploaded(accessoryImageModal.accessory!.id, reader.result);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setAccessoryImageModal({ isOpen: false, accessory: null })}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl transition-all text-sm"
+              >
+                {lang === 'tr' ? 'Kapat' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -177,7 +177,10 @@ app.get("/api/tcmb-rates", async (req, res) => {
 
 // API Route: Analyze Structure
 app.post("/api/ai/analyze-structure", async (req, res) => {
-  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) {
+    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
+    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  }
   try {
     const { prompt } = req.body;
     const response = await ai.models.generateContent({
@@ -186,13 +189,17 @@ app.post("/api/ai/analyze-structure", async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("API error in analyze-structure:", error);
+    res.status(500).json({ error: error.message || error });
   }
 });
 
 // API Route: Analyze Drawing
 app.post("/api/ai/analyze-drawing", async (req, res) => {
-  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) {
+    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
+    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  }
   try {
     const { base64Data, mimeType, prompt } = req.body;
     
@@ -238,13 +245,17 @@ app.post("/api/ai/analyze-drawing", async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("API error in analyze-drawing:", error);
+    res.status(500).json({ error: error.message || error });
   }
 });
 
 // API Route: Generate Pitch
 app.post("/api/ai/generate-pitch", async (req, res) => {
-  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) {
+    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
+    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  }
   try {
     const { prompt } = req.body;
     const response = await ai.models.generateContent({
@@ -253,13 +264,17 @@ app.post("/api/ai/generate-pitch", async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("API error in generate-pitch:", error);
+    res.status(500).json({ error: error.message || error });
   }
 });
 
 // API Route: Analyze Shading
 app.post("/api/ai/analyze-shading", async (req, res) => {
-  if (!ai) return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  if (!ai) {
+    console.error("AI client not initialized: Gemini API key is missing from environment variables.");
+    return res.status(500).json({ error: "Gemini API key not configured on Vercel" });
+  }
   try {
     const { base64Data, mimeType, lang, polygonPoints, productType, color, notes } = req.body;
 
@@ -368,7 +383,8 @@ app.post("/api/ai/analyze-shading", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("API error in analyze-shading:", error);
+    res.status(500).json({ error: error.message || error });
   }
 });
 
