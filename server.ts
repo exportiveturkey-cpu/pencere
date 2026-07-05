@@ -36,7 +36,11 @@ async function startServer() {
   // Use JSON body parser with a higher limit for images/PDFs
   app.use(express.json({ limit: '50mb' }));
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.pergola || process.env.PERGOLA;
+  const apiKey = process.env.pergola || process.env.PERGOLA || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (apiKey) {
+    const selectedKeyName = process.env.pergola || process.env.PERGOLA ? "pergola (paid)" : "GEMINI_API_KEY/API_KEY (default)";
+    console.log(`[Server Init] Using API Key from environment: ${selectedKeyName}`);
+  }
   const ai = apiKey ? new GoogleGenAI({ 
     apiKey,
     httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
