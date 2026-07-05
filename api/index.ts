@@ -7,7 +7,7 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-const apiKey = process.env.pergola || process.env.PERGOLA || process.env.GEMINI_API_KEY || process.env.API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.pergola || process.env.PERGOLA;
 const ai = apiKey ? new GoogleGenAI({ 
   apiKey,
   httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
