@@ -1881,6 +1881,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return localStorage.getItem('alucraft_show_cost_details') === 'true';
   });
 
+  const [showMaterialList, setShowMaterialList] = useState<boolean>(() => {
+    return localStorage.getItem('alucraft_show_material_list') !== 'false';
+  });
+
   const [companyLogo, setCompanyLogo] = useState<string | null>(() => {
     return localStorage.getItem('alucraft_company_logo') || null;
   });
@@ -1888,6 +1892,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const handleToggleCostDetails = (checked: boolean) => {
     setShowCostDetails(checked);
     localStorage.setItem('alucraft_show_cost_details', checked ? 'true' : 'false');
+  };
+
+  const handleToggleMaterialList = (checked: boolean) => {
+    setShowMaterialList(checked);
+    localStorage.setItem('alucraft_show_material_list', checked ? 'true' : 'false');
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2699,6 +2708,18 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </span>
                             </label>
 
+                            <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition" id="quote-material-list-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={showMaterialList}
+                                    onChange={e => handleToggleMaterialList(e.target.checked)}
+                                    className="rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-slate-300">
+                                    {lang === 'tr' ? 'Malzeme Listesini Göster' : 'Show Material List'}
+                                </span>
+                            </label>
+
                             <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent">
                                 <Printer size={15} /> {t(lang, 'exportPdf')}
                             </button>
@@ -3031,6 +3052,106 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </div>
                             </div>
                         </div>
+
+                        {/* Material List Under Quote (No Prices) */}
+                        {showMaterialList && (
+                            <div className="mt-14 pt-10 border-t-2 border-slate-100 print:break-inside-avoid">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <Package size={18} className="text-blue-600 print:text-slate-700" />
+                                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                                        {lang === 'tr' ? 'MALZEME LİSTESİ' : 'MATERIAL LIST'}
+                                    </h3>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Profiles List */}
+                                    {optimizationSummary.length > 0 && (
+                                        <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3 pb-2 border-b border-slate-200">
+                                                {lang === 'tr' ? 'Alüminyum Profiller' : 'Aluminum Profiles'}
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {optimizationSummary.map((opt, idx) => {
+                                                    const totalCutLengthM = opt.bars.reduce((acc, bar) => acc + bar.cuts.reduce((sum, cut) => sum + cut, 0), 0) / 1000;
+                                                    return (
+                                                        <div key={idx} className="flex justify-between items-center text-xs">
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className="font-bold text-slate-800 truncate block">
+                                                                    {t(lang, opt.profileLabel as any) || opt.profileLabel}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-mono">
+                                                                    {opt.profileCode} • {opt.systemName}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-right ml-4">
+                                                                <span className="font-mono font-black text-slate-850">{totalCutLengthM.toFixed(2)} m</span>
+                                                                <span className="text-[10px] text-slate-400 block">{opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Accessories List */}
+                                    {accessorySummary.length > 0 && (
+                                        <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3 pb-2 border-b border-slate-200">
+                                                {lang === 'tr' ? 'Aksesuar & Sarf Malzemeleri' : 'Accessories & Consumables'}
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {accessorySummary.map((acc, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center text-xs">
+                                                        <div className="min-w-0 flex-1">
+                                                            <span className="font-bold text-slate-800 truncate block">{acc.name}</span>
+                                                            <span className="text-[10px] text-slate-400 uppercase tracking-widest">{t(lang, acc.type as any)}</span>
+                                                        </div>
+                                                        <div className="text-right ml-4">
+                                                            <span className="font-mono font-black text-slate-850">
+                                                                {acc.unit === 'pce' ? acc.quantity : acc.quantity.toFixed(1)}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 block uppercase tracking-tight">
+                                                                {t(lang, acc.unit === 'pce' ? 'unitPce' : 'unitMeter')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Glass List */}
+                                    {glassOrders.length > 0 && (
+                                        <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 md:col-span-2">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3 pb-2 border-b border-slate-200">
+                                                {lang === 'tr' ? 'Cam Malzeme Listesi' : 'Glass Specifications'}
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {glassOrders.map((pane, idx) => (
+                                                    <div key={idx} className="flex justify-between items-center text-xs py-1 border-b border-slate-100 last:border-b-0">
+                                                        <div className="min-w-0 flex-1">
+                                                            <span className="font-bold text-slate-800 truncate block">{pane.type}</span>
+                                                            <span className="text-[10px] text-slate-400 font-mono uppercase">{pane.width} x {pane.height} mm</span>
+                                                        </div>
+                                                        <div className="text-right ml-4 flex gap-4">
+                                                            <div className="text-right">
+                                                                <span className="font-mono font-black text-slate-850">{pane.quantity}</span>
+                                                                <span className="text-[10px] text-slate-400 block">{lang === 'tr' ? 'Adet' : 'Qty'}</span>
+                                                            </div>
+                                                            <div className="text-right min-w-[50px]">
+                                                                <span className="font-mono font-black text-slate-850">{(pane.area * pane.quantity).toFixed(2)}</span>
+                                                                <span className="text-[10px] text-slate-400 block">m²</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Footer */}
                         <div className="mt-20 pt-10 border-t border-slate-100 flex flex-col md:flex-row justify-between gap-6">

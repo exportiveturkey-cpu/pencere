@@ -234,7 +234,7 @@ export const KURTOGLU_51LS_CATALOG: CatalogProfileItem[] = [
 
   // Special/Accessory/Mullion supplementary profiles (listed on catalog sheet, starting with other numbers)
   { code: '51LS-561-00', weight: 1.844, type: 'sash', nameTr: 'Kanat Adaptör Profili / Kamçı', nameEn: 'Sash Adapter Profile' },
-  { code: '51LSM-513-00', weight: 1.100, type: 'sash', nameTr: 'Sürme Kenet Profili', nameEn: 'Interlocking Profile' },
+  { code: '51LSM-503-00', weight: 1.100, type: 'sash', nameTr: 'Sürme Kenet Profili', nameEn: 'Interlocking Profile' },
   { code: '51LS-541-00', weight: 1.389, type: 'mullion', nameTr: 'Eşik Profili / Damlalık', nameEn: 'Threshold Profile / Drip' },
   { code: '07-123-00', weight: 1.591, type: 'mullion', nameTr: 'Yardımcı Profil', nameEn: 'Auxiliary Profile' },
   { code: '07-124-00', weight: 0.129, type: 'mullion', nameTr: 'Mini Adaptör / Kapak', nameEn: 'Cover-Adapter Profile' }
