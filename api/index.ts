@@ -7,7 +7,7 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+const apiKey = process.env.pergola || process.env.PERGOLA || process.env.GEMINI_API_KEY || process.env.API_KEY;
 const ai = apiKey ? new GoogleGenAI({ 
   apiKey,
   httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
@@ -19,7 +19,14 @@ const generateWithRetryAndFallback = async (params: {
   config?: any;
 }) => {
   if (!ai) throw new Error("Gemini API key not configured");
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"];
+  const modelsToTry = [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-3.5-flash"
+  ];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
