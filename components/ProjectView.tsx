@@ -93,9 +93,261 @@ const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: stri
   });
 };
 
+const getCustomProfileImage = (code: string, customImages: Record<string, string>) => {
+  if (!code || !customImages) return '';
+  
+  // 1. Direct match
+  if (customImages[code]) return customImages[code];
+
+  const clean = (s: string) => s.trim().toLowerCase().replace(/-00$/, '').replace(/[^a-z0-9]/g, '');
+  const target = clean(code);
+
+  // 2. Exact match with normalized keys
+  for (const [key, val] of Object.entries(customImages)) {
+    if (clean(key) === target) {
+      return val;
+    }
+  }
+
+  // 3. Prefix/suffix fuzzy match
+  for (const [key, val] of Object.entries(customImages)) {
+    const kClean = clean(key);
+    if (kClean && target && (kClean.startsWith(target) || target.startsWith(kClean))) {
+      return val;
+    }
+  }
+
+  return '';
+};
+
+const ProfileThumbnail: React.FC<{ profileLabel: string; profileCode: string; customImages: Record<string, string> }> = ({ profileLabel, profileCode, customImages }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const customSrc = getCustomProfileImage(profileCode, customImages);
+  const src = customSrc || `/profiles/${profileCode}.png`;
+  
+  if (!imageFailed && src) {
+    return (
+      <img
+        src={src}
+        alt={profileCode}
+        onError={() => setImageFailed(true)}
+        className="w-full h-full object-contain bg-white rounded p-0.5 select-none"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  const label = (profileLabel || '').toLowerCase();
+  
+  if (label.includes('kasa') || label.includes('frame') || label.includes('ray') || label.includes('dikme')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-blue-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 6 6 L 34 6 L 34 34 L 14 34 L 14 26 L 6 26 Z" stroke="#2563eb" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M 10 10 L 30 10 L 30 20 L 14 20 M 18 26 L 30 26 L 30 30 L 18 30 Z" stroke="#64748b" strokeWidth="0.8" strokeLinejoin="round" opacity="0.8" />
+        <rect x="14" y="21" width="16" height="4" fill="#334155" stroke="#475569" strokeWidth="0.5" />
+        <path d="M 6 12 L 8 12 L 8 15 L 6 15" stroke="#2563eb" strokeWidth="1" />
+        <line x1="6" y1="38" x2="34" y2="38" stroke="#cbd5e1" strokeWidth="0.5" strokeDasharray="1,1" />
+      </svg>
+    );
+  }
+  
+  if (label.includes('kanat') || label.includes('sash')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-indigo-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 12 6 L 28 6 L 28 16 L 34 16 L 34 34 L 18 34 L 18 24 L 12 24 Z" stroke="#4f46e5" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M 16 10 L 24 10 L 24 20 L 18 20 M 22 24 L 30 24 L 30 30 L 22 30 Z" stroke="#64748b" strokeWidth="0.8" strokeLinejoin="round" opacity="0.8" />
+        <rect x="18" y="21" width="12" height="3" fill="#334155" stroke="#475569" strokeWidth="0.5" />
+        <line x1="12" y1="12" x2="28" y2="12" stroke="#818cf8" strokeWidth="1" strokeDasharray="2,1" />
+      </svg>
+    );
+  }
+  
+  if (label.includes('orta') || label.includes('mullion') || label.includes('transom') || label.includes('kayıt')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-emerald-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 6 12 L 14 12 L 14 6 L 26 6 L 26 12 L 34 12 L 34 22 L 26 22 L 26 34 L 14 34 L 14 22 L 6 22 Z" stroke="#059669" strokeWidth="1.5" strokeLinejoin="round" />
+        <rect x="16" y="9" width="8" height="22" stroke="#64748b" strokeWidth="0.8" strokeLinejoin="round" opacity="0.8" />
+        <rect x="14" y="15" width="2" height="4" fill="#334155" stroke="#475569" strokeWidth="0.5" />
+        <rect x="24" y="15" width="2" height="4" fill="#334155" stroke="#475569" strokeWidth="0.5" />
+      </svg>
+    );
+  }
+  
+  if (label.includes('çıta') || label.includes('bead') || label.includes('glazing')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-teal-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 12 10 L 26 10 A 4 4 0 0 1 30 14 L 30 26 A 2 2 0 0 1 28 28 L 14 28 C 12 28 12 26 12 26 L 12 18 L 16 18 L 16 14 L 12 14 Z" stroke="#0d9488" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M 12 24 L 10 24 L 10 22" stroke="#0d9488" strokeWidth="1" />
+        <line x1="15" y1="13" x2="27" y2="25" stroke="#94a3b8" strokeWidth="0.5" opacity="0.4" />
+        <line x1="18" y1="13" x2="27" y2="22" stroke="#94a3b8" strokeWidth="0.5" opacity="0.4" />
+      </svg>
+    );
+  }
+  
+  return (
+    <svg viewBox="0 0 40 40" className="w-10 h-10 text-slate-500 shrink-0" fill="none" stroke="currentColor">
+      <rect x="8" y="8" width="24" height="24" rx="2" stroke="#475569" strokeWidth="1.5" />
+      <rect x="12" y="12" width="16" height="16" rx="1" stroke="#64748b" strokeWidth="0.8" opacity="0.8" />
+      <line x1="8" y1="8" x2="12" y2="12" stroke="#94a3b8" strokeWidth="0.5" opacity="0.5" />
+      <line x1="32" y1="8" x2="28" y2="12" stroke="#94a3b8" strokeWidth="0.5" opacity="0.5" />
+      <line x1="8" y1="32" x2="12" y2="28" stroke="#94a3b8" strokeWidth="0.5" opacity="0.5" />
+      <line x1="32" y1="32" x2="28" y2="28" stroke="#94a3b8" strokeWidth="0.5" opacity="0.5" />
+    </svg>
+  );
+};
+
+const getCustomAccessoryImage = (id: string, name: string, customImages: Record<string, string>) => {
+  if (!customImages) return '';
+  if (id && customImages[id]) return customImages[id];
+  if (name && customImages[name]) return customImages[name];
+  
+  // Try case-insensitive and clean matches for ID or Name
+  const clean = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const targetId = id ? clean(id) : '';
+  const targetName = name ? clean(name) : '';
+  
+  for (const [key, val] of Object.entries(customImages)) {
+    const kClean = clean(key);
+    if (targetId && kClean === targetId) return val;
+    if (targetName && kClean === targetName) return val;
+  }
+  
+  // Try containing match
+  for (const [key, val] of Object.entries(customImages)) {
+    const kClean = clean(key);
+    if (kClean && ((targetId && (kClean.includes(targetId) || targetId.includes(kClean))) || 
+                   (targetName && (kClean.includes(targetName) || targetName.includes(kClean))))) {
+      return val;
+    }
+  }
+  
+  return '';
+};
+
+const AccessoryThumbnail: React.FC<{ accessoryName: string; accessoryType: string; accessoryId: string; customImages: Record<string, string> }> = ({ accessoryName, accessoryType, accessoryId, customImages }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const src = getCustomAccessoryImage(accessoryId, accessoryName, customImages);
+  
+  if (!imageFailed && src) {
+    return (
+      <img
+        src={src}
+        alt={accessoryName}
+        onError={() => setImageFailed(true)}
+        className="w-full h-full object-contain bg-white rounded p-0.5 select-none"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  const name = (accessoryName || '').toLowerCase();
+  const type = (accessoryType || '').toLowerCase();
+  
+  if (name.includes('fitil') || name.includes('gasket') || name.includes('epdm') || name.includes('seal') || type.includes('gasket') || type.includes('fitil')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-slate-850 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 12 12 Q 10 20 18 24 Q 28 20 26 12 Q 22 14 19 12 Q 16 14 12 12 Z" fill="#1e293b" stroke="#0f172a" strokeWidth="1" />
+        <path d="M 19 24 L 16 32 L 22 32 Z" fill="#334155" stroke="#0f172a" strokeWidth="1" strokeLinejoin="round" />
+        <line x1="15" y1="16" x2="23" y2="16" stroke="#64748b" strokeWidth="0.8" />
+      </svg>
+    );
+  }
+  
+  if (name.includes('vida') || name.includes('screw') || name.includes('bolt') || name.includes('dübel') || type.includes('screw') || type.includes('vida')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-zinc-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 10 10 L 30 10 L 24 16 L 24 30 L 20 34 L 16 30 L 16 16 Z" fill="#94a3b8" stroke="#475569" strokeWidth="1" strokeLinejoin="round" />
+        <path d="M 17 10 L 23 10 M 20 7 L 20 13" stroke="#334155" strokeWidth="1.5" />
+        <line x1="16" y1="18" x2="24" y2="21" stroke="#334155" strokeWidth="1.2" />
+        <line x1="16" y1="22" x2="24" y2="25" stroke="#334155" strokeWidth="1.2" />
+        <line x1="16" y1="26" x2="24" y2="29" stroke="#334155" strokeWidth="1.2" />
+      </svg>
+    );
+  }
+  
+  if (name.includes('köşe') || name.includes('corner') || name.includes('bracket') || name.includes('takoz') || name.includes('cleat') || type.includes('corner') || type.includes('takoz')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-amber-600 shrink-0" fill="none" stroke="currentColor">
+        <path d="M 8 12 L 22 12 L 22 32 L 8 32 Z" fill="#cbd5e1" stroke="#475569" strokeWidth="1" />
+        <path d="M 22 12 L 32 18 L 32 32 L 22 32 Z" fill="#94a3b8" stroke="#475569" strokeWidth="1" />
+        <circle cx="15" cy="18" r="2.5" fill="#475569" stroke="#1e293b" strokeWidth="0.5" />
+        <circle cx="15" cy="26" r="2.5" fill="#475569" stroke="#1e293b" strokeWidth="0.5" />
+        <circle cx="27" cy="24" r="2.0" fill="#475569" stroke="#1e293b" strokeWidth="0.5" />
+      </svg>
+    );
+  }
+  
+  if (name.includes('teker') || name.includes('roller') || name.includes('wheel') || type.includes('roller') || type.includes('teker')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-sky-600 shrink-0" fill="none" stroke="currentColor">
+        <rect x="6" y="10" width="28" height="16" rx="2" fill="#e2e8f0" stroke="#475569" strokeWidth="1" />
+        <circle cx="13" cy="26" r="6" fill="#64748b" stroke="#334155" strokeWidth="1" />
+        <circle cx="13" cy="26" r="2" fill="#f1f5f9" />
+        <circle cx="27" cy="26" r="6" fill="#64748b" stroke="#334155" strokeWidth="1" />
+        <circle cx="27" cy="26" r="2" fill="#f1f5f9" />
+        <line x1="20" y1="10" x2="20" y2="15" stroke="#475569" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+  
+  if (name.includes('kol') || name.includes('handle') || name.includes('kilit') || name.includes('lock') || type.includes('handle') || type.includes('kol')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-orange-600 shrink-0" fill="none" stroke="currentColor">
+        <rect x="17" y="6" width="6" height="28" rx="1.5" fill="#94a3b8" stroke="#475569" strokeWidth="1" />
+        <circle cx="20" cy="26" r="1.5" fill="#1e293b" />
+        <path d="M 19 26 L 21 26 L 21.5 30 L 18.5 30 Z" fill="#1e293b" />
+        <path d="M 20 12 C 20 12 30 11 32 13 C 34 15 32 17 26 17 L 20 17 Z" fill="#cbd5e1" stroke="#334155" strokeWidth="1" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  
+  if (name.includes('tapa') || name.includes('cap') || name.includes('tahliye') || name.includes('drain') || type.includes('cap') || type.includes('tapa')) {
+    return (
+      <svg viewBox="0 0 40 40" className="w-10 h-10 text-violet-600 shrink-0" fill="none" stroke="currentColor">
+        <rect x="10" y="12" width="20" height="14" rx="3" fill="#334155" stroke="#1e293b" strokeWidth="1" />
+        <line x1="14" y1="19" x2="26" y2="19" stroke="#64748b" strokeWidth="1" />
+        <path d="M 14 12 L 14 8 L 17 8 L 17 12" stroke="#475569" strokeWidth="1" />
+        <path d="M 23 12 L 23 8 L 26 8 L 26 12" stroke="#475569" strokeWidth="1" />
+      </svg>
+    );
+  }
+  
+  return (
+    <svg viewBox="0 0 40 40" className="w-10 h-10 text-slate-400 shrink-0" fill="none" stroke="currentColor">
+      <path d="M 20 8 L 32 14 L 20 20 L 8 14 Z" fill="#e2e8f0" stroke="#475569" strokeWidth="1" />
+      <path d="M 8 14 L 20 20 L 20 32 L 8 26 Z" fill="#cbd5e1" stroke="#475569" strokeWidth="1" />
+      <path d="M 20 20 L 32 14 L 32 26 L 20 32 Z" fill="#94a3b8" stroke="#475569" strokeWidth="1" />
+      <path d="M 14 11 L 26 17 L 26 29 L 20 32 L 20 20 L 14 17 Z" fill="#2563eb" fillOpacity="0.15" stroke="#2563eb" strokeWidth="0.5" />
+    </svg>
+  );
+};
+
 const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme, licenseKey }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'shading' | 'production' | 'cnc' | 'quote'>('details');
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const [customProfileImages, setCustomProfileImages] = useState<Record<string, string>>({});
+  const [customAccessoryImages, setCustomAccessoryImages] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const savedProfiles = localStorage.getItem('alumetric_custom_profile_images');
+      if (savedProfiles) {
+        setCustomProfileImages(JSON.parse(savedProfiles));
+      }
+    } catch (e) {
+      console.warn('Error loading custom profile images', e);
+    }
+    
+    try {
+      const savedAccessories = localStorage.getItem('alumetric_custom_accessory_images');
+      if (savedAccessories) {
+        setCustomAccessoryImages(JSON.parse(savedAccessories));
+      }
+    } catch (e) {
+      console.warn('Error loading custom accessory images', e);
+    }
+  }, []);
 
   const handleCopyShareLink = () => {
     if (!licenseKey) {
@@ -3135,17 +3387,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 {optimizationSummary.map((opt, idx) => {
                                                     const totalCutLengthM = opt.bars.reduce((acc, bar) => acc + bar.cuts.reduce((sum, cut) => sum + cut, 0), 0) / 1000;
                                                     return (
-                                                        <div key={idx} className="flex justify-between items-center text-xs">
-                                                            <div className="min-w-0 flex-1">
-                                                                <span className="font-bold text-slate-800 truncate block">
-                                                                    {t(lang, opt.profileLabel as any) || opt.profileLabel}
-                                                                </span>
-                                                                <span className="text-[10px] text-slate-400 font-mono">
-                                                                    {opt.profileCode} • {opt.systemName}
-                                                                </span>
+                                                        <div key={idx} className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 rounded px-1 transition-all">
+                                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                <div className="w-10 h-10 bg-white rounded-md border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex items-center justify-center p-1 shrink-0 select-none print:border-slate-350">
+                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={customProfileImages} />
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <span className="font-bold text-slate-800 truncate block">
+                                                                        {t(lang, opt.profileLabel as any) || opt.profileLabel}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-slate-400 font-mono block truncate">
+                                                                        {opt.profileCode} • {opt.systemName}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-right ml-4">
-                                                                <span className="font-mono font-black text-slate-850">{totalCutLengthM.toFixed(2)} m</span>
+                                                            <div className="text-right ml-3 shrink-0">
+                                                                <span className="font-mono font-black text-slate-850 block">{totalCutLengthM.toFixed(2)} m</span>
                                                                 <span className="text-[10px] text-slate-400 block">{opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}</span>
                                                             </div>
                                                         </div>
@@ -3163,13 +3420,18 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             </h4>
                                             <div className="space-y-2">
                                                 {accessorySummary.map((acc, idx) => (
-                                                    <div key={idx} className="flex justify-between items-center text-xs">
-                                                        <div className="min-w-0 flex-1">
-                                                            <span className="font-bold text-slate-800 truncate block">{acc.name}</span>
-                                                            <span className="text-[10px] text-slate-400 uppercase tracking-widest">{t(lang, acc.type as any)}</span>
+                                                    <div key={idx} className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 rounded px-1 transition-all">
+                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                            <div className="w-10 h-10 bg-white rounded-md border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex items-center justify-center p-1 shrink-0 select-none print:border-slate-350">
+                                                                <AccessoryThumbnail accessoryName={acc.name} accessoryType={acc.type} accessoryId={acc.id} customImages={customAccessoryImages} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className="font-bold text-slate-800 truncate block">{acc.name}</span>
+                                                                <span className="text-[10px] text-slate-400 uppercase tracking-widest block truncate">{t(lang, acc.type as any)}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-right ml-4">
-                                                            <span className="font-mono font-black text-slate-850">
+                                                        <div className="text-right ml-3 shrink-0">
+                                                            <span className="font-mono font-black text-slate-850 block">
                                                                 {acc.unit === 'pce' ? acc.quantity : acc.quantity.toFixed(1)}
                                                             </span>
                                                             <span className="text-[10px] text-slate-400 block uppercase tracking-tight">
@@ -5346,8 +5608,15 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 return (
                                                     <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
                                                         <td className="px-8 py-5">
-                                                            <div className="font-bold text-white text-base print:text-black">{t(lang, opt.profileLabel as any) || opt.profileLabel}</div>
-                                                            <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase print:text-slate-400">{opt.systemName}</div>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-11 h-11 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center p-1.5 shrink-0 select-none print:border-slate-300">
+                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={customProfileImages} />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-white text-base print:text-black">{t(lang, opt.profileLabel as any) || opt.profileLabel}</div>
+                                                                    <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase print:text-slate-400">{opt.systemName}</div>
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td className="px-8 py-5">
                                                             <span className="bg-slate-950 px-2 py-1 rounded text-xs font-mono text-emerald-400 border border-white/5 print:bg-slate-50 print:text-emerald-700 print:border-slate-200">{opt.profileCode}</span>
@@ -5400,7 +5669,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 return (
                                                     <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
                                                         <td className="px-8 py-5">
-                                                            <div className="font-bold text-white text-base print:text-black">{acc.name}</div>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-11 h-11 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center p-1.5 shrink-0 select-none print:border-slate-300">
+                                                                    <AccessoryThumbnail accessoryName={acc.name} accessoryType={acc.type} accessoryId={acc.id} customImages={customAccessoryImages} />
+                                                                </div>
+                                                                <div className="font-bold text-white text-base print:text-black">{acc.name}</div>
+                                                            </div>
                                                         </td>
                                                         <td className="px-8 py-5">
                                                             <span className="text-xs text-slate-500 uppercase font-black tracking-widest print:text-slate-400">{t(lang, acc.type as any)}</span>
