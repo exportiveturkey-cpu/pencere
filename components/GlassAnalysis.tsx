@@ -25,17 +25,6 @@ interface SpacerLayer {
   gas: 'air' | 'argon';
 }
 
-// Pre-configured packages
-interface PresetCombination {
-  nameTr: string;
-  nameEn: string;
-  glazingType: GlazingType;
-  glassLayers: GlassLayer[];
-  spacers: SpacerLayer[];
-  descTr: string;
-  descEn: string;
-}
-
 export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, theme }) => {
   const [glazingType, setGlazingType] = useState<GlazingType>('double');
   
@@ -167,76 +156,6 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
     return dict[lang === 'tr' ? 'tr' : 'en'][key];
   };
 
-  const presets: PresetCombination[] = useMemo(() => [
-    {
-      nameTr: 'Maksimum Isı Koruma (Üçlü Pasif Ev)',
-      nameEn: 'Maximum Heat Guard (Triple Passive House)',
-      glazingType: 'triple',
-      glassLayers: [
-        { thickness: 4, type: 'solarControl' },
-        { thickness: 4, type: 'float' },
-        { thickness: 4, type: 'lowE' }
-      ],
-      spacers: [
-        { width: 16, gas: 'argon' },
-        { width: 16, gas: 'argon' }
-      ],
-      descTr: 'Kuzey cepheler ve aşırı soğuk iklimler için 3 katmanlı, çift Argon gazlı şampiyon paket.',
-      descEn: 'Triple pane, double Argon-filled champion package for cold climates and northern facades.'
-    },
-    {
-      nameTr: 'Güneş Kalkanı & Konfor (Isıcam K Solar)',
-      nameEn: 'Solar Shield & Sun Guard (Isıcam K Comfort)',
-      glazingType: 'double',
-      glassLayers: [
-        { thickness: 6, type: 'solarControl' },
-        { thickness: 4, type: 'lowE' }
-      ],
-      spacers: [
-        { width: 16, gas: 'argon' },
-        { width: 16, gas: 'air' }
-      ],
-      descTr: 'Akdeniz ve Ege gibi yazları sıcak geçen bölgelerde klimadan tasarruf ettiren akıllı kombinasyon.',
-      descEn: 'Smart combination saving cooling energy in hot regions like Mediterranean.'
-    },
-    {
-      nameTr: 'Maksimum Sessizlik & Güvenlik',
-      nameEn: 'Acoustic Silence & Security Pro',
-      glazingType: 'double',
-      glassLayers: [
-        { thickness: 6, type: 'acoustic' },
-        { thickness: 4, type: 'lowE' }
-      ],
-      spacers: [
-        { width: 16, gas: 'argon' },
-        { width: 16, gas: 'air' }
-      ],
-      descTr: 'Otoyol kenarı, havalimanı yakınları ve hırsızlık koruması için Akustik Lamine entegreli ultra sessiz paket.',
-      descEn: 'Ultra quiet package integrated with Acoustic Laminated for high noise areas and burglary protection.'
-    },
-    {
-      nameTr: 'Standart Isıcam (Klasik Isı Yalıtım)',
-      nameEn: 'Standard Eco Double Glazing (4+16+4)',
-      glazingType: 'double',
-      glassLayers: [
-        { thickness: 4, type: 'float' },
-        { thickness: 4, type: 'float' }
-      ],
-      spacers: [
-        { width: 16, gas: 'air' },
-        { width: 16, gas: 'air' }
-      ],
-      descTr: 'En ekonomik çözüm. Temel yalıtım ihtiyaçlarını karşılayan standart çift cam.',
-      descEn: 'Most economical solution. Standard double glazing satisfying basic insulation demands.'
-    }
-  ], []);
-
-  const handleApplyPreset = (p: PresetCombination) => {
-    setGlazingType(p.glazingType);
-    setGlassLayers([...p.glassLayers]);
-    setSpacers([...p.spacers]);
-  };
-
   const handleUpdateGlass = (idx: number, field: keyof GlassLayer, value: any) => {
     const updated = [...glassLayers];
     updated[idx] = { ...updated[idx], [field]: value };
@@ -273,12 +192,18 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
     // 2. Base metrics depending on glazing configuration
     if (glazingType === 'single') {
       const g = glassLayers[0];
-      if (g.type === 'float') { ug = 5.8; lt = 90; gVal = 82; rw = 29 + (g.thickness > 6 ? 2 : 0); }
+      if (g.type === 'float') { ug = 5.8; lt = 90; gVal = 82; rw = 29; }
       else if (g.type === 'lowE') { ug = 3.6; lt = 80; gVal = 62; rw = 29; }
       else if (g.type === 'solarControl') { ug = 3.6; lt = 70; gVal = 44; rw = 29; }
       else if (g.type === 'tinted') { ug = 5.8; lt = 55; gVal = 48; rw = 29; }
       else if (g.type === 'laminated') { ug = 5.7; lt = 88; gVal = 77; rw = 32; }
       else if (g.type === 'acoustic') { ug = 5.7; lt = 88; gVal = 77; rw = 35; }
+
+      // Adjust for thickness: each mm above 4mm decreases LT by 0.8% and gVal by 0.6%
+      const diff = g.thickness - 4;
+      lt -= diff * 0.8;
+      gVal -= diff * 0.6;
+      rw += Math.floor(g.thickness / 2) - 2; // e.g. 4mm -> +0, 6mm -> +1, 10mm -> +3
     } 
     else if (glazingType === 'double') {
       // Base Double (float 4 + 16 air + float 4)
@@ -320,12 +245,20 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
         gVal *= 0.60;
       }
 
-      // Acoustic & Safety ratings
-      let baseRw = 31;
+      // Adjust for thickness of both panes (Standard reference is 4 + 4 = 8mm)
+      const thicknessDiff = (outer.thickness + inner.thickness) - 8;
+      lt -= thicknessDiff * 0.7;
+      gVal -= thicknessDiff * 0.5;
+
+      // Very small reduction in Ug for thicker glass (each mm adds minimal resistance)
+      ug -= thicknessDiff * 0.015;
+
+      // Acoustic & Safety ratings (highly responsive to thickness & asymmetric glass combo)
+      let baseRw = 30;
+      baseRw += Math.floor((outer.thickness + inner.thickness) / 2);
       if (outer.thickness !== inner.thickness) baseRw += 2; // Asymmetric Glass bonus
       if (outer.type === 'laminated' || inner.type === 'laminated') baseRw += 3;
-      if (outer.type === 'acoustic' || inner.type === 'acoustic') baseRw += 7;
-      if (totalGlassThickness >= 12) baseRw += 1;
+      if (outer.type === 'acoustic' || inner.type === 'acoustic') baseRw += 6;
       rw = baseRw;
     } 
     else { // Triple Glazing
@@ -367,15 +300,27 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
         gVal *= 0.55;
       }
 
+      // Adjust for thickness of all three panes (Standard reference is 4 + 4 + 4 = 12mm)
+      const thicknessDiff = (outer.thickness + mid.thickness + inner.thickness) - 12;
+      lt -= thicknessDiff * 0.6;
+      gVal -= thicknessDiff * 0.4;
+
+      // Very small reduction in Ug for thicker glass
+      ug -= thicknessDiff * 0.012;
+
       // Acoustic Rw calculation
-      let baseRw = 32;
+      let baseRw = 31;
+      baseRw += Math.floor((outer.thickness + mid.thickness + inner.thickness) / 3);
       const hasAcoustic = [outer, mid, inner].some(g => g.type === 'acoustic');
       const hasLami = [outer, mid, inner].some(g => g.type === 'laminated');
       
-      if (hasAcoustic) baseRw += 7;
+      if (hasAcoustic) baseRw += 6;
       else if (hasLami) baseRw += 3;
 
-      if (outer.thickness !== inner.thickness) baseRw += 1;
+      // Asymmetry check
+      const thicknessesSet = new Set([outer.thickness, mid.thickness, inner.thickness]);
+      if (thicknessesSet.size > 1) baseRw += 2; // Asymmetrical bonus
+      
       rw = baseRw;
     }
 
@@ -671,35 +616,6 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
 
             </div>
 
-            {/* Popular Combination Packages (Bento-style) */}
-            <div className="bg-slate-900/40 border border-white/5 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-xs font-extrabold text-blue-400 tracking-wider uppercase flex items-center gap-1.5">
-                <Sparkles size={14} />
-                {tLocal('presets')}
-              </h3>
-              <div className="space-y-3">
-                {presets.map((p, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleApplyPreset(p)}
-                    className="w-full text-left bg-slate-950/60 hover:bg-slate-900 border border-white/5 hover:border-slate-800 p-4 rounded-2xl transition-all flex items-start gap-3.5 group"
-                  >
-                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/10 mt-0.5 group-hover:scale-105 transition-all">
-                      <Zap size={15} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-white text-xs group-hover:text-blue-400 transition-colors">
-                        {lang === 'tr' ? p.nameTr : p.nameEn}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-relaxed font-semibold">
-                        {lang === 'tr' ? p.descTr : p.descEn}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
           </div>
 
           {/* Right Column (7 Cols) - Scientific Analysis View & Live Simulation */}
@@ -751,7 +667,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
                       <circle cx="110" cy="70" r="1.5" fill="#38bdf8" opacity="0.7" />
                       <circle cx="100" cy="85" r="1.5" fill="#38bdf8" opacity="0.7" />
                       <text x="105" y="61" fill="#475569" className="print:fill-slate-500" fontSize="6" fontWeight="bold" textAnchor="middle">
-                        {spacers[0].gas === 'argon' ? 'Ar 16mm' : 'Air 16mm'}
+                        {spacers[0].gas === 'argon' ? `Ar ${spacers[0].width}mm` : `Air ${spacers[0].width}mm`}
                       </text>
                     </g>
                   )}
@@ -773,7 +689,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
                       <circle cx="150" cy="45" r="1.5" fill="#38bdf8" opacity="0.7" />
                       <circle cx="145" cy="75" r="1.5" fill="#38bdf8" opacity="0.7" />
                       <text x="150" y="61" fill="#475569" className="print:fill-slate-500" fontSize="6" fontWeight="bold" textAnchor="middle">
-                        {spacers[1].gas === 'argon' ? 'Ar 16mm' : 'Air 16mm'}
+                        {spacers[1].gas === 'argon' ? `Ar ${spacers[1].width}mm` : `Air ${spacers[1].width}mm`}
                       </text>
                     </g>
                   )}
@@ -782,7 +698,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
                   {glazingType !== 'single' && (
                     <g>
                       <rect x={glazingType === 'triple' ? "165" : "120"} y="25" width="15" height="70" fill={glassTypes.find(gt => gt.value === glassLayers[2].type)?.tint || '#bae6fd'} rx="1" opacity="0.85" stroke="#475569" strokeWidth="0.75" />
-                      <text x={glazingType === 'triple' ? "172.5" : "127.5"} y="60" fill="#0f172a" fontSize="6.5" fontWeight="black" textAnchor="middle" transform="rotate(-90 (glazingType === 'triple' ? 172.5 : 127.5) 60)">
+                      <text x={glazingType === 'triple' ? "172.5" : "127.5"} y="60" fill="#0f172a" fontSize="6.5" fontWeight="black" textAnchor="middle" transform={`rotate(-90 ${glazingType === 'triple' ? 172.5 : 127.5} 60)`}>
                         {glassLayers[2].thickness}mm
                       </text>
                     </g>
