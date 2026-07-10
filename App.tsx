@@ -6,6 +6,7 @@ import ProjectView from './components/ProjectView';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import { ClientPortal } from './components/ClientPortal';
+import { GlassAnalysis } from './components/GlassAnalysis';
 import { Project, Unit, ProfileSystem, Language, Accessory, MachineConfig, AppData, Customer } from './types';
 import { MOCK_PROJECTS, PROFILE_SYSTEMS, MOCK_ACCESSORIES } from './constants';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,7 +28,7 @@ import {
 } from './services/authService';
 import { Cloud, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
 
-type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS';
+type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS' | 'GLASS_ANALYSIS';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => sessionStorage.getItem('alumetric_auth') === 'true');
@@ -485,9 +486,18 @@ const App: React.FC = () => {
           onUpdateProject={handleUpdateProject}
           onDeleteProject={handleDeleteProject}
           onOpenSettings={() => setView('SETTINGS')}
+          onOpenGlassAnalysis={() => setView('GLASS_ANALYSIS')}
           forcedName={companyName} 
           theme={theme}
           onToggleTheme={toggleTheme}
+        />
+      )}
+      
+      {view === 'GLASS_ANALYSIS' && (
+        <GlassAnalysis 
+          lang={lang}
+          onBack={() => setView('DASHBOARD')}
+          theme={theme}
         />
       )}
       

@@ -1,13 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, ProfileSystem, Accessory, Language } from '../types';
+import { Project, ProfileSystem, Accessory, Language, WindowNode } from '../types';
 import { t } from '../translations';
 import Visualizer from './Visualizer';
+import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
 import { 
   Sparkles, CheckCircle2, AlertOctagon, HelpCircle, PenTool,
   Printer, ArrowLeftRight, ClipboardCheck, MessageSquare, 
   User, Calendar, Landmark, Coins, FileCheck, CircleDollarSign
 } from 'lucide-react';
 import { cloud_saveProject } from '../services/authService';
+
+const hasOpenablePanes = (node: WindowNode | undefined): boolean => {
+  if (!node) return false;
+  if (node.type === 'sash' || (node.openingType && node.openingType !== 'fixed')) return true;
+  if (node.children) {
+    return node.children.some(child => hasOpenablePanes(child));
+  }
+  return false;
+};
 
 interface ClientPortalProps {
   licenseKey: string;
@@ -430,22 +440,40 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                         <div className="p-6 grid grid-cols-1 md:grid-cols-5 gap-6">
                           
                           {/* Unit visual representation */}
-                          <div className="md:col-span-2 flex items-center justify-center p-4 bg-slate-950/40 border border-white/5 rounded-2xl print:bg-white print:border-none min-h-[220px]">
-                            <div className="w-full h-full scale-[0.85] transform origin-center max-w-[180px]">
-                              <Visualizer 
-                                node={unit.rootNode} 
-                                width={unit.width} 
-                                height={unit.height} 
-                                system={sys} 
-                                selectedNodeId={null} 
-                                onSelectNode={() => {}} 
-                                theme="light" 
-                                shape={unit.shape} 
-                                archHeight={unit.archHeight} 
-                                hasThreshold={unit.hasThreshold} 
-                                lang={lang} 
-                                viewPerspective={unit.viewPerspective}
-                              />
+                          <div className="md:col-span-2 flex flex-col items-center justify-center p-4 bg-slate-950/40 border border-white/5 rounded-2xl print:bg-white print:border-none print:p-0 min-h-[220px]">
+                            <div className="flex flex-col gap-3 items-center">
+                              {/* Elevation drawing & side cross section */}
+                              <div className="flex items-center gap-3">
+                                {/* Elevation Front View */}
+                                <div className="w-36 h-36 bg-slate-900/60 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200 p-2 flex items-center justify-center shrink-0">
+                                  <div className="w-full h-full">
+                                    <Visualizer 
+                                      node={unit.rootNode} 
+                                      width={unit.width} 
+                                      height={unit.height} 
+                                      system={sys} 
+                                      selectedNodeId={null} 
+                                      onSelectNode={() => {}} 
+                                      theme="light" 
+                                      shape={unit.shape} 
+                                      archHeight={unit.archHeight} 
+                                      hasThreshold={unit.hasThreshold} 
+                                      lang={lang} 
+                                      viewPerspective={unit.viewPerspective}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Boy Kesit (Y-Y dikey kesit) */}
+                                <div className="w-12 h-36 bg-slate-900/60 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200 p-1 flex items-center justify-center shrink-0">
+                                  <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                </div>
+                              </div>
+
+                              {/* Plan Kesit (X-X yatay kesit) */}
+                              <div className="w-[196px] h-12 bg-slate-900/60 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200 p-1 flex items-center justify-center shrink-0">
+                                <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                              </div>
                             </div>
                           </div>
 

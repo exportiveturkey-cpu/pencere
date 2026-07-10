@@ -14,9 +14,20 @@ import { generateDXF } from '../services/dxfService';
 import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
 import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
+import { cloud_saveProductTypes, cloud_getProductTypes } from '../services/authService';
+import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
 
 const sortQuadrilateralPoints = (pts: any) => pts;
 const getPerspectiveTransform = (src: any, dst: any) => "matrix(1, 0, 0, 1, 0, 0)";
+
+const hasOpenablePanes = (node: WindowNode | undefined): boolean => {
+  if (!node) return false;
+  if (node.type === 'sash' || (node.openingType && node.openingType !== 'fixed')) return true;
+  if (node.children) {
+    return node.children.some(child => hasOpenablePanes(child));
+  }
+  return false;
+};
 
 interface ProjectViewProps {
   project: Project;
@@ -944,6 +955,62 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return defaults;
   });
 
+  useEffect(() => {
+    if (!licenseKey) return;
+    
+    const loadCloudProductTypes = async () => {
+      try {
+        const storedCloud = await cloud_getProductTypes(licenseKey);
+        if (storedCloud) {
+          const { customProductTypes, defaultProductTypeImages } = storedCloud;
+          
+          setProductTypes(prev => {
+            const defaults = [
+              { id: 'bioclimatic-pergola', nameTr: 'Bioklimatik Pergole', nameEn: 'Bioclimatic Pergola', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+              { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+              { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
+              { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
+              { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Giyotin Cam Sistemi', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+              { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+              { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
+            ];
+            
+            if (defaultProductTypeImages) {
+              defaults.forEach(d => {
+                if (defaultProductTypeImages[d.id] !== undefined) {
+                  d.imageUrl = defaultProductTypeImages[d.id];
+                }
+              });
+            }
+            
+            const merged = [...defaults];
+            if (Array.isArray(customProductTypes)) {
+              customProductTypes.forEach((custom: any) => {
+                if (custom && custom.id && !merged.some(d => d.id === custom.id)) {
+                  merged.push(custom);
+                }
+              });
+            }
+            
+            setShadingFormImageUrl(currentUrl => {
+              if (!currentUrl) {
+                const found = merged.find(t => t.id === shadingFormProduct);
+                return found?.imageUrl || '';
+              }
+              return currentUrl;
+            });
+            
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.error("Error loading cloud product types:", err);
+      }
+    };
+    
+    loadCloudProductTypes();
+  }, [licenseKey]);
+
   const handleUpdateProductTypeImage = (productTypeId: string, newImageUrl: string) => {
     setProductTypes(prev => {
       const updated = prev.map(pt => pt.id === productTypeId ? { ...pt, imageUrl: newImageUrl } : pt);
@@ -958,6 +1025,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           }
         });
         localStorage.setItem('alumetric_default_product_type_images', JSON.stringify(defaultCustomImages));
+
+        if (licenseKey) {
+          cloud_saveProductTypes(licenseKey, customOnly, defaultCustomImages).catch(console.error);
+        }
       } catch (e) {
         console.error("Error saving customized product type images", e);
       }
@@ -980,6 +1051,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       try {
         const customOnly = updated.filter(t => t.id.startsWith('custom-'));
         localStorage.setItem('alumetric_custom_product_types', JSON.stringify(customOnly));
+
+        const defaultCustomImages: Record<string, string> = {};
+        updated.forEach(pt => {
+          if (!pt.id.startsWith('custom-')) {
+            defaultCustomImages[pt.id] = pt.imageUrl || '';
+          }
+        });
+
+        if (licenseKey) {
+          cloud_saveProductTypes(licenseKey, customOnly, defaultCustomImages).catch(console.error);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -1002,7 +1084,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [shadingFormPrice, setShadingFormPrice] = useState(4500);
   const [shadingFormColor, setShadingFormColor] = useState('RAL 7016 Antrasit Gri');
   const [shadingFormNotes, setShadingFormNotes] = useState('');
-  const [shadingFormImageUrl, setShadingFormImageUrl] = useState('');
+  const [shadingFormImageUrl, setShadingFormImageUrl] = useState(() => {
+    const found = productTypes.find(t => t.id === 'bioclimatic-pergola');
+    return found ? (found.imageUrl || '') : '';
+  });
   const [editingShadingItem, setEditingShadingItem] = useState<ShadingItem | null>(null);
 
   const handleAddShadingItem = (newItem: ShadingItem) => {
@@ -3104,8 +3189,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 <thead>
                                     <tr className="border-b-2 border-slate-900 bg-slate-50">
                                         <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[5%] print:w-[6%]">POS</th>
-                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[20%] print:w-[18%]">{t(lang, 'technicalDrawing')}</th>
-                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[45%] print:w-[46%]">{t(lang, 'details')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[32%] print:w-[32%]">{t(lang, 'technicalDrawing')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[33%] print:w-[32%]">{t(lang, 'details')}</th>
                                         <th className="py-4 px-2 print:py-2 text-center text-xs font-black uppercase tracking-widest text-slate-500 w-[8%] print:w-[8%]">{t(lang, 'quantity')}</th>
                                         <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[11%]">{t(lang, 'unitPrice')}</th>
                                         <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[11%]">{t(lang, 'totalPrice')}</th>
@@ -3119,18 +3204,34 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         return (
                                             <tr key={unit.id} className="border-b border-slate-100 group print:break-inside-avoid">
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{(idx + 1).toString().padStart(2, '0')}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[20%] print:w-[18%]">
-                                                    <div className="w-40 h-40 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center">
-                                                       <svg 
-                                                         viewBox={`0 0 ${unit.width} ${unit.height}`} 
-                                                         className="w-full h-full max-h-full max-w-full"
-                                                         preserveAspectRatio="xMidYMid meet"
-                                                       >
-                                                         <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
-                                                       </svg>
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[32%] print:w-[32%]">
+                                                    <div className="flex flex-col gap-2 max-w-[210px] print:max-w-[165px]">
+                                                        {/* Elevation drawing & side cross section */}
+                                                        <div className="flex items-center gap-2">
+                                                             {/* Elevation Front View */}
+                                                             <div className="w-36 h-36 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shrink-0">
+                                                                <svg 
+                                                                  viewBox={`0 0 ${unit.width} ${unit.height}`} 
+                                                                  className="w-full h-full max-h-full max-w-full"
+                                                                  preserveAspectRatio="xMidYMid meet"
+                                                                >
+                                                                  <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
+                                                                </svg>
+                                                             </div>
+
+                                                             {/* Boy Kesit (Y-Y dikey kesit) */}
+                                                             <div className="w-11 h-36 print:w-8 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0">
+                                                                 <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                             </div>
+                                                        </div>
+
+                                                        {/* Plan Kesit (X-X yatay kesit) */}
+                                                        <div className="w-[192px] print:w-[148px] h-12 print:h-[38px] bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0">
+                                                            <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[45%] print:w-[46%]">
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[33%] print:w-[32%]">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
                                                     <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
                                                     <div className="space-y-1 mb-4">

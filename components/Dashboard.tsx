@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Project, Language, ProfileSystem, Accessory, Customer } from '../types';
-import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon, Printer, ArrowLeft } from 'lucide-react';
+import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon, Printer, ArrowLeft, Calculator } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
@@ -23,6 +23,7 @@ interface DashboardProps {
   onUpdateProject: (project: Project) => void;
   onDeleteProject: (id: string) => void;
   onOpenSettings: () => void;
+  onOpenGlassAnalysis?: () => void;
   forcedName?: string;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
@@ -43,6 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onUpdateProject,
   onDeleteProject,
   onOpenSettings, 
+  onOpenGlassAnalysis,
   forcedName,
   theme,
   onToggleTheme
@@ -792,6 +794,13 @@ const Dashboard: React.FC<DashboardProps> = ({
               {activeTab === 'customers' && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
               )}
+            </button>
+            <button
+              onClick={onOpenGlassAnalysis}
+              className="pb-3 px-4 font-bold text-sm tracking-wide transition-all relative flex items-center gap-2 text-slate-400 hover:text-slate-200"
+            >
+              <Calculator size={16} className="text-indigo-400" />
+              {lang === 'tr' ? 'Cam Analizi (Alumetric GlassTool)' : 'Glass Analysis (Alumetric GlassTool)'}
             </button>
         </div>
 

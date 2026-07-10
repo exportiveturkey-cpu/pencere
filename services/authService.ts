@@ -250,3 +250,33 @@ export const getSessionInfo = () => {
         plan: sessionStorage.getItem('alumetric_plan') || 'Standard'
     };
 };
+
+export const cloud_saveProductTypes = async (
+  licenseKey: string,
+  customProductTypes: any[],
+  defaultProductTypeImages: Record<string, string>
+) => {
+  try {
+    const docRef = doc(db, "licenses", licenseKey, "settings", "productTypes");
+    await setDoc(docRef, { customProductTypes, defaultProductTypeImages });
+  } catch (error) {
+    console.warn("Could not save product types to Cloud Firestore (offline).", error);
+  }
+};
+
+export const cloud_getProductTypes = async (
+  licenseKey: string
+): Promise<{ customProductTypes: any[]; defaultProductTypeImages: Record<string, string> } | null> => {
+  try {
+    const docRef = doc(db, "licenses", licenseKey, "settings", "productTypes");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as any;
+    }
+    return null;
+  } catch (error) {
+    console.warn("Could not load product types from Cloud Firestore.", error);
+    return null;
+  }
+};
+
