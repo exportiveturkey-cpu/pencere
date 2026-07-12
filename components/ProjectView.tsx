@@ -7,6 +7,7 @@ import { t } from '../translations';
 import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
+import { ShadingBOMAndOpt, calculateShadingItemPrice, DEFAULT_CONFIG } from './ShadingBOMAndOpt';
 import { GLASS_TYPES, COLOR_GROUPS } from '../constants';
 import { analyzeDrawing, generateSalesPitch, analyzeShadingImage, ShadingAnalysisResult } from '../services/geminiService';
 import { generateCNCCSV } from '../services/cncService';
@@ -374,6 +375,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return (localStorage.getItem('alucraft_app_mode') as 'quoting' | 'manufacturing') || 'quoting';
   });
 
+  const shadingConfig = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('alumetric_shading_config');
+      if (saved) {
+        try {
+          return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+        } catch (e) {
+          return DEFAULT_CONFIG;
+        }
+      }
+    }
+    return DEFAULT_CONFIG;
+  }, [activeTab]);
+
   // --- Alumetric Shading AI Visualizer States ---
   const [globalToast, setGlobalToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -467,6 +482,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   };
 
   const [selectedShadingItemId, setSelectedShadingItemId] = useState<string | null>(null);
+  const [shadingSubTab, setShadingSubTab] = useState<'designer' | 'bom_opt'>('designer');
   const [shadingBgImage, setShadingBgImage] = useState<string>(() => {
     const firstWithBg = project.shadingItems?.find(x => x.bgImageUrl)?.bgImageUrl;
     return firstWithBg || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200';
@@ -3346,6 +3362,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             hexColor = '#7c2d12';
                                         }
 
+                                        const priceDetails = calculateShadingItemPrice(item, shadingConfig);
+                                        const scaleFactor = priceDetails.totalCost > 0 ? (item.unitPrice / priceDetails.totalCost) : 1;
+
                                         return (
                                             <tr key={item.id} className="border-b border-slate-100 group print:break-inside-avoid">
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{posIdx.toString().padStart(2, '0')}</td>
@@ -3374,6 +3393,53 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'RAL Profil Boya Rengi:' : 'RAL Powder Coating Color:'}</span> <span className="font-bold text-slate-900">{item.color}</span></div>
                                                         {item.notes && <div className="text-xs text-slate-500 mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/50 max-w-sm italic">"{item.notes}"</div>}
                                                     </div>
+
+                                                    {/* Shading Material Detail Breakdown with distributed markup */}
+                                                    {priceDetails.materials && priceDetails.materials.length > 0 && (
+                                                        <div className="mt-5 pt-4 border-t border-slate-200 max-w-lg avoid-break">
+                                                            <div className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-widest mb-2 flex items-center gap-1.5 print:text-indigo-900">
+                                                                <Layers size={11} className="text-indigo-500 print:text-indigo-700" />
+                                                                <span>{lang === 'tr' ? 'Poz Detaylı Malzeme Açılımı' : 'Position Detailed Material Breakdown'}</span>
+                                                            </div>
+                                                            <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden print:bg-white">
+                                                                <table className="w-full text-left text-[10px] border-collapse">
+                                                                    <thead>
+                                                                        <tr className="bg-slate-100/80 border-b border-slate-200 font-bold text-slate-500 uppercase tracking-wider print:bg-slate-50">
+                                                                            <th className="px-3 py-2 w-[45%]">{lang === 'tr' ? 'Malzeme / Sistem Bileşeni' : 'Material / Component'}</th>
+                                                                            <th className="px-2 py-2 text-center w-[15%]">{lang === 'tr' ? 'Miktar' : 'Qty'}</th>
+                                                                            <th className="px-2 py-2 text-right w-[20%]">{lang === 'tr' ? 'Birim' : 'Unit'}</th>
+                                                                            <th className="px-3 py-2 text-right w-[20%]">{lang === 'tr' ? 'Toplam Fiyat' : 'Total Price'}</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-slate-100 text-slate-700 font-sans">
+                                                                        {priceDetails.materials.map((mat, mIdx) => {
+                                                                            const sellingCost = mat.cost * scaleFactor;
+                                                                            const sellingTotal = mat.total * scaleFactor;
+                                                                            return (
+                                                                                <tr key={mIdx} className="hover:bg-slate-100/50 print:hover:bg-transparent">
+                                                                                    <td className="px-3 py-2 align-middle">
+                                                                                        <div className="font-bold text-slate-900 leading-tight">{mat.name}</div>
+                                                                                        <div className="text-[8px] text-slate-400 font-mono mt-0.5">{mat.code}</div>
+                                                                                    </td>
+                                                                                    <td className="px-2 py-2 text-center font-mono font-bold text-slate-800 align-middle">
+                                                                                        {(mat.qty * item.quantity).toFixed(1)}
+                                                                                    </td>
+                                                                                    <td className="px-2 py-2 text-right font-bold text-slate-500 uppercase tracking-wider text-[9px] align-middle">
+                                                                                        {lang === 'tr' 
+                                                                                            ? (mat.unit === 'm' ? 'METRE' : mat.unit === 'pce' ? 'ADET' : mat.unit === 'set' ? 'SET' : mat.unit) 
+                                                                                            : (mat.unit === 'm' ? 'METER' : mat.unit === 'pce' ? 'PCS' : mat.unit === 'set' ? 'SET' : mat.unit)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-900 align-middle">
+                                                                                        {currencySymbol}{(sellingTotal * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top text-center font-black text-xl print:text-sm text-slate-800 w-[8%] print:w-[8%]">{item.quantity}</td>
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top text-right font-black text-lg print:text-xs text-slate-800 w-[11%] print:w-[11%] whitespace-nowrap">{currencySymbol}{item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -3639,8 +3705,24 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         </div>
                     </div>
 
-                    {/* Integrated Grid Layout */}
-                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                    {/* Shading Sub-Tabs */}
+                    <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-white/5 max-w-xl shadow-inner mb-6 print:hidden">
+                        <button
+                            onClick={() => setShadingSubTab('designer')}
+                            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${shadingSubTab === 'designer' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+                        >
+                            {lang === 'tr' ? '3D Tasarım & Entegrasyon' : '3D Design & Integration'}
+                        </button>
+                        <button
+                            onClick={() => setShadingSubTab('bom_opt')}
+                            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${shadingSubTab === 'bom_opt' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+                        >
+                            {lang === 'tr' ? 'Malzeme & Kesim Optimizasyonu' : 'Material & Cut Optimization'}
+                        </button>
+                    </div>
+
+                    {shadingSubTab === 'designer' ? (
+                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
                         
                         {/* LEFT: Alumetric Integration Bridge & Sync Panel (Col: 5) */}
                         <div className="xl:col-span-5 space-y-6">
@@ -4122,6 +4204,16 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         </div>
 
                     </div>
+                    ) : (
+                        <ShadingBOMAndOpt
+                            shadingItems={project.shadingItems || []}
+                            project={project}
+                            onUpdateProject={onUpdateProject}
+                            lang={lang}
+                            theme={theme}
+                            currencySymbol={currencySymbol}
+                        />
+                    )}
                 </div>
             )}
 
