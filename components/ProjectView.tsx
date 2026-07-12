@@ -361,6 +361,32 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     }
   }, []);
 
+  // Merge loaded cloud accessory images into customAccessoryImages state
+  useEffect(() => {
+    if (!accessories || accessories.length === 0) return;
+    setCustomAccessoryImages(prev => {
+      let updated = false;
+      const nextImages = { ...prev };
+      
+      accessories.forEach(acc => {
+        if (acc.imageUrl && nextImages[acc.id] !== acc.imageUrl) {
+          nextImages[acc.id] = acc.imageUrl;
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        try {
+          localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(nextImages));
+        } catch (e) {
+          console.warn('Error saving loaded accessory images to localStorage', e);
+        }
+        return nextImages;
+      }
+      return prev;
+    });
+  }, [accessories]);
+
   const handleCopyShareLink = () => {
     if (!licenseKey) {
       alert(lang === 'tr' ? "Bulut lisans anahtarı bulunamadı." : "Cloud license key is missing.");

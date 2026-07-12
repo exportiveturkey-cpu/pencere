@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProfileSystem, Accessory, Language, AppData, MachineConfig } from '../types';
 import { ArrowLeft, Settings as SettingsIcon, Check, Edit2, X, Wrench, Layers, Database, Download, Upload, Plus, Cpu, Save, Trash2, Sparkles, Zap, Factory, AlertTriangle, FileJson, Palette, Sun, Moon, RefreshCw, Camera } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -119,6 +119,32 @@ const Settings: React.FC<SettingsProps> = ({
     return {};
   });
 
+  // Merge loaded cloud accessory images into customAccessoryImages state
+  useEffect(() => {
+    if (!accessories || accessories.length === 0) return;
+    setCustomAccessoryImages(prev => {
+      let updated = false;
+      const nextImages = { ...prev };
+      
+      accessories.forEach(acc => {
+        if (acc.imageUrl && nextImages[acc.id] !== acc.imageUrl) {
+          nextImages[acc.id] = acc.imageUrl;
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        try {
+          localStorage.setItem('alumetric_custom_accessory_images', JSON.stringify(nextImages));
+        } catch (e) {
+          console.warn('Error saving loaded accessory images to localStorage', e);
+        }
+        return nextImages;
+      }
+      return prev;
+    });
+  }, [accessories]);
+
   const [accessoryImageModal, setAccessoryImageModal] = useState<{ isOpen: boolean, accessory: Accessory | null }>({
     isOpen: false,
     accessory: null
@@ -134,6 +160,12 @@ const Settings: React.FC<SettingsProps> = ({
       }
       return updated;
     });
+
+    // Also update in cloud
+    const acc = accessories.find(a => a.id === id);
+    if (acc && onUpdateAccessory) {
+      onUpdateAccessory({ ...acc, imageUrl: base64 });
+    }
   };
 
   const handleAccessoryImageCleared = (id: string) => {
@@ -147,6 +179,12 @@ const Settings: React.FC<SettingsProps> = ({
       }
       return updated;
     });
+
+    // Also remove from cloud
+    const acc = accessories.find(a => a.id === id);
+    if (acc && onUpdateAccessory) {
+      onUpdateAccessory({ ...acc, imageUrl: '' });
+    }
   };
 
   // Machine Form State

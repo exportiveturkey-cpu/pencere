@@ -146,6 +146,42 @@ const App: React.FC = () => {
     if (isAuthenticated) loadCloudData();
   }, [isAuthenticated, loadCloudData]);
 
+  // Synchronize local storage accessory images to the cloud database
+  useEffect(() => {
+    if (!isAuthenticated || !session.key || accessories.length === 0) return;
+    
+    const syncLocalImagesToCloud = async () => {
+      let needsSync = false;
+      const updatedAccessories = accessories.map(acc => {
+        try {
+          const savedStr = localStorage.getItem('alumetric_custom_accessory_images');
+          if (savedStr) {
+            const localImages = JSON.parse(savedStr);
+            if (localImages[acc.id] && acc.imageUrl !== localImages[acc.id]) {
+              needsSync = true;
+              return { ...acc, imageUrl: localImages[acc.id] };
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing local images", e);
+        }
+        return acc;
+      });
+
+      if (needsSync) {
+        setAccessories(updatedAccessories);
+        try {
+          await cloud_saveAccessories(session.key, updatedAccessories);
+          console.log("Successfully synchronized local accessory images to Cloud Firestore!");
+        } catch (e) {
+          console.error("Could not sync local images to cloud", e);
+        }
+      }
+    };
+
+    syncLocalImagesToCloud();
+  }, [isAuthenticated, session.key, accessories]);
+
   const handleLogin = async (licenseKey: string): Promise<boolean> => {
       try {
           const license = await validateLicense(licenseKey);
