@@ -3425,9 +3425,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                                         {(mat.qty * item.quantity).toFixed(1)}
                                                                                     </td>
                                                                                     <td className="px-2 py-2 text-right font-bold text-slate-500 uppercase tracking-wider text-[9px] align-middle">
-                                                                                        {lang === 'tr' 
-                                                                                            ? (mat.unit === 'm' ? 'METRE' : mat.unit === 'pce' ? 'ADET' : mat.unit === 'set' ? 'SET' : mat.unit) 
-                                                                                            : (mat.unit === 'm' ? 'METER' : mat.unit === 'pce' ? 'PCS' : mat.unit === 'set' ? 'SET' : mat.unit)}
+                                                                                        {(() => {
+                                                                                            const u = (mat.unit || '').toLowerCase();
+                                                                                            if (lang === 'tr') {
+                                                                                                if (u === 'm' || u === 'meter' || u === 'meters') return 'METRE';
+                                                                                                if (u === 'pce' || u === 'pcs' || u === 'piece' || u === 'pieces' || u === 'adet') return 'ADET';
+                                                                                                if (u === 'set') return 'SET';
+                                                                                                return mat.unit.toUpperCase();
+                                                                                            } else {
+                                                                                                if (u === 'm' || u === 'meter' || u === 'meters') return 'METER';
+                                                                                                if (u === 'pce' || u === 'pcs' || u === 'piece' || u === 'pieces' || u === 'adet') return 'PCS';
+                                                                                                if (u === 'set') return 'SET';
+                                                                                                return mat.unit.toUpperCase();
+                                                                                            }
+                                                                                        })()}
                                                                                     </td>
                                                                                     <td className="px-3 py-2 text-right font-mono font-extrabold text-slate-900 align-middle">
                                                                                         {currencySymbol}{(sellingTotal * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
