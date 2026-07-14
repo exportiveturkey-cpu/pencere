@@ -886,31 +886,90 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     return 'hinged_window';
   });
 
-  const compatibleSystems = useMemo(() => {
-    return systems.filter(sys => {
-      if (sys.supportedTypologies && sys.supportedTypologies.length > 0) {
-        return sys.supportedTypologies.includes(selectedTypology);
+  const handleSystemSelect = (newSystemId: string) => {
+    setSystemId(newSystemId);
+    
+    // Auto-update profile defaults for this system to avoid stale/wrong profile selections
+    if (newSystemId === 'kurt-51ls') {
+      setSelectedFrameProfile('51LS-101-00');
+      setSelectedSashProfile('51LS-201-00');
+      setSelectedMullionProfile('51LS-301-00');
+    } else if (newSystemId === 'kurt-70t-th') {
+      setSelectedFrameProfile('70T-102-18');
+      setSelectedSashProfile('70T-201-18');
+      setSelectedMullionProfile('70T-301-18');
+    }
+
+    const targetSystem = systems.find(s => s.id === newSystemId);
+    if (targetSystem) {
+      // Check if current typology is compatible with the selected system
+      let isCompatible = false;
+      if (targetSystem.supportedTypologies && targetSystem.supportedTypologies.length > 0) {
+        isCompatible = targetSystem.supportedTypologies.includes(selectedTypology);
+      } else {
+        const typoLower = selectedTypology.toLowerCase();
+        if (typoLower.includes('sliding')) {
+          isCompatible = (targetSystem.type === 'sliding');
+        } else if (typoLower.includes('fixed') || typoLower.includes('storefront')) {
+          isCompatible = true;
+        } else {
+          isCompatible = (targetSystem.type === 'hinged');
+        }
       }
-      
-      const selectedTypoLower = selectedTypology.toLowerCase();
-      if (selectedTypoLower.includes('sliding')) {
+
+      if (!isCompatible) {
+        // Automatically switch the typology to a default compatible one
+        let nextTypology = 'hinged_window';
+        if (targetSystem.supportedTypologies && targetSystem.supportedTypologies.length > 0) {
+          nextTypology = targetSystem.supportedTypologies[0];
+        } else if (targetSystem.type === 'sliding') {
+          nextTypology = 'sliding_window';
+        }
+        setSelectedTypology(nextTypology);
+        setRootNode(getInitialNodeForTypology(nextTypology));
+        setSelectedNodeId(null);
+      }
+    }
+  };
+
+  const handleTypologySelect = (typoId: string) => {
+    setSelectedTypology(typoId);
+    setRootNode(getInitialNodeForTypology(typoId));
+    setSelectedNodeId(null);
+
+    // Check if the current system is compatible with this typology
+    const activeSys = systems.find(s => s.id === systemId);
+    const isCompatible = (sys: ProfileSystem) => {
+      if (sys.supportedTypologies && sys.supportedTypologies.length > 0) {
+        return sys.supportedTypologies.includes(typoId);
+      }
+      const typoLower = typoId.toLowerCase();
+      if (typoLower.includes('sliding')) {
         return sys.type === 'sliding';
       }
-      if (selectedTypoLower.includes('fixed') || selectedTypoLower.includes('storefront')) {
+      if (typoLower.includes('fixed') || typoLower.includes('storefront')) {
         return true;
       }
       return sys.type === 'hinged';
-    });
-  }, [systems, selectedTypology]);
+    };
 
-  useEffect(() => {
-    if (compatibleSystems.length > 0) {
-      const isStillCompatible = compatibleSystems.some(s => s.id === systemId);
-      if (!isStillCompatible) {
-        setSystemId(compatibleSystems[0].id);
+    if (activeSys && !isCompatible(activeSys)) {
+      // Find the first compatible system and switch to it
+      const firstComp = systems.find(isCompatible);
+      if (firstComp) {
+        setSystemId(firstComp.id);
+        if (firstComp.id === 'kurt-51ls') {
+          setSelectedFrameProfile('51LS-101-00');
+          setSelectedSashProfile('51LS-201-00');
+          setSelectedMullionProfile('51LS-301-00');
+        } else if (firstComp.id === 'kurt-70t-th') {
+          setSelectedFrameProfile('70T-102-18');
+          setSelectedSashProfile('70T-201-18');
+          setSelectedMullionProfile('70T-301-18');
+        }
       }
     }
-  }, [compatibleSystems, systemId]);
+  };
   const [color, setColor] = useState(initialUnit?.color || 'group1');
   const [specificColor, setSpecificColor] = useState(initialUnit?.specificColor || '');
   const [glassTypeId, setGlassTypeId] = useState(initialUnit?.glassType || GLASS_TYPES[0].id);
@@ -1801,10 +1860,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             )}
             <div className="flex bg-slate-800 p-1 rounded-xl border border-white/5 mr-4">
               <button onClick={() => setViewMode('2d')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${viewMode === '2d' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
-                <Monitor size={14} /> 2D VIEW
+                <Monitor size={14} /> {t(lang, 'view2D')}
               </button>
               <button onClick={() => setViewMode('3d')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${viewMode === '3d' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>
-                <BoxSelect size={14} /> 3D PREVIEW
+                <BoxSelect size={14} /> {t(lang, 'preview3D')}
               </button>
             </div>
             <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
@@ -1967,11 +2026,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                                   <button
                                     key={typo.id}
                                     type="button"
-                                    onClick={() => {
-                                      setSelectedTypology(typo.id);
-                                      setRootNode(getInitialNodeForTypology(typo.id));
-                                      setSelectedNodeId(null);
-                                    }}
+                                    onClick={() => handleTypologySelect(typo.id)}
                                     className={`relative flex flex-col items-center justify-between p-2 rounded-xl border text-left transition-all duration-200 group ${
                                       active 
                                         ? 'border-blue-500/80 bg-blue-500/10 shadow-[0_0_12px_rgba(59,130,246,0.15)] text-blue-400' 
@@ -2001,10 +2056,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                               })}
                             </div>
                         </div>
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block ml-1">{t(lang, 'profileSystem')} ({lang === 'tr' ? 'Seçilen Tipolojiye Uygun' : 'Compatible with Chosen Typology'})</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">{t(lang, 'profileSystem')}</label>
                         <div className="flex gap-2">
-                            <select value={systemId} onChange={e => setSystemId(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
-                            {compatibleSystems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            <select value={systemId} onChange={e => handleSystemSelect(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                            {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             <button 
                                 onClick={() => setShowSection(true)}

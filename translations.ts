@@ -43,7 +43,7 @@ type TranslationKey =
   | 'exportSale' | 'domesticSale' | 'isExport' | 'subTotal' | 'vatAmount' | 'grandTotal' | 'exportVatNote'
   | 'softwareUpdated' | 'version' | 'noKeyContact'
   | 'materialSummary' | 'profilesSummary' | 'accessoriesSummary' | 'totalQty' | 'totalMeters'
-  | 'selectMachine' | 'scanDrawing';
+  | 'selectMachine' | 'scanDrawing' | 'view2D' | 'preview3D';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -316,7 +316,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     printAssembly: 'Print',
     searchPlaceholder: 'Search...',
     noMachinesFound: 'Add machines in Settings.',
-    scanDrawing: 'Scan Drawing (PDF/Image)'
+    scanDrawing: 'Scan Drawing (PDF/Image)',
+    view2D: '2D VIEW',
+    preview3D: '3D PREVIEW'
   },
   tr: {
     selectMachine: 'İşlem Yapılacak Makineyi Seçiniz',
@@ -588,7 +590,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     printAssembly: 'Föyü Yazdır',
     searchPlaceholder: 'Proje veya müşteri ara...',
     noMachinesFound: 'Lütfen önce Ayarlar kısmından bir CNC makinesi tanımlayın.',
-    scanDrawing: 'Çizim Tara (PDF/Resim)'
+    scanDrawing: 'Çizim Tara (PDF/Resim)',
+    view2D: '2D GÖRÜNÜM',
+    preview3D: '3D ÖNGÖRÜNÜM'
   }
 };
 

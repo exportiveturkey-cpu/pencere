@@ -800,7 +800,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               className="pb-3 px-4 font-bold text-sm tracking-wide transition-all relative flex items-center gap-2 text-slate-400 hover:text-slate-200"
             >
               <Calculator size={16} className="text-indigo-400" />
-              {lang === 'tr' ? 'Cam Analizi (Alumetric GlassTool)' : 'Glass Analysis (Alumetric GlassTool)'}
+              {lang === 'tr' ? 'Cam Analizi' : 'Glass Analysis'}
             </button>
         </div>
 

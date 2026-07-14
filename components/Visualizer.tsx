@@ -83,31 +83,130 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
   const renderHandle = (gx: number, gy: number, gw: number, gh: number, type: string) => {
     if (!type || type === 'fixed') return null;
-    const hW = 6;
-    const hH = 30;
-    const lever = 25;
+    
+    let finalH = 100;
+    let finalW = 20;
+    let finalLever = 140;
+    let finalOffset = 50;
+    let finalRosetteW = 45;
+    let finalRosetteH = 90;
+
+    // Scale down on very small panes to prevent overflow
+    const maxDimension = Math.min(gw, gh);
+    if (maxDimension < 450) {
+      const ratio = Math.max(0.35, maxDimension / 450);
+      finalH = Math.round(finalH * ratio);
+      finalW = Math.round(finalW * ratio);
+      finalLever = Math.round(finalLever * ratio);
+      finalOffset = Math.round(finalOffset * ratio);
+      finalRosetteW = Math.round(finalRosetteW * ratio);
+      finalRosetteH = Math.round(finalRosetteH * ratio);
+    }
+
     let hx = 0;
-    let hy = gy + gh / 2 - hH / 2;
+    let hy = gy + gh / 2 - finalH / 2;
     let isLeft = false;
 
     if (type.includes('left')) {
-      hx = gx + gw - 15;
+      hx = gx + gw - finalOffset;
       isLeft = true;
     } else if (type.includes('right')) {
-      hx = gx + 15;
+      hx = gx + finalOffset;
       isLeft = false;
     } else if (type.includes('sliding')) {
-      hx = gx + 15; // Sürme için kulp sol kenarda (LogiKal standardı)
+      hx = gx + finalOffset + 10; // Sürme için kulp sol kenarda (LogiKal standardı)
       isLeft = false;
     } else if (type === 'tilt') {
-      hx = gx + gw / 2 - hW / 2;
-      hy = gy + gh - 25;
+      hx = gx + gw / 2 - finalW / 2;
+      hy = gy + gh - finalOffset;
     }
+
+    const neckW = Math.round(finalW * 0.5);
+    const neckH = Math.round(finalH * 0.15);
+    const leverH = Math.round(finalH * 0.18);
 
     return (
       <g transform={`translate(${hx}, ${hy})`}>
-        <rect width={hW} height={hH} fill={hardwareColor} rx="1" />
-        <rect x={isLeft ? -lever : hW} y={hH/2 - 3} width={lever} height={6} fill={hardwareColor} rx="2" />
+        {/* Rosette Base Plate (Rozet) - highly visible contrast wrapper */}
+        <rect 
+          x={finalW / 2 - finalRosetteW / 2} 
+          y={finalH / 2 - finalRosetteH / 2} 
+          width={finalRosetteW} 
+          height={finalRosetteH} 
+          fill="#ffffff" 
+          stroke="#000000" 
+          strokeWidth="2.5" 
+          rx="5" 
+        />
+        
+        {/* Inner Rosette details to look very premium */}
+        <rect 
+          x={finalW / 2 - finalRosetteW / 2 + 3} 
+          y={finalH / 2 - finalRosetteH / 2 + 3} 
+          width={finalRosetteW - 6} 
+          height={finalRosetteH - 6} 
+          fill="none" 
+          stroke="#94a3b8" 
+          strokeWidth="1" 
+          rx="3" 
+        />
+        
+        {/* Connection neck */}
+        <rect 
+          x={isLeft ? -neckW : finalW} 
+          y={finalH / 2 - neckH / 2} 
+          width={neckW} 
+          height={neckH} 
+          fill="#475569" 
+          stroke="#000000" 
+          strokeWidth="2" 
+        />
+
+        {/* Handle Grip (Kol) */}
+        <rect 
+          x={isLeft ? -finalLever : finalW + neckW} 
+          y={finalH / 2 - leverH / 2} 
+          width={finalLever} 
+          height={leverH} 
+          fill="#1e293b" 
+          stroke="#000000" 
+          strokeWidth="2.5" 
+          rx="4" 
+        />
+        
+        {/* Metallic chrome shine highlight */}
+        <rect 
+          x={isLeft ? -finalLever + 4 : finalW + neckW + 4} 
+          y={finalH / 2 - leverH / 2 + 3} 
+          width={finalLever - 8} 
+          height={Math.max(2, Math.round(leverH * 0.25))} 
+          fill="#ffffff" 
+          opacity="0.65" 
+          rx="1" 
+        />
+
+        {/* Handle Body Base (Gövde) */}
+        <rect 
+          x={0} 
+          y={0} 
+          width={finalW} 
+          height={finalH} 
+          fill="#0f172a" 
+          stroke="#000000" 
+          strokeWidth="2.5" 
+          rx="3" 
+        />
+        
+        {/* Body highlight */}
+        <rect 
+          x={3} 
+          y={3} 
+          width={Math.max(2, finalW - 6)} 
+          height={Math.max(2, finalH - 6)} 
+          fill="#cbd5e1" 
+          opacity="0.3" 
+          rx="1.5" 
+        />
       </g>
     );
   };
