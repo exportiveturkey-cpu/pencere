@@ -708,6 +708,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           width: 4000,
           height: 2500,
           depth: 3000,
+          frontHeight: 2500,
+          backHeight: 2500,
           quantity: 1,
           unitPrice: 4500,
           color: 'RAL 7016 Antrasit Gri',
@@ -1122,6 +1124,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [shadingFormWidth, setShadingFormWidth] = useState(4000);
   const [shadingFormHeight, setShadingFormHeight] = useState(2500);
   const [shadingFormDepth, setShadingFormDepth] = useState(3000);
+  const [shadingFormFrontHeight, setShadingFormFrontHeight] = useState(2500);
+  const [shadingFormBackHeight, setShadingFormBackHeight] = useState(2500);
   const [shadingFormQty, setShadingFormQty] = useState(1);
   const [shadingFormPrice, setShadingFormPrice] = useState(4500);
   const [shadingFormColor, setShadingFormColor] = useState('RAL 7016 Antrasit Gri');
@@ -1130,6 +1134,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const found = productTypes.find(t => t.id === 'bioclimatic-pergola');
     return found ? (found.imageUrl || '') : '';
   });
+  const [shadingFormPlanSectionUrl, setShadingFormPlanSectionUrl] = useState('');
+  const [shadingFormCrossSectionUrl, setShadingFormCrossSectionUrl] = useState('');
+  const [shadingFormPlanSectionProfileCode, setShadingFormPlanSectionProfileCode] = useState('');
+  const [shadingFormCrossSectionProfileCode, setShadingFormCrossSectionProfileCode] = useState('');
   const [editingShadingItem, setEditingShadingItem] = useState<ShadingItem | null>(null);
 
   const handleAddShadingItem = (newItem: ShadingItem) => {
@@ -1329,11 +1337,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         width: shadingFormWidth,
         height: shadingFormHeight,
         depth: shadingFormDepth,
+        frontHeight: shadingFormFrontHeight,
+        backHeight: shadingFormBackHeight,
         quantity: shadingFormQty,
         unitPrice: shadingFormPrice,
         color: shadingFormColor,
         notes: shadingFormNotes,
         imageUrl: shadingFormImageUrl,
+        planSectionUrl: shadingFormPlanSectionUrl,
+        crossSectionUrl: shadingFormCrossSectionUrl,
+        planSectionProfileCode: shadingFormPlanSectionProfileCode,
+        crossSectionProfileCode: shadingFormCrossSectionProfileCode,
       };
       handleUpdateShadingItem(updated);
     } else {
@@ -1345,11 +1359,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         width: shadingFormWidth,
         height: shadingFormHeight,
         depth: shadingFormDepth,
+        frontHeight: shadingFormFrontHeight,
+        backHeight: shadingFormBackHeight,
         quantity: shadingFormQty,
         unitPrice: shadingFormPrice,
         color: shadingFormColor,
         notes: shadingFormNotes,
         imageUrl: shadingFormImageUrl,
+        planSectionUrl: shadingFormPlanSectionUrl,
+        crossSectionUrl: shadingFormCrossSectionUrl,
+        planSectionProfileCode: shadingFormPlanSectionProfileCode,
+        crossSectionProfileCode: shadingFormCrossSectionProfileCode,
         overlayX: 50,
         overlayY: 50,
         overlayScale: 100,
@@ -3026,11 +3046,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                 setShadingFormWidth(item.width);
                                                                 setShadingFormHeight(item.height);
                                                                 setShadingFormDepth(item.depth || 3000);
+                                                                setShadingFormFrontHeight(item.frontHeight || item.height || 2500);
+                                                                setShadingFormBackHeight(item.backHeight || item.height || 2500);
                                                                 setShadingFormQty(item.quantity || 1);
                                                                 setShadingFormPrice(item.unitPrice || 4500);
                                                                 setShadingFormColor(item.color || 'RAL 7016 Antrasit Gri');
                                                                 setShadingFormNotes(item.notes || '');
                                                                 setShadingFormImageUrl(item.imageUrl || '');
+                                                                setShadingFormPlanSectionUrl(item.planSectionUrl || '');
+                                                                setShadingFormCrossSectionUrl(item.crossSectionUrl || '');
+                                                                setShadingFormPlanSectionProfileCode(item.planSectionProfileCode || '');
+                                                                setShadingFormCrossSectionProfileCode(item.crossSectionProfileCode || '');
                                                                 setShowAddShadingModal(true);
                                                             }} 
                                                             className="p-3 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" 
@@ -3064,18 +3090,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                             {currencySymbol}{(item.unitPrice * (item.quantity || 1)).toLocaleString()}
                                                         </span>
                                                     </div>
-                                                    <div className="grid grid-cols-3 gap-2">
+                                                    <div className="grid grid-cols-4 gap-1.5">
                                                         <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
                                                             <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'width') || 'En'}</label>
-                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.width} mm</div>
+                                                            <div className="text-white font-mono font-bold text-[11px] print:text-black">{item.width} mm</div>
                                                         </div>
                                                         <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
-                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{t(lang, 'height') || 'Boy'}</label>
-                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.height} mm</div>
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{lang === 'tr' ? 'Açılım' : 'Projection'}</label>
+                                                            <div className="text-white font-mono font-bold text-[11px] print:text-black">{item.depth || 0} mm</div>
                                                         </div>
                                                         <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
-                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{lang === 'tr' ? 'Açılım' : 'Depth'}</label>
-                                                            <div className="text-white font-mono font-bold text-xs print:text-black">{item.depth || 0} mm</div>
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{lang === 'tr' ? 'Ön Yük.' : 'Fr. Height'}</label>
+                                                            <div className="text-white font-mono font-bold text-[11px] print:text-black">{item.frontHeight || item.height || 0} mm</div>
+                                                        </div>
+                                                        <div className="bg-slate-900/50 p-2 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200">
+                                                            <label className="block text-[8px] text-slate-500 mb-0.5 uppercase font-bold tracking-widest print:text-slate-400">{lang === 'tr' ? 'Arka Yük.' : 'Bk. Height'}</label>
+                                                            <div className="text-white font-mono font-bold text-[11px] print:text-black">{item.backHeight || item.height || 0} mm</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3262,14 +3292,29 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                              </div>
 
                                                              {/* Boy Kesit (Y-Y dikey kesit) */}
-                                                             <div className="w-11 h-36 print:w-8 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0">
-                                                                 <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                             <div className="w-11 h-36 print:w-8 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                                                 {unit.crossSectionUrl ? (
+                                                                     <>
+                                                                         <img src={unit.crossSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                         {unit.crossSectionProfileCode && (
+                                                                             <div className="absolute bottom-0 inset-x-0 bg-blue-600 text-[8px] font-black text-white py-0.5 text-center truncate uppercase tracking-wider leading-none">
+                                                                                 {unit.crossSectionProfileCode}
+                                                                             </div>
+                                                                         )}
+                                                                     </>
+                                                                 ) : (
+                                                                     <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                                 )}
                                                              </div>
                                                         </div>
 
                                                         {/* Plan Kesit (X-X yatay kesit) */}
-                                                        <div className="w-[192px] print:w-[148px] h-12 print:h-[38px] bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0">
-                                                            <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                        <div className="w-[192px] print:w-[148px] h-12 print:h-[38px] bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                                            {unit.planSectionUrl ? (
+                                                                <img src={unit.planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                            ) : (
+                                                                <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -3394,12 +3439,57 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         return (
                                             <tr key={item.id} className="border-b border-slate-100 group print:break-inside-avoid">
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{posIdx.toString().padStart(2, '0')}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[20%] print:w-[40%]">
-                                                    <div className="w-40 h-40 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shadow-inner overflow-hidden">
-                                                        {renderRealisticShadingSVG(item)}
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[32%] print:w-[32%]">
+                                                    <div className="flex flex-col gap-2 max-w-[210px] print:max-w-[165px]">
+                                                        {/* Main image & side cross section */}
+                                                        <div className="flex items-center gap-2">
+                                                             {/* Main Image View */}
+                                                             <div className="w-36 h-36 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shrink-0 relative overflow-hidden shadow-sm">
+                                                                 {item.imageUrl ? (
+                                                                     <img src={item.imageUrl} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                 ) : (
+                                                                     <svg 
+                                                                         viewBox="0 0 200 150" 
+                                                                         className="w-full h-full max-h-full max-w-full"
+                                                                         preserveAspectRatio="xMidYMid meet"
+                                                                     >
+                                                                         {renderRealisticShadingSVG(item)}
+                                                                     </svg>
+                                                                 )}
+                                                             </div>
+
+                                                             {/* Boy Kesiti (Vertical Cross Section) on the right */}
+                                                             <div className="w-14 h-36 print:w-11 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-1 flex flex-col items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
+                                                                 {item.crossSectionUrl ? (
+                                                                     <>
+                                                                         <img src={item.crossSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                         {item.crossSectionProfileCode && (
+                                                                             <div className="absolute bottom-0 inset-x-0 bg-indigo-600 text-[8px] font-black text-white py-0.5 text-center truncate uppercase tracking-wider leading-none">
+                                                                                 {item.crossSectionProfileCode}
+                                                                             </div>
+                                                                         )}
+                                                                     </>
+                                                                 ) : (
+                                                                     <div className="text-[8px] font-bold text-slate-400 uppercase text-center px-0.5 leading-none">
+                                                                         {lang === 'tr' ? 'BOY KESİTİ' : 'VERT. SECTION'}
+                                                                     </div>
+                                                                 )}
+                                                             </div>
+                                                        </div>
+
+                                                        {/* Plan Kesit (Plan Section) under the main image */}
+                                                        <div className="w-[210px] print:w-[165px] h-14 print:h-[42px] bg-slate-50 rounded-xl border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
+                                                             {item.planSectionUrl ? (
+                                                                 <img src={item.planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                             ) : (
+                                                                 <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider text-center">
+                                                                     {lang === 'tr' ? 'PLAN KESİTİ' : 'PLAN SECTION'}
+                                                                 </div>
+                                                             )}
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[45%] print:w-[46%]">
+                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[33%] print:w-[32%]">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{item.name}</div>
                                                     <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">
                                                         {item.productType === 'bioclimatic-pergola' && (lang === 'tr' ? 'Bioklimatik Pergole Entegrasyonu' : 'Bioclimatic Pergola Shading')}
@@ -3412,9 +3502,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         {!['bioclimatic-pergola', 'rolling-roof', 'zip-blind', 'awning', 'guillotine', 'glass-balcony', 'retractable-glass'].includes(item.productType) && (lang === 'tr' ? 'Özel 3D Gölgelendirme Sistemi' : 'Custom 3D Shading System')}
                                                     </div>
                                                     <div className="space-y-1 mb-4">
-                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900 font-mono">{item.width} mm</span></div>
-                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900 font-mono">{item.height} mm</span></div>
-                                                        {item.depth && item.depth > 0 && <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'Açılım:' : 'Projection Depth:'}</span> <span className="font-bold text-slate-900 font-mono">{item.depth} mm</span></div>}
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'width') || 'Genişlik'}:</span> <span className="font-bold text-slate-900 font-mono">{item.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'Açılım:' : 'Projection Depth:'}</span> <span className="font-bold text-slate-900 font-mono">{item.depth || 0} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'Ön Yükseklik:' : 'Front Height:'}</span> <span className="font-bold text-slate-900 font-mono">{item.frontHeight || item.height} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'Arka Yükseklik:' : 'Back Height:'}</span> <span className="font-bold text-slate-900 font-mono">{item.backHeight || item.height} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900 font-mono">{((item.width * (item.depth && item.depth > 0 ? item.depth : item.height)) / 1000000).toFixed(2)} m²</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium font-sans"><span>{lang === 'tr' ? 'RAL Profil Boya Rengi:' : 'RAL Powder Coating Color:'}</span> <span className="font-bold text-slate-900">{item.color}</span></div>
                                                         {item.notes && <div className="text-xs text-slate-500 mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/50 max-w-sm italic">"{item.notes}"</div>}
@@ -4112,11 +4203,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             width: shadingFormWidth,
                                             height: shadingFormHeight,
                                             depth: shadingFormDepth,
+                                            frontHeight: shadingFormFrontHeight,
+                                            backHeight: shadingFormBackHeight,
                                             quantity: shadingFormQty,
                                             unitPrice: shadingFormPrice,
                                             color: shadingFormColor,
                                             notes: shadingFormNotes || (lang === 'tr' ? 'Manüel olarak eklendi.' : 'Manually entered.'),
                                             imageUrl: shadingFormImageUrl,
+                                            planSectionUrl: shadingFormPlanSectionUrl,
+                                            crossSectionUrl: shadingFormCrossSectionUrl,
+                                            planSectionProfileCode: shadingFormPlanSectionProfileCode,
+                                            crossSectionProfileCode: shadingFormCrossSectionProfileCode,
                                             overlayX: 50,
                                             overlayY: 50,
                                             overlayScale: 100,
@@ -4155,7 +4252,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 <div className="min-w-0">
                                                     <p className="text-xs font-bold text-slate-200 truncate">{item.name}</p>
                                                     <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
-                                                        {item.width}x{item.height}x{item.depth} mm • {item.quantity} {lang === 'tr' ? 'Adet' : 'Qty'}
+                                                        {lang === 'tr' ? 'G:' : 'W:'}{item.width} {lang === 'tr' ? 'Aç:' : 'Proj:'}{item.depth || 0} {lang === 'tr' ? 'Ön Y:' : 'Fr H:'}{item.frontHeight || item.height} {lang === 'tr' ? 'Ark Y:' : 'Bk H:'}{item.backHeight || item.height} mm • {item.quantity} {lang === 'tr' ? 'Adet' : 'Qty'}
                                                     </p>
                                                     <p className="text-[10px] text-indigo-400 font-semibold truncate mt-0.5">{item.color}</p>
                                                 </div>
@@ -4980,11 +5077,34 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Yükseklik (mm)' : 'Height (mm)'}</label>
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Genel Yükseklik (mm)' : 'General Height (mm)'}</label>
                                             <input 
                                                 type="number" 
                                                 value={shadingFormHeight} 
-                                                onChange={(e) => setShadingFormHeight(parseInt(e.target.value) || 0)} 
+                                                onChange={(e) => {
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    setShadingFormHeight(val);
+                                                    setShadingFormFrontHeight(val);
+                                                    setShadingFormBackHeight(val);
+                                                }} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Ön Yükseklik (mm)' : 'Front Height (mm)'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormFrontHeight} 
+                                                onChange={(e) => setShadingFormFrontHeight(parseInt(e.target.value) || 0)} 
+                                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] text-slate-500 uppercase font-bold">{lang === 'tr' ? 'Arka Yükseklik (mm)' : 'Back Height (mm)'}</label>
+                                            <input 
+                                                type="number" 
+                                                value={shadingFormBackHeight} 
+                                                onChange={(e) => setShadingFormBackHeight(parseInt(e.target.value) || 0)} 
                                                 className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
                                             />
                                         </div>
@@ -5037,6 +5157,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 width: shadingFormWidth,
                                                 height: shadingFormHeight,
                                                 depth: shadingFormDepth,
+                                                frontHeight: shadingFormFrontHeight,
+                                                backHeight: shadingFormBackHeight,
                                                 quantity: shadingFormQty,
                                                 unitPrice: shadingFormPrice,
                                                 color: selectedShadingColor,
@@ -5765,6 +5887,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                     width: rec?.suggestedWidth || Math.round(boundingBox.w * 100),
                                                     height: rec?.suggestedHeight || Math.round(boundingBox.h * 100),
                                                     depth: rec?.suggestedDepth || 3000,
+                                                    frontHeight: rec?.suggestedHeight || Math.round(boundingBox.h * 100),
+                                                    backHeight: rec?.suggestedHeight || Math.round(boundingBox.h * 100),
                                                     quantity: 1,
                                                     unitPrice: (rec?.estimatedSqmPrice || 350) * 10, // approximate unit price
                                                     color: selectedShadingColor,
@@ -6796,12 +6920,43 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 {/* Height (Y Boyu - mm) */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                    {lang === 'tr' ? 'Yükseklik (Y Boyu - mm)' : 'Height (Y - mm)'}
+                    {lang === 'tr' ? 'Genel Yükseklik (Y Boyu - mm)' : 'General Height (Y - mm)'}
                   </label>
                   <input
                     type="number"
                     value={shadingFormHeight}
-                    onChange={(e) => setShadingFormHeight(parseInt(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setShadingFormHeight(val);
+                      setShadingFormFrontHeight(val);
+                      setShadingFormBackHeight(val);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+
+                {/* Front Height (mm) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Ön Yükseklik (mm)' : 'Front Height (mm)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormFrontHeight}
+                    onChange={(e) => setShadingFormFrontHeight(parseInt(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                </div>
+
+                {/* Back Height (mm) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Arka Yükseklik (mm)' : 'Back Height (mm)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={shadingFormBackHeight}
+                    onChange={(e) => setShadingFormBackHeight(parseInt(e.target.value) || 0)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500 transition-colors font-mono"
                   />
                 </div>
@@ -6948,6 +7103,171 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 </div>
               </div>
 
+              {/* Catalog Sections (Plan and Vertical) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-white/5">
+                {/* Plan Kesiti */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Katalog Plan Kesiti' : 'Catalog Plan Section'}
+                  </label>
+                  
+                  <div className="aspect-[4/1.3] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-indigo-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-indigo-500/5 group text-slate-500 relative overflow-hidden min-h-[85px]">
+                    {shadingFormPlanSectionUrl ? (
+                      <>
+                        <img src={shadingFormPlanSectionUrl} alt="Plan Kesit" className="w-full h-full object-contain p-1" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); document.getElementById('shading-plan-file')?.click(); }}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Değiştir' : 'Change'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShadingFormPlanSectionUrl(''); }}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('shading-plan-file')?.click()}>
+                        <Upload size={14} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-1" />
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {lang === 'tr' ? 'Plan Kesiti Yükle' : 'Upload Plan Section'}
+                        </span>
+                        <span className="text-[8px] text-slate-600">
+                          {lang === 'tr' ? 'Görsel Seçin veya Sürükleyin' : 'Select or Drag Image'}
+                        </span>
+                      </div>
+                    )}
+                    <input
+                      id="shading-plan-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const res = await compressImageIfNeeded(file);
+                            setShadingFormPlanSectionUrl(res.base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Fallback URL input */}
+                  <input
+                    type="text"
+                    value={shadingFormPlanSectionUrl}
+                    onChange={(e) => setShadingFormPlanSectionUrl(e.target.value)}
+                    placeholder={
+                      lang === 'tr'
+                        ? "Veya resim web linkini (URL) buraya yapıştırın..."
+                        : "Or paste image web link (URL) here..."
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-400 outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={shadingFormPlanSectionProfileCode}
+                    onChange={(e) => setShadingFormPlanSectionProfileCode(e.target.value)}
+                    placeholder={lang === 'tr' ? "Plan Kesiti Profil Kodu (örn: P-101)" : "Plan Section Profile Code (e.g.: P-101)"}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors font-mono mt-1.5"
+                  />
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    {lang === 'tr' ? 'Teklif çıktısında resmin hemen altında gösterilir.' : 'Shown directly below the main image in quote output.'}
+                  </p>
+                </div>
+
+                {/* Boy Kesiti */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    {lang === 'tr' ? 'Katalog Boy Kesiti / Detayı' : 'Catalog Cross Section / Detail'}
+                  </label>
+                  
+                  <div className="aspect-[4/1.3] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-indigo-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-indigo-500/5 group text-slate-500 relative overflow-hidden min-h-[85px]">
+                    {shadingFormCrossSectionUrl ? (
+                      <>
+                        <img src={shadingFormCrossSectionUrl} alt="Boy Kesit" className="w-full h-full object-contain p-1" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); document.getElementById('shading-cross-file')?.click(); }}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Değiştir' : 'Change'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShadingFormCrossSectionUrl(''); }}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('shading-cross-file')?.click()}>
+                        <Upload size={14} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-1" />
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {lang === 'tr' ? 'Boy Kesiti Yükle' : 'Upload Cross Section'}
+                        </span>
+                        <span className="text-[8px] text-slate-600">
+                          {lang === 'tr' ? 'Görsel Seçin veya Sürükleyin' : 'Select or Drag Image'}
+                        </span>
+                      </div>
+                    )}
+                    <input
+                      id="shading-cross-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const res = await compressImageIfNeeded(file);
+                            setShadingFormCrossSectionUrl(res.base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Fallback URL input */}
+                  <input
+                    type="text"
+                    value={shadingFormCrossSectionUrl}
+                    onChange={(e) => setShadingFormCrossSectionUrl(e.target.value)}
+                    placeholder={
+                      lang === 'tr'
+                        ? "Veya resim web linkini (URL) buraya yapıştırın..."
+                        : "Or paste image web link (URL) here..."
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-400 outline-none focus:border-indigo-500 transition-colors font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={shadingFormCrossSectionProfileCode}
+                    onChange={(e) => setShadingFormCrossSectionProfileCode(e.target.value)}
+                    placeholder={lang === 'tr' ? "Boy Kesiti Profil Kodu (örn: B-201)" : "Cross Section Profile Code (e.g.: B-201)"}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500 transition-colors font-mono mt-1.5"
+                  />
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    {lang === 'tr' ? 'Teklif çıktısında resmin sağında gösterilir.' : 'Shown to the right of the main image in quote output.'}
+                  </p>
+                </div>
+              </div>
+
               {/* Notes */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
@@ -7075,6 +7395,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 width: sys.suggestedWidth,
                                 height: sys.suggestedHeight,
                                 depth: sys.productType === 'zip-blind' ? 0 : (sys.suggestedDepth || 3000),
+                                frontHeight: sys.suggestedHeight,
+                                backHeight: sys.suggestedHeight,
                                 quantity: 1,
                                 unitPrice: sys.estimatedSqmPrice,
                                 color: sys.suggestedColor,

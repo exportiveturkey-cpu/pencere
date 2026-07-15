@@ -69,6 +69,10 @@ export interface Unit {
   selectedMullionProfileImage?: string;
   customProfileImages?: Record<string, string>;
   viewPerspective?: 'interior' | 'exterior';
+  planSectionUrl?: string;
+  crossSectionUrl?: string;
+  planSectionProfileCode?: string;
+  crossSectionProfileCode?: string;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel';
@@ -188,12 +192,18 @@ export interface ShadingItem {
   width: number;       // in mm
   height: number;      // in mm (or drop/projection/height)
   depth?: number;      // in mm (projection depth for structures)
+  frontHeight?: number; // in mm
+  backHeight?: number;  // in mm
   quantity: number;
   unitPrice: number;    // set directly or based on m²
   color: string;
   notes?: string;
   bgImageUrl?: string; // photo of house
   imageUrl?: string;   // custom product/render image url from ShadeVision
+  planSectionUrl?: string; // Plan Section Image url
+  crossSectionUrl?: string; // Vertical/Cross Section Image url
+  planSectionProfileCode?: string;
+  crossSectionProfileCode?: string;
   overlayX?: number;   // X placement percentage of drawing on user image
   overlayY?: number;   // Y placement percentage on user image
   overlayScale?: number; // scale percent of drawing overlay (e.g. 1.0 = 100%)

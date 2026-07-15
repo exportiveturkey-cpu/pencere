@@ -6,9 +6,67 @@ import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
+
+const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          base64: e.target?.result as string,
+          type: file.type
+        });
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1600;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ base64: e.target?.result as string, type: file.type });
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress as jpeg with 0.82 quality to keep payload small
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+        resolve({
+          base64: compressedBase64,
+          type: 'image/jpeg'
+        });
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
 
 interface EditorProps {
   unit?: Unit;
@@ -726,6 +784,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [viewPerspective, setViewPerspective] = useState<'interior' | 'exterior'>(initialUnit?.viewPerspective || 'interior');
   const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [planSectionUrl, setPlanSectionUrl] = useState<string>(initialUnit?.planSectionUrl || '');
+  const [crossSectionUrl, setCrossSectionUrl] = useState<string>(initialUnit?.crossSectionUrl || '');
+  const [planSectionProfileCode, setPlanSectionProfileCode] = useState<string>(initialUnit?.planSectionProfileCode || '');
+  const [crossSectionProfileCode, setCrossSectionProfileCode] = useState<string>(initialUnit?.crossSectionProfileCode || '');
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
     if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
     const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
@@ -1595,7 +1657,11 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedSashProfileImage,
       selectedMullionProfileImage,
       customProfileImages,
-      viewPerspective
+      viewPerspective,
+      planSectionUrl,
+      crossSectionUrl,
+      planSectionProfileCode,
+      crossSectionProfileCode
     });
   };
 
@@ -2202,6 +2268,147 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                     </div>
                 </div>
             </section>
+
+            {/* Custom Catalog Sections Uploads */}
+            <section className="pt-6 border-t border-white/5 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <ImageIcon size={14} className="text-blue-500" />
+                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  {lang === 'tr' ? 'Sistem Katalog Kesitleri' : 'System Catalog Drawings'}
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                {/* Plan Kesit */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block">
+                    {lang === 'tr' ? '1. Plan Kesit Çizimi' : '1. Plan Section Drawing'}
+                  </label>
+                  <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/5 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                    {planSectionUrl ? (
+                      <>
+                        <img src={planSectionUrl} alt="Plan Kesit" className="w-full h-full object-contain p-1" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById('unit-plan-file'); el?.click(); }}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Değiştir' : 'Change'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setPlanSectionUrl(''); }}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('unit-plan-file')?.click()}>
+                        <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {lang === 'tr' ? 'Plan Kesitini Yükle' : 'Upload Plan Section'}
+                        </span>
+                        <span className="text-[8px] text-slate-600">
+                          {lang === 'tr' ? 'Genişlik Çizimi' : 'Width Detail'}
+                        </span>
+                      </div>
+                    )}
+                    <input
+                      id="unit-plan-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const res = await compressImageIfNeeded(file);
+                            setPlanSectionUrl(res.base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={planSectionProfileCode}
+                    onChange={(e) => setPlanSectionProfileCode(e.target.value)}
+                    placeholder={lang === 'tr' ? "Plan Kesiti Profil Kodu (örn: 51LS-101)" : "Plan Section Profile Code (e.g.: 51LS-101)"}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono mt-1.5"
+                  />
+                </div>
+
+                {/* Boy Kesit */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block">
+                    {lang === 'tr' ? '2. Dikey Kesit Çizimi' : '2. Vertical Cross Section'}
+                  </label>
+                  <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/5 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                    {crossSectionUrl ? (
+                      <>
+                        <img src={crossSectionUrl} alt="Boy Kesit" className="w-full h-full object-contain p-1" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById('unit-cross-file'); el?.click(); }}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Değiştir' : 'Change'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setCrossSectionUrl(''); }}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                          >
+                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('unit-cross-file')?.click()}>
+                        <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {lang === 'tr' ? 'Dikey Kesiti Yükle' : 'Upload Vertical Section'}
+                        </span>
+                        <span className="text-[8px] text-slate-600">
+                          {lang === 'tr' ? 'Yükseklik Çizimi' : 'Height Detail'}
+                        </span>
+                      </div>
+                    )}
+                    <input
+                      id="unit-cross-file"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const res = await compressImageIfNeeded(file);
+                            setCrossSectionUrl(res.base64);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={crossSectionProfileCode}
+                    onChange={(e) => setCrossSectionProfileCode(e.target.value)}
+                    placeholder={lang === 'tr' ? "Dikey Kesit Profil Kodu (örn: 51LS-201)" : "Vertical Section Profile Code (e.g.: 51LS-201)"}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono mt-1.5"
+                  />
+                </div>
+              </div>
+            </section>
+
             <section className="pt-6 border-t border-white/5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
