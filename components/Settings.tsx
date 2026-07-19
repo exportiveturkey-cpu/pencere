@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
-import { COLOR_GROUPS, MOCK_ACCESSORIES } from '../constants';
+import { COLOR_GROUPS, MOCK_ACCESSORIES, PROFILE_SYSTEMS } from '../constants';
 
 export const TYPOLOGIES = [
   { id: 'fixed_storefront', nameTr: 'Fixed / Sabit', nameEn: 'Fixed / Sabit' },
@@ -26,6 +26,66 @@ export const TYPOLOGIES = [
   { id: 'folding_door', nameTr: 'Katlanır Kapı / Folding Door', nameEn: 'Folding Door / Katlanır Kapı' }
 ];
 
+const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          base64: e.target?.result as string,
+          type: file.type
+        });
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 360;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ base64: e.target?.result as string, type: file.type });
+          return;
+        }
+
+        // Fill background with white to prevent transparent PNGs turning black when compressed to JPEG
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.55);
+        resolve({
+          base64: compressedBase64,
+          type: 'image/jpeg'
+        });
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 interface SettingsProps {
   systems: ProfileSystem[];
   accessories?: Accessory[];
@@ -33,6 +93,7 @@ interface SettingsProps {
   lang: Language;
   onAddSystem: (system: ProfileSystem) => void;
   onUpdateSystem: (system: ProfileSystem) => void;
+  onSetSystems?: (systems: ProfileSystem[]) => void;
   onDeleteSystem?: (id: string) => void;
   onAddAccessory?: (acc: Accessory) => void;
   onUpdateAccessory?: (acc: Accessory) => void;
@@ -55,6 +116,7 @@ const Settings: React.FC<SettingsProps> = ({
     lang, 
     onAddSystem, 
     onUpdateSystem,
+    onSetSystems,
     onDeleteSystem,
     onAddAccessory,
     onUpdateAccessory,
@@ -81,6 +143,8 @@ const Settings: React.FC<SettingsProps> = ({
 
   const [showSiegeniaConfirm, setShowSiegeniaConfirm] = useState(false);
   const [siegeniaSuccess, setSiegeniaSuccess] = useState(false);
+  const [showPvcConfirm, setShowPvcConfirm] = useState(false);
+  const [pvcSuccess, setPvcSuccess] = useState(false);
   const session = getSessionInfo();
 
   const [currency, setCurrency] = useState(localStorage.getItem('alucraft_currency') || 'USD');
@@ -100,6 +164,66 @@ const Settings: React.FC<SettingsProps> = ({
     correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 },
     supportedTypologies: []
   });
+
+  const saveAndSyncSystem = (newSysFormState: Partial<ProfileSystem>) => {
+    setSysForm(newSysFormState);
+    if (editingSysId) {
+      const sysData: ProfileSystem = {
+        id: editingSysId,
+        name: newSysFormState.name || '',
+        type: newSysFormState.type as any || 'hinged',
+        materialType: newSysFormState.materialType as any || 'aluminum',
+        uValue: Number(newSysFormState.uValue || 0),
+        frameWidth: Number(newSysFormState.frameWidth || 0),
+        frameDepth: Number(newSysFormState.frameDepth || 0),
+        sashDepth: Number(newSysFormState.sashDepth || 0),
+        wallThickness: Number(newSysFormState.wallThickness || 0),
+        thermalBreakWidth: Number(newSysFormState.thermalBreakWidth || 0),
+        pricePerMeter: Number(newSysFormState.pricePerMeter || 0),
+        profileLength: Number(newSysFormState.profileLength || 6.0),
+        cncCode: newSysFormState.cncCode || '',
+        profileCodes: {
+          frame: newSysFormState.profileCodes?.frame || '',
+          sash: newSysFormState.profileCodes?.sash || '',
+          mullion: newSysFormState.profileCodes?.mullion || '',
+          glazingBead: newSysFormState.profileCodes?.glazingBead || ''
+        },
+        profileWeights: {
+          frame: Number(newSysFormState.profileWeights?.frame || 0),
+          sash: Number(newSysFormState.profileWeights?.sash || 0),
+          mullion: Number(newSysFormState.profileWeights?.mullion || 0),
+          glazingBead: Number(newSysFormState.profileWeights?.glazingBead || 0)
+        },
+        correctionConfig: {
+          sashOverlap: Number(newSysFormState.correctionConfig?.sashOverlap || 0),
+          glassClearance: Number(newSysFormState.correctionConfig?.glassClearance || 0),
+          mullionCorrection: Number(newSysFormState.correctionConfig?.mullionCorrection || 0),
+          frameCornerWelding: Number(newSysFormState.correctionConfig?.frameCornerWelding || 0)
+        },
+        laborPricePerKg: newSysFormState.laborPricePerKg !== undefined ? Number(newSysFormState.laborPricePerKg) : undefined,
+        laborPricePerKgUsd: newSysFormState.laborPricePerKgUsd !== undefined ? Number(newSysFormState.laborPricePerKgUsd) : undefined,
+        supportedTypologies: newSysFormState.supportedTypologies || [],
+        planSectionUrl: newSysFormState.planSectionUrl,
+        crossSectionUrl: newSysFormState.crossSectionUrl,
+        planSectionProfileCode: newSysFormState.planSectionProfileCode,
+        crossSectionProfileCode: newSysFormState.crossSectionProfileCode,
+        framePlanSectionUrl: newSysFormState.framePlanSectionUrl,
+        frameCrossSectionUrl: newSysFormState.frameCrossSectionUrl,
+        framePlanSectionProfileCode: newSysFormState.framePlanSectionProfileCode,
+        frameCrossSectionProfileCode: newSysFormState.frameCrossSectionProfileCode,
+        sashPlanSectionUrl: newSysFormState.sashPlanSectionUrl,
+        sashCrossSectionUrl: newSysFormState.sashCrossSectionUrl,
+        sashPlanSectionProfileCode: newSysFormState.sashPlanSectionProfileCode,
+        sashCrossSectionProfileCode: newSysFormState.sashCrossSectionProfileCode,
+        mullionPlanSectionUrl: newSysFormState.mullionPlanSectionUrl,
+        mullionCrossSectionUrl: newSysFormState.mullionCrossSectionUrl,
+        mullionPlanSectionProfileCode: newSysFormState.mullionPlanSectionProfileCode,
+        mullionCrossSectionProfileCode: newSysFormState.mullionCrossSectionProfileCode,
+        profileDrawings: newSysFormState.profileDrawings || []
+      };
+      onUpdateSystem(sysData);
+    }
+  };
 
   // Accessory Form State
   const [editingAccId, setEditingAccId] = useState<string | null>(null);
@@ -193,6 +317,96 @@ const Settings: React.FC<SettingsProps> = ({
     name: '', brand: 'Generic', bladeThickness: 5, minWaste: 50, clampingOffset: 100
   });
 
+  // Dynamic Profile Drawing states
+  const [newDrawingCode, setNewDrawingCode] = useState('');
+  const [newDrawingType, setNewDrawingType] = useState<'frame' | 'sash' | 'mullion' | 'general' | 'other'>('frame');
+  const [newDrawingPlanUrl, setNewDrawingPlanUrl] = useState('');
+  const [newDrawingCrossUrl, setNewDrawingCrossUrl] = useState('');
+  const [newDrawingDesc, setNewDrawingDesc] = useState('');
+
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkUploadSummary, setBulkUploadSummary] = useState<{
+    totalCount: number;
+    newCount: number;
+    updatedCount: number;
+    failedCount: number;
+    failedFiles: string[];
+  } | null>(null);
+
+  const handleBulkUpload = async (files: FileList | null, sectionType: 'plan' | 'cross') => {
+    if (!files || files.length === 0) return;
+    setIsBulkUploading(true);
+    setBulkUploadSummary(null);
+
+    let newCount = 0;
+    let updatedCount = 0;
+    let failedCount = 0;
+    const failedFiles: string[] = [];
+
+    const currentDrawings = [...(sysForm.profileDrawings || [])];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const fileName = file.name;
+        const lastDotIndex = fileName.lastIndexOf('.');
+        let baseName = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
+        const cleanedCode = baseName.replace(/\s*\(\d+\)\s*$/, "").trim();
+
+        if (!cleanedCode) {
+          failedCount++;
+          failedFiles.push(`${fileName} (${lang === 'tr' ? 'Geçersiz Kod' : 'Invalid Code'})`);
+          continue;
+        }
+
+        const res = await compressImageIfNeeded(file);
+
+        const norm = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
+        const targetNorm = norm(cleanedCode);
+        const matchIdx = currentDrawings.findIndex(d => norm(d.code) === targetNorm);
+
+        if (matchIdx !== -1) {
+          const updatedItem = { ...currentDrawings[matchIdx] };
+          if (sectionType === 'plan') {
+            updatedItem.planSectionUrl = res.base64;
+          } else {
+            updatedItem.crossSectionUrl = res.base64;
+          }
+          currentDrawings[matchIdx] = updatedItem;
+          updatedCount++;
+        } else {
+          const newItem: any = {
+            id: 'draw-' + Date.now() + '-' + i + '-' + Math.floor(Math.random() * 1000),
+            code: cleanedCode,
+            type: 'general',
+            description: lang === 'tr' ? 'Toplu yükleme ile eklendi' : 'Added via bulk upload'
+          };
+          if (sectionType === 'plan') {
+            newItem.planSectionUrl = res.base64;
+          } else {
+            newItem.crossSectionUrl = res.base64;
+          }
+          currentDrawings.push(newItem);
+          newCount++;
+        }
+      } catch (err) {
+        console.error('Bulk upload error for file:', file.name, err);
+        failedCount++;
+        failedFiles.push(`${file.name} (${err instanceof Error ? err.message : 'Error'})`);
+      }
+    }
+
+    saveAndSyncSystem({ ...sysForm, profileDrawings: currentDrawings });
+    setIsBulkUploading(false);
+    setBulkUploadSummary({
+      totalCount: files.length,
+      newCount,
+      updatedCount,
+      failedCount,
+      failedFiles
+    });
+  };
+
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'system' | 'accessory' | 'import', id?: string } | null>(null);
   const [pendingImportData, setPendingImportData] = useState<any | null>(null);
 
@@ -285,6 +499,7 @@ const Settings: React.FC<SettingsProps> = ({
         id: editingSysId || uuidv4(),
         name: sysForm.name || '',
         type: sysForm.type as any || 'hinged',
+        materialType: sysForm.materialType || 'aluminum',
         cncCode: sysForm.cncCode || '',
         frameWidth: Number(sysForm.frameWidth),
         frameDepth: Number(sysForm.frameDepth || 65),
@@ -314,12 +529,40 @@ const Settings: React.FC<SettingsProps> = ({
         },
         laborPricePerKg: sysForm.laborPricePerKg !== undefined ? Number(sysForm.laborPricePerKg) : undefined,
         laborPricePerKgUsd: sysForm.laborPricePerKgUsd !== undefined ? Number(sysForm.laborPricePerKgUsd) : undefined,
-        supportedTypologies: sysForm.supportedTypologies || []
+        supportedTypologies: sysForm.supportedTypologies || [],
+        planSectionUrl: sysForm.planSectionUrl,
+        crossSectionUrl: sysForm.crossSectionUrl,
+        planSectionProfileCode: sysForm.planSectionProfileCode,
+        crossSectionProfileCode: sysForm.crossSectionProfileCode,
+        framePlanSectionUrl: sysForm.framePlanSectionUrl,
+        frameCrossSectionUrl: sysForm.frameCrossSectionUrl,
+        framePlanSectionProfileCode: sysForm.framePlanSectionProfileCode,
+        frameCrossSectionProfileCode: sysForm.frameCrossSectionProfileCode,
+        sashPlanSectionUrl: sysForm.sashPlanSectionUrl,
+        sashCrossSectionUrl: sysForm.sashCrossSectionUrl,
+        sashPlanSectionProfileCode: sysForm.sashPlanSectionProfileCode,
+        sashCrossSectionProfileCode: sysForm.sashCrossSectionProfileCode,
+        mullionPlanSectionUrl: sysForm.mullionPlanSectionUrl,
+        mullionCrossSectionUrl: sysForm.mullionCrossSectionUrl,
+        mullionPlanSectionProfileCode: sysForm.mullionPlanSectionProfileCode,
+        mullionCrossSectionProfileCode: sysForm.mullionCrossSectionProfileCode,
+        profileDrawings: sysForm.profileDrawings || []
     };
     if (editingSysId) onUpdateSystem(sysData);
     else onAddSystem(sysData);
     setEditingSysId(null);
-    setSysForm({ name: '', type: 'hinged', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '', profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' }, profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 }, correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 }, supportedTypologies: [] });
+    setSysForm({ 
+      name: '', type: 'hinged', materialType: 'aluminum', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '', 
+      profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' }, 
+      profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 }, 
+      correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 }, 
+      supportedTypologies: [], 
+      planSectionUrl: '', crossSectionUrl: '', planSectionProfileCode: '', crossSectionProfileCode: '',
+      framePlanSectionUrl: '', frameCrossSectionUrl: '', framePlanSectionProfileCode: '', frameCrossSectionProfileCode: '',
+      sashPlanSectionUrl: '', sashCrossSectionUrl: '', sashPlanSectionProfileCode: '', sashCrossSectionProfileCode: '',
+      mullionPlanSectionUrl: '', mullionCrossSectionUrl: '', mullionPlanSectionProfileCode: '', mullionCrossSectionProfileCode: '',
+      profileDrawings: []
+    });
   };
 
   const handleSaveAcc = () => {
@@ -346,6 +589,16 @@ const Settings: React.FC<SettingsProps> = ({
     setShowSiegeniaConfirm(false);
     setTimeout(() => {
       setSiegeniaSuccess(false);
+    }, 4000);
+  };
+
+  const handleLoadPvcPack = () => {
+    if (onSetAccessories) onSetAccessories(MOCK_ACCESSORIES);
+    if (onSetSystems) onSetSystems(PROFILE_SYSTEMS);
+    setPvcSuccess(true);
+    setShowPvcConfirm(false);
+    setTimeout(() => {
+      setPvcSuccess(false);
     }, 4000);
   };
 
@@ -491,19 +744,73 @@ const Settings: React.FC<SettingsProps> = ({
              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in">
                 <div className="lg:col-span-5">
                     <div className="bg-slate-900 border border-white/5 p-6 rounded-2xl sticky top-8">
-                         <h2 className="text-xl font-bold text-white mb-6">{editingSysId ? t(lang, 'edit') : t(lang, 'addSystem')}</h2>
+                         {editingSysId ? (
+                           <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4 mb-6">
+                             <div className="flex items-center gap-2 text-amber-400 mb-1">
+                               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                               <h2 className="text-xs font-bold uppercase tracking-wider">{lang === 'tr' ? 'SİSTEMİ DÜZENLİYORSUNUZ' : 'EDITING SYSTEM'}</h2>
+                             </div>
+                             <p className="text-white font-black text-base truncate mb-2">{sysForm.name}</p>
+                             <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
+                               {lang === 'tr' 
+                                 ? 'Bu profil kütüphanesine veya sisteme yapacağınız her ekleme ve değişiklik anında bulut veritabanınıza senkronize edilir.' 
+                                 : 'Any additions or changes to this profile library or system are synced to the cloud database in real-time.'}
+                             </p>
+                             <button
+                               onClick={() => {
+                                 setEditingSysId(null);
+                                 setSysForm({ 
+                                   name: '', type: 'hinged', materialType: 'aluminum', frameWidth: 65, frameDepth: 65, wallThickness: 1.6, uValue: 1.5, pricePerMeter: 0, profileLength: 6.0, cncCode: '', 
+                                   profileCodes: { frame: '', sash: '', mullion: '', glazingBead: '' }, 
+                                   profileWeights: { frame: 1.2, sash: 1.5, mullion: 1.3, glazingBead: 0.35 }, 
+                                   correctionConfig: { sashOverlap: 6, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 0 }, 
+                                   supportedTypologies: [], 
+                                   planSectionUrl: '', crossSectionUrl: '', planSectionProfileCode: '', crossSectionProfileCode: '',
+                                   framePlanSectionUrl: '', frameCrossSectionUrl: '', framePlanSectionProfileCode: '', frameCrossSectionProfileCode: '',
+                                   sashPlanSectionUrl: '', sashCrossSectionUrl: '', sashPlanSectionProfileCode: '', sashCrossSectionProfileCode: '',
+                                   mullionPlanSectionUrl: '', mullionCrossSectionUrl: '', mullionPlanSectionProfileCode: '', mullionCrossSectionProfileCode: '',
+                                   profileDrawings: []
+                                 });
+                               }}
+                               className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-1.5 px-3 rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5"
+                             >
+                               {lang === 'tr' ? 'Düzenlemeyi Bitir & Yeni Sistem Tanımla' : 'Finish Editing & Create New'}
+                             </button>
+                           </div>
+                         ) : (
+                           <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
+                             <div className="flex items-center gap-2 text-blue-400 mb-1">
+                               <span className="w-2 h-2 rounded-full bg-blue-500" />
+                               <h2 className="text-xs font-bold uppercase tracking-wider">{lang === 'tr' ? 'YENİ SİSTEM TANIMLA' : 'DEFINE NEW SYSTEM'}</h2>
+                             </div>
+                             <p className="text-[11px] text-slate-400 leading-relaxed">
+                               {lang === 'tr' 
+                                 ? 'Yeni bir pencere veya kapı profil serisi oluşturmak için formu doldurun.' 
+                                 : 'Fill the form to define a new window or door profile series.'}
+                             </p>
+                           </div>
+                         )}
                          <div className="space-y-4">
                              <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{t(lang, 'sysName')}</label>
                                 <input type="text" value={sysForm.name} onChange={e => setSysForm({...sysForm, name: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" />
                              </div>
 
-                             <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Sistem Tipi</label>
-                                <select value={sysForm.type} onChange={e => setSysForm({...sysForm, type: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
-                                    <option value="hinged">Menteşeli (Pencere/Kapı)</option>
-                                    <option value="sliding">Sürme (Sliding)</option>
-                                </select>
+                             <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Sistem Tipi</label>
+                                    <select value={sysForm.type} onChange={e => setSysForm({...sysForm, type: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
+                                        <option value="hinged">Menteşeli (Pencere/Kapı)</option>
+                                        <option value="sliding">Sürme (Sliding)</option>
+                                    </select>
+                                 </div>
+                                 <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Malzeme Türü</label>
+                                    <select value={sysForm.materialType || 'aluminum'} onChange={e => setSysForm({...sysForm, materialType: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
+                                        <option value="aluminum">Alüminyum</option>
+                                        <option value="pvc">PVC</option>
+                                    </select>
+                                 </div>
                              </div>
                              
                              <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5 space-y-3">
@@ -546,33 +853,966 @@ const Settings: React.FC<SettingsProps> = ({
                                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Kanat Derinliği (mm)</label><input type="number" value={sysForm.sashDepth} onChange={e => setSysForm({...sysForm, sashDepth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
                              </div>
                              <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Isı Köprüsü (mm)</label><input type="number" value={sysForm.thermalBreakWidth} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Et Kalınlığı (mm)</label><input type="number" step="0.1" value={sysForm.wallThickness} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div></div><div className="p-4 bg-slate-950/50 rounded-xl border border-white/5 space-y-2 my-4"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">{lang === 'tr' ? 'Desteklenen Tipolojiler' : 'Supported Typologies'}</label><div className="grid grid-cols-1 gap-2">{TYPOLOGIES.map(typo => { const isChecked = (sysForm.supportedTypologies || []).includes(typo.id); return (<label key={typo.id} className="flex items-center gap-2.5 text-xs text-slate-300 hover:text-white cursor-pointer select-none"><input type="checkbox" checked={isChecked} onChange={e => { const current = sysForm.supportedTypologies || []; const updated = e.target.checked ? [...current, typo.id] : current.filter(id => id !== typo.id); setSysForm({ ...sysForm, supportedTypologies: updated }); }} className="w-4 h-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer" /><span>{lang === 'tr' ? typo.nameTr : typo.nameEn}</span></label>); })}</div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Isı Köprüsü (mm)</label><input type="number" value={sysForm.thermalBreakWidth || ''} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Et Kalınlığı (mm)</label><input type="number" step="0.1" value={sysForm.wallThickness || ''} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                              </div>
+
+                              {/* Sistem Katalog Kesit Kütüphanesi */}
+                              <div className="p-4 bg-slate-950/50 rounded-xl border border-white/5 space-y-4 my-4">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                                  {lang === 'tr' ? 'Sistem Katalog Kesit Kütüphanesi' : 'System Catalog Drawings Library'}
+                                </label>
+                                
+                                {/* --- GENEL SİSTEM KESİTLERİ (GENERAL SYSTEM DRAWINGS) --- */}
+                                <div className="space-y-3">
+                                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    {lang === 'tr' ? 'Genel Sistem Kesitleri' : 'General System Drawings'}
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {/* Plan Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Genel Plan Kesiti' : 'General Plan Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.planSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.planSectionUrl} alt="Plan Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-plan-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, planSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-plan-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Plan Kesitini Yükle' : 'Upload Plan Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-plan-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, planSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.planSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, planSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+
+                                    {/* Dikey Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Genel Dikey Kesit' : 'General Vertical Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.crossSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.crossSectionUrl} alt="Boy Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-cross-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, crossSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-cross-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Dikey Kesitini Yükle' : 'Upload Vertical Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-cross-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, crossSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.crossSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, crossSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* --- KASA (FRAME) PROFILE DRAWINGS --- */}
+                                <div className="pt-3 border-t border-white/5 space-y-3">
+                                  <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block">
+                                    {lang === 'tr' ? 'Kasa Profili Çizimleri' : 'Frame Profile Drawings'}
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {/* Kasa Plan Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Kasa Plan Kesiti' : 'Frame Plan Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.framePlanSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.framePlanSectionUrl} alt="Kasa Plan Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-frame-plan-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, framePlanSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-frame-plan-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Plan Kesiti Yükle' : 'Upload Plan Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-frame-plan-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, framePlanSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.framePlanSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, framePlanSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+
+                                    {/* Kasa Dikey Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Kasa Dikey Kesiti' : 'Frame Vertical Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.frameCrossSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.frameCrossSectionUrl} alt="Kasa Dikey Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-frame-cross-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, frameCrossSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-frame-cross-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Dikey Kesiti Yükle' : 'Upload Vertical Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-frame-cross-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, frameCrossSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.frameCrossSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, frameCrossSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* --- KANAT (SASH) PROFILE DRAWINGS --- */}
+                                <div className="pt-3 border-t border-white/5 space-y-3">
+                                  <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block">
+                                    {lang === 'tr' ? 'Kanat Profili Çizimleri' : 'Sash Profile Drawings'}
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {/* Kanat Plan Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Kanat Plan Kesiti' : 'Sash Plan Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.sashPlanSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.sashPlanSectionUrl} alt="Kanat Plan Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-sash-plan-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, sashPlanSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-sash-plan-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Plan Kesiti Yükle' : 'Upload Plan Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-sash-plan-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, sashPlanSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.sashPlanSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, sashPlanSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+
+                                    {/* Kanat Dikey Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Kanat Dikey Kesiti' : 'Sash Vertical Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.sashCrossSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.sashCrossSectionUrl} alt="Kanat Dikey Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-sash-cross-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, sashCrossSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-sash-cross-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Dikey Kesiti Yükle' : 'Upload Vertical Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-sash-cross-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, sashCrossSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.sashCrossSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, sashCrossSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* --- ORTA KAYIT (MULLION) PROFILE DRAWINGS --- */}
+                                <div className="pt-3 border-t border-white/5 space-y-3">
+                                  <label className="text-[11px] font-bold text-blue-400 uppercase tracking-wider block">
+                                    {lang === 'tr' ? 'Orta Kayıt Profili Çizimleri' : 'Mullion Profile Drawings'}
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {/* Orta Kayıt Plan Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Orta Kayıt Plan Kesiti' : 'Mullion Plan Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.mullionPlanSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.mullionPlanSectionUrl} alt="Orta Kayıt Plan Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-mullion-plan-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, mullionPlanSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-mullion-plan-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Plan Kesiti Yükle' : 'Upload Plan Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-mullion-plan-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, mullionPlanSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.mullionPlanSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, mullionPlanSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+
+                                    {/* Orta Kayıt Dikey Kesit */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[9px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Orta Kayıt Dikey Kesiti' : 'Mullion Vertical Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
+                                        {sysForm.mullionCrossSectionUrl ? (
+                                          <>
+                                            <img src={sysForm.mullionCrossSectionUrl} alt="Orta Kayıt Dikey Kesit" className="w-full h-full object-contain p-1" />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); document.getElementById('sys-mullion-cross-file')?.click(); }}
+                                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Değiştir' : 'Change'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); saveAndSyncSystem({ ...sysForm, mullionCrossSectionUrl: '' }); }}
+                                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
+                                              >
+                                                {lang === 'tr' ? 'Kaldır' : 'Remove'}
+                                              </button>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('sys-mullion-cross-file')?.click()}>
+                                            <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
+                                            <span className="text-[9px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Dikey Kesiti Yükle' : 'Upload Vertical Section'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="sys-mullion-cross-file"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                saveAndSyncSystem({ ...sysForm, mullionCrossSectionUrl: res.base64 });
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={sysForm.mullionCrossSectionProfileCode || ''}
+                                        onChange={(e) => setSysForm({ ...sysForm, mullionCrossSectionProfileCode: e.target.value })}
+                                        placeholder={lang === 'tr' ? "Profil Kodu" : "Profile Code"}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* --- ÖZEL PROFİL ÇİZİMLERİ KATALOĞU (CUSTOM PROFILE DRAWINGS LIBRARY) --- */}
+                              <div className="pt-4 border-t border-white/5 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">
+                                    {lang === 'tr' ? 'Çoklu Profil Çizim Kütüphanesi' : 'Multi-Profile Drawings Library'}
+                                  </label>
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {(sysForm.profileDrawings || []).length} {lang === 'tr' ? 'Profil Tanımlı' : 'Profiles Defined'}
+                                  </span>
+                                </div>
+
+                                {/* Toplu Yükleme Bölümü (Bulk Upload Section) */}
+                                <div className="p-3 bg-blue-950/10 border border-blue-500/10 rounded-xl space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                                      {lang === 'tr' ? 'Toplu Profil Yükleme' : 'Bulk Profile Upload'}
+                                    </span>
+                                    {isBulkUploading && (
+                                      <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                                        {lang === 'tr' ? 'Yükleniyor...' : 'Uploading...'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={isBulkUploading}
+                                      onClick={() => document.getElementById('bulk-plan-upload')?.click()}
+                                      className="flex items-center justify-center gap-2 bg-blue-600/15 hover:bg-blue-600/30 disabled:opacity-50 text-blue-300 disabled:hover:bg-blue-600/15 font-bold py-2 px-3 rounded-lg text-[10px] transition-all border border-blue-500/20"
+                                    >
+                                      <Upload size={12} />
+                                      {lang === 'tr' ? 'Plan Kesitlerini Toplu Yükle' : 'Bulk Upload Plan Sections'}
+                                    </button>
+                                    <input
+                                      id="bulk-plan-upload"
+                                      type="file"
+                                      multiple
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => handleBulkUpload(e.target.files, 'plan')}
+                                    />
+
+                                    <button
+                                      type="button"
+                                      disabled={isBulkUploading}
+                                      onClick={() => document.getElementById('bulk-cross-upload')?.click()}
+                                      className="flex items-center justify-center gap-2 bg-indigo-600/15 hover:bg-indigo-600/30 disabled:opacity-50 text-indigo-300 disabled:hover:bg-indigo-600/15 font-bold py-2 px-3 rounded-lg text-[10px] transition-all border border-indigo-500/20"
+                                    >
+                                      <Upload size={12} />
+                                      {lang === 'tr' ? 'Dikey Kesitleri Toplu Yükle' : 'Bulk Upload Vertical Sections'}
+                                    </button>
+                                    <input
+                                      id="bulk-cross-upload"
+                                      type="file"
+                                      multiple
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => handleBulkUpload(e.target.files, 'cross')}
+                                    />
+                                  </div>
+
+                                  {bulkUploadSummary && (
+                                    <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-lg space-y-1.5 text-[10px]">
+                                      <div className="flex items-center justify-between font-bold text-slate-300">
+                                        <span>{lang === 'tr' ? 'Yükleme Özeti' : 'Upload Summary'}</span>
+                                        <button 
+                                          onClick={() => setBulkUploadSummary(null)} 
+                                          className="text-slate-500 hover:text-slate-300 font-bold px-1 text-[10px]"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-1 text-center font-mono">
+                                        <div className="bg-slate-900/60 p-1 rounded">
+                                          <div className="text-slate-500 text-[8px] uppercase">{lang === 'tr' ? 'Toplam' : 'Total'}</div>
+                                          <div className="text-white font-bold">{bulkUploadSummary.totalCount}</div>
+                                        </div>
+                                        <div className="bg-green-950/20 p-1 rounded">
+                                          <div className="text-green-500 text-[8px] uppercase">{lang === 'tr' ? 'Yeni' : 'New'}</div>
+                                          <div className="text-green-400 font-bold">{bulkUploadSummary.newCount}</div>
+                                        </div>
+                                        <div className="bg-blue-950/20 p-1 rounded">
+                                          <div className="text-blue-500 text-[8px] uppercase">{lang === 'tr' ? 'Güncel' : 'Updated'}</div>
+                                          <div className="text-blue-400 font-bold">{bulkUploadSummary.updatedCount}</div>
+                                        </div>
+                                        <div className="bg-red-950/20 p-1 rounded">
+                                          <div className="text-red-500 text-[8px] uppercase">{lang === 'tr' ? 'Hata' : 'Error'}</div>
+                                          <div className="text-red-400 font-bold">{bulkUploadSummary.failedCount}</div>
+                                        </div>
+                                      </div>
+                                      {bulkUploadSummary.failedCount > 0 && (
+                                        <div className="mt-1 text-red-400 bg-red-950/10 p-1.5 rounded max-h-[80px] overflow-y-auto font-mono text-[9px] list-disc list-inside">
+                                          <div className="font-bold text-[8px] uppercase mb-0.5">{lang === 'tr' ? 'Başarısız Dosyalar:' : 'Failed Files:'}</div>
+                                          {bulkUploadSummary.failedFiles.map((f, idx) => (
+                                            <div key={idx} className="truncate">{f}</div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* List of custom drawings */}
+                                <div className="space-y-2">
+                                  {(!sysForm.profileDrawings || sysForm.profileDrawings.length === 0) ? (
+                                    <div className="text-center py-6 px-4 bg-slate-950/40 rounded-xl border border-dashed border-white/5 text-[11px] text-slate-500">
+                                      {lang === 'tr' 
+                                        ? 'Sistem içerisinde farklı profil kodlarına özel çizimler tanımlayabilirsiniz. Aşağıdaki formu kullanarak sınırsız sayıda profil ekleyin.' 
+                                        : 'You can define custom drawings for different profile codes in the system. Add unlimited profiles using the form below.'}
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                                      {sysForm.profileDrawings.map((draw) => (
+                                        <div key={draw.id} className="flex items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-white/5 group hover:border-slate-800 transition-all">
+                                          <div className="flex items-center gap-3 min-w-0">
+                                            {/* Thumbnails */}
+                                            <div className="flex gap-1 shrink-0">
+                                              <div className="w-10 h-10 bg-black rounded border border-white/5 overflow-hidden flex items-center justify-center relative group/thumb" title={lang === 'tr' ? 'Plan Kesiti' : 'Plan Section'}>
+                                                {draw.planSectionUrl ? (
+                                                  <img src={draw.planSectionUrl} className="w-full h-full object-contain p-0.5" alt="Plan" />
+                                                ) : (
+                                                  <span className="text-[8px] text-slate-600 font-mono">Plan</span>
+                                                )}
+                                              </div>
+                                              <div className="w-10 h-10 bg-black rounded border border-white/5 overflow-hidden flex items-center justify-center relative group/thumb" title={lang === 'tr' ? 'Dikey Kesit' : 'Vertical Section'}>
+                                                {draw.crossSectionUrl ? (
+                                                  <img src={draw.crossSectionUrl} className="w-full h-full object-contain p-0.5" alt="Cross" />
+                                                ) : (
+                                                  <span className="text-[8px] text-slate-600 font-mono">Dikey</span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Info */}
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-white font-mono">{draw.code}</span>
+                                                <span className="text-[8px] font-black uppercase px-1 py-0.5 rounded tracking-wider bg-slate-800 text-slate-400">
+                                                  {draw.type === 'frame' ? (lang === 'tr' ? 'Kasa' : 'Frame') :
+                                                   draw.type === 'sash' ? (lang === 'tr' ? 'Kanat' : 'Sash') :
+                                                   draw.type === 'mullion' ? (lang === 'tr' ? 'Orta Kayıt' : 'Mullion') :
+                                                   draw.type === 'general' ? (lang === 'tr' ? 'Genel' : 'General') :
+                                                   (lang === 'tr' ? 'Diğer' : 'Other')}
+                                                </span>
+                                              </div>
+                                              {draw.description && (
+                                                <p className="text-[10px] text-slate-500 truncate mt-0.5">{draw.description}</p>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Delete action */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const filtered = (sysForm.profileDrawings || []).filter(d => d.id !== draw.id);
+                                              saveAndSyncSystem({ ...sysForm, profileDrawings: filtered });
+                                            }}
+                                            className="p-1.5 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-lg transition-all shrink-0"
+                                            title={lang === 'tr' ? 'Kütüphaneden Çıkar' : 'Remove from library'}
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Form to add a new custom drawing */}
+                                <div className="p-3 bg-slate-950/40 rounded-xl border border-white/5 space-y-3">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                                    {lang === 'tr' ? 'Yeni Profil Çizimi Tanımla' : 'Define New Profile Drawing'}
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-[8px] font-bold text-slate-500 uppercase block mb-1">
+                                        {lang === 'tr' ? 'Profil Kodu' : 'Profile Code'}
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={newDrawingCode}
+                                        onChange={(e) => setNewDrawingCode(e.target.value)}
+                                        placeholder="örn: 51LS-102"
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[8px] font-bold text-slate-500 uppercase block mb-1">
+                                        {lang === 'tr' ? 'Profil Tipi' : 'Profile Type'}
+                                      </label>
+                                      <select
+                                        value={newDrawingType}
+                                        onChange={(e) => setNewDrawingType(e.target.value as any)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors"
+                                      >
+                                        <option value="frame">{lang === 'tr' ? 'Kasa (Frame)' : 'Frame'}</option>
+                                        <option value="sash">{lang === 'tr' ? 'Kanat (Sash)' : 'Sash'}</option>
+                                        <option value="mullion">{lang === 'tr' ? 'Orta Kayıt (Mullion)' : 'Mullion'}</option>
+                                        <option value="general">{lang === 'tr' ? 'Genel (General)' : 'General'}</option>
+                                        <option value="other">{lang === 'tr' ? 'Diğer (Other)' : 'Other'}</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  {/* Uploaders for Plan and Cross Sections */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {/* New Plan Section Upload */}
+                                    <div className="space-y-1">
+                                      <label className="text-[8px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Plan Kesiti' : 'Plan Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-lg border border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-1 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[50px]">
+                                        {newDrawingPlanUrl ? (
+                                          <>
+                                            <img src={newDrawingPlanUrl} alt="New Plan" className="w-full h-full object-contain p-0.5" />
+                                            <button
+                                              type="button"
+                                              onClick={(e) => { e.stopPropagation(); setNewDrawingPlanUrl(''); }}
+                                              className="absolute top-1 right-1 p-0.5 bg-red-600 hover:bg-red-500 text-white rounded transition-all shadow-lg text-[8px]"
+                                            >
+                                              ✕
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('new-sys-draw-plan')?.click()}>
+                                            <Upload size={10} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-0.5" />
+                                            <span className="text-[8px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Yükle' : 'Upload'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="new-sys-draw-plan"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                setNewDrawingPlanUrl(res.base64);
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* New Cross Section Upload */}
+                                    <div className="space-y-1">
+                                      <label className="text-[8px] font-bold text-slate-500 uppercase block">
+                                        {lang === 'tr' ? 'Dikey Kesit' : 'Vertical Section'}
+                                      </label>
+                                      <div className="aspect-[4/1.2] bg-slate-950 rounded-lg border border-dashed border-white/10 hover:border-blue-500/50 flex flex-col items-center justify-center p-1 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[50px]">
+                                        {newDrawingCrossUrl ? (
+                                          <>
+                                            <img src={newDrawingCrossUrl} alt="New Cross" className="w-full h-full object-contain p-0.5" />
+                                            <button
+                                              type="button"
+                                              onClick={(e) => { e.stopPropagation(); setNewDrawingCrossUrl(''); }}
+                                              className="absolute top-1 right-1 p-0.5 bg-red-600 hover:bg-red-500 text-white rounded transition-all shadow-lg text-[8px]"
+                                            >
+                                              ✕
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('new-sys-draw-cross')?.click()}>
+                                            <Upload size={10} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-0.5" />
+                                            <span className="text-[8px] font-bold text-slate-400">
+                                              {lang === 'tr' ? 'Yükle' : 'Upload'}
+                                            </span>
+                                          </div>
+                                        )}
+                                        <input
+                                          id="new-sys-draw-cross"
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              try {
+                                                const res = await compressImageIfNeeded(file);
+                                                setNewDrawingCrossUrl(res.base64);
+                                              } catch (err) {
+                                                console.error(err);
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[8px] font-bold text-slate-500 uppercase block mb-1">
+                                      {lang === 'tr' ? 'Açıklama / Notlar' : 'Description / Notes'}
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={newDrawingDesc}
+                                      onChange={(e) => setNewDrawingDesc(e.target.value)}
+                                      placeholder={lang === 'tr' ? "örn: Standart gizli kanat profili" : "e.g.: Standard hidden sash profile"}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!newDrawingCode) {
+                                        alert(lang === 'tr' ? 'Lütfen bir profil kodu girin!' : 'Please enter a profile code!');
+                                        return;
+                                      }
+                                      const drawings = sysForm.profileDrawings || [];
+                                      // check duplicates
+                                      if (drawings.some(d => d.code === newDrawingCode)) {
+                                        alert(lang === 'tr' ? 'Bu profil kodu kütüphanede zaten tanımlı!' : 'This profile code is already defined in the library!');
+                                        return;
+                                      }
+                                      const updatedDrawings = [
+                                        ...drawings,
+                                        {
+                                          id: 'draw-' + Date.now(),
+                                          code: newDrawingCode.trim(),
+                                          type: newDrawingType,
+                                          planSectionUrl: newDrawingPlanUrl || undefined,
+                                          crossSectionUrl: newDrawingCrossUrl || undefined,
+                                          description: newDrawingDesc.trim() || undefined
+                                        }
+                                      ];
+                                      saveAndSyncSystem({ ...sysForm, profileDrawings: updatedDrawings });
+                                      
+                                      // reset fields
+                                      setNewDrawingCode('');
+                                      setNewDrawingPlanUrl('');
+                                      setNewDrawingCrossUrl('');
+                                      setNewDrawingDesc('');
+                                    }}
+                                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 rounded-lg text-[10px] transition-all"
+                                  >
+                                    {lang === 'tr' ? 'Profil Kütüphanesine Ekle' : 'Add to Profile Library'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="p-4 bg-slate-950/50 rounded-xl border border-white/5 space-y-2 my-4">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">{lang === 'tr' ? 'Desteklenen Tipolojiler' : 'Supported Typologies'}</label>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {TYPOLOGIES.map(typo => { 
+                                    const isChecked = (sysForm.supportedTypologies || []).includes(typo.id); 
+                                    return (
+                                      <label key={typo.id} className="flex items-center gap-2.5 text-xs text-slate-300 hover:text-white cursor-pointer select-none">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={isChecked} 
+                                          onChange={e => { 
+                                            const current = sysForm.supportedTypologies || []; 
+                                            const updated = e.target.checked ? [...current, typo.id] : current.filter(id => id !== typo.id); 
+                                            saveAndSyncSystem({ ...sysForm, supportedTypologies: updated }); 
+                                          }} 
+                                          className="w-4 h-4 rounded border-slate-800 text-blue-600 focus:ring-blue-500 bg-slate-900 cursor-pointer" 
+                                        />
+                                        <span>{lang === 'tr' ? typo.nameTr : typo.nameEn}</span>
+                                      </label>
+                                    ); 
+                                  })}
+                                </div>
+                              </div>
                              </div>
 
                              <button onClick={handleSaveSys} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all mt-4">{editingSysId ? t(lang, 'update') : t(lang, 'addSystem')}</button>
                              {editingSysId && <button onClick={() => setEditingSysId(null)} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold py-2 rounded-xl mt-2">{t(lang, 'cancel')}</button>}
                          </div>
                     </div>
-                </div>
                 <div className="lg:col-span-7 space-y-4">
-                    {systems.map(sys => (
-                        <div key={sys.id} className="bg-slate-900/50 border border-white/5 p-5 rounded-2xl flex justify-between items-center group hover:border-blue-500/30 transition-all">
-                            <div>
-                                <h3 className="font-bold text-white text-lg">{sys.name}</h3>
-                                <div className="flex gap-3 mt-1">
-                                    <span className="text-xs text-slate-500 uppercase tracking-wider">{sys.frameWidth}mm • CNC: <span className="text-emerald-400 font-mono">{sys.cncCode || 'N/A'}</span></span>
-                                    {sys.profileCodes?.frame && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">{sys.profileCodes.frame}</span>}{sys.supportedTypologies?.map(tId => { const tInfo = TYPOLOGIES.find(t => t.id === tId); return tInfo ? (<span key={tId} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/10 font-bold uppercase tracking-wider">{lang === 'tr' ? tInfo.nameTr : tInfo.nameEn}</span>) : null; })}
+                    {systems.map(sys => {
+                        const isCurrentlyEditing = sys.id === editingSysId;
+                        const drawingCount = (sys.profileDrawings || []).length;
+                        return (
+                            <div 
+                                key={sys.id} 
+                                className={`p-5 rounded-2xl flex justify-between items-center transition-all ${
+                                    isCurrentlyEditing 
+                                        ? 'bg-gradient-to-r from-amber-500/10 to-slate-900 border-2 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]' 
+                                        : 'bg-slate-900/50 border border-white/5 group hover:border-blue-500/30'
+                                }`}
+                            >
+                                <div className="min-w-0 flex-1 pr-4">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h3 className="font-bold text-white text-lg truncate">{sys.name}</h3>
+                                        {isCurrentlyEditing && (
+                                            <span className="text-[9px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black animate-pulse">
+                                                {lang === 'tr' ? 'ŞU AN DÜZENLENİYOR' : 'EDITING NOW'}
+                                            </span>
+                                        )}
+                                        {drawingCount > 0 && (
+                                            <span className="text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-bold font-mono">
+                                                {drawingCount} {lang === 'tr' ? 'Kayıtlı Profil Çizimi' : 'Saved Drawing'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-3 mt-1 items-center flex-wrap">
+                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wider border shrink-0" style={{
+                                            backgroundColor: sys.materialType === 'pvc' ? 'rgba(217, 119, 6, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                                            color: sys.materialType === 'pvc' ? '#f59e0b' : '#3b82f6',
+                                            borderColor: sys.materialType === 'pvc' ? 'rgba(217, 119, 6, 0.15)' : 'rgba(59, 130, 246, 0.15)'
+                                        }}>
+                                            {sys.materialType === 'pvc' ? 'PVC' : 'ALÜMİNYUM'}
+                                        </span>
+                                        <span className="text-xs text-slate-500 uppercase tracking-wider">{sys.frameWidth}mm • CNC: <span className="text-emerald-400 font-mono">{sys.cncCode || 'N/A'}</span></span>
+                                        {sys.profileCodes?.frame && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">{sys.profileCodes.frame}</span>}{sys.supportedTypologies?.map(tId => { const tInfo = TYPOLOGIES.find(t => t.id === tId); return tInfo ? (<span key={tId} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/10 font-bold uppercase tracking-wider">{lang === 'tr' ? tInfo.nameTr : tInfo.nameEn}</span>) : null; })}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                    <button onClick={() => { setEditingSysId(sys.id); setSysForm(sys); }} className={`p-3 rounded-xl transition-colors ${isCurrentlyEditing ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-slate-800 text-slate-400 hover:text-white'}`} title={t(lang, 'edit')}><Edit2 size={18} /></button>
+                                    {onDeleteSystem && (
+                                        <button onClick={() => setDeleteConfirm({ type: 'system', id: sys.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={18} /></button>
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => { setEditingSysId(sys.id); setSysForm(sys); }} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title={t(lang, 'edit')}><Edit2 size={18} /></button>
-                                {onDeleteSystem && (
-                                    <button onClick={() => setDeleteConfirm({ type: 'system', id: sys.id })} className="p-3 bg-red-600/10 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all" title={lang === 'tr' ? 'Sil' : 'Delete'}><Trash2 size={18} /></button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
              </div>
         )}
@@ -694,6 +1934,76 @@ const Settings: React.FC<SettingsProps> = ({
                                         >
                                             <Wrench size={13} />
                                             {lang === 'tr' ? 'Orijinal Siegenia Donanım Paketini Aktif Et' : 'Activate Original Siegenia Hardware Pack'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pimapen PVC Entegrasyon Bolumu */}
+                    <div className="bg-gradient-to-br from-amber-950/20 via-slate-900 to-slate-950 border border-amber-500/20 p-5 rounded-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all duration-500 pointer-events-none" />
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 mt-1">
+                                <Layers size={22} className="animate-pulse" />
+                            </div>
+                            <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-base font-extrabold text-white">
+                                        {lang === 'tr' ? 'Pimapen PVC Sistemleri ve Donanım Paketini Aktif Et' : 'Pimapen PVC Systems & Hardware Pack'}
+                                    </h3>
+                                    <span className="text-[9px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                        PVC SUPPORT
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-300 leading-relaxed">
+                                    {lang === 'tr' 
+                                      ? "Pimapen Carisma (70mm) ve Albatros Sürme PVC profil sistemleri ile birlikte bunlarla uyumlu PVC menteşe, kilit, ispanyolet ve aksesuarlarını tek tıkla sisteminize yükleyin. Bu işlem mevcut listenizi güncelleyerek PVC örneklerini ekleyecektir."
+                                      : "Instantly load Pimapen Carisma (70mm) and Albatros Sliding PVC systems along with compatible hinges, single & double opening locks, and gaskets. This will add high-fidelity PVC examples to your database."
+                                    }
+                                </p>
+                                {pvcSuccess ? (
+                                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-emerald-400">
+                                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                            <Check size={14} className="stroke-[3px]" />
+                                        </div>
+                                        <span className="text-xs font-bold text-emerald-300">
+                                            {lang === 'tr' 
+                                                ? "Pimapen PVC sistemleri ve aksesuarları başarıyla yüklendi!" 
+                                                : "Pimapen PVC systems and accessories successfully loaded!"}
+                                        </span>
+                                    </div>
+                                ) : showPvcConfirm ? (
+                                    <div className="mt-3 p-4 bg-slate-950/80 border border-amber-500/30 rounded-xl space-y-3">
+                                        <p className="text-xs text-amber-200 font-medium">
+                                            ⚠️ {lang === 'tr' 
+                                                ? "UYARI: Bu işlem tüm profil sistemlerinizi ve aksesuarlarınızı varsayılan paket (Yeni PVC serileri dahil) ile senkronize edecektir. Devam etmek istiyor musunuz?" 
+                                                : "WARNING: This will sync your profile systems and accessories with the complete default catalog (including the new PVC series). Do you want to proceed?"}
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleLoadPvcPack}
+                                                className="py-2 px-3 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white text-[11px] font-bold rounded-lg transition-all"
+                                            >
+                                                {lang === 'tr' ? 'Evet, Senkronize Et' : 'Yes, Sync Pack'}
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowPvcConfirm(false)}
+                                                className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-lg transition-all"
+                                            >
+                                                {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="pt-2">
+                                        <button 
+                                            onClick={() => setShowPvcConfirm(true)} 
+                                            className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-amber-900/40 flex items-center gap-1.5"
+                                        >
+                                            <RefreshCw size={13} />
+                                            {lang === 'tr' ? 'PVC Sistem & Aksesuar Paketini Aktif Et' : 'Activate PVC Systems & Hardware Pack'}
                                         </button>
                                     </div>
                                 )}

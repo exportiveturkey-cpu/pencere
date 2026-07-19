@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape } from '../types';
+import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing } from '../types';
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
@@ -532,7 +532,11 @@ const getInitialNodeForTypology = (typologyId: string): WindowNode => {
   }
 };
 
-const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mullion' }> = ({ code, type }) => {
+const ProfileCadDrawing: React.FC<{ 
+  code: string; 
+  type: 'frame' | 'sash' | 'mullion'; 
+  systemDrawings?: ProfileDrawing[];
+}> = ({ code, type, systemDrawings }) => {
   const [imageFailed, setImageFailed] = React.useState(false);
   const isThermal = code.includes('TH');
 
@@ -546,7 +550,12 @@ const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mull
       const saved = localStorage.getItem('alumetric_custom_profile_images');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed[code] || '';
+        if (parsed[code]) return parsed[code];
+        
+        const norm = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
+        const targetNorm = norm(code);
+        const matchedKey = Object.keys(parsed).find(k => norm(k) === targetNorm);
+        if (matchedKey) return parsed[matchedKey];
       }
     } catch (e) {
       console.warn(e);
@@ -554,8 +563,20 @@ const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mull
     return '';
   }, [code]);
 
+  // Check in the system profile drawings library configured in Settings
+  const systemUploadedImage = React.useMemo(() => {
+    if (!systemDrawings) return '';
+    const norm = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
+    const targetNorm = norm(code);
+    const found = systemDrawings.find(d => norm(d.code) === targetNorm);
+    if (found) {
+      return found.crossSectionUrl || found.planSectionUrl || '';
+    }
+    return '';
+  }, [code, systemDrawings]);
+
   // If we have an uploaded image, or if we try to load the static image in repository under /profiles/[code].png
-  const src = localUploadedImage || `/profiles/${code}.png`;
+  const src = localUploadedImage || systemUploadedImage || `/profiles/${code}.png`;
 
   if (!imageFailed && src) {
     return (
@@ -710,6 +731,66 @@ const ProfileCadDrawing: React.FC<{ code: string; type: 'frame' | 'sash' | 'mull
   );
 };
 
+const compressProfileImage = (file: File): Promise<{ base64: string; type: string }> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          base64: e.target?.result as string,
+          type: file.type
+        });
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 250;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ base64: e.target?.result as string, type: file.type });
+          return;
+        }
+
+        // Fill background with white to prevent transparent PNGs turning black when compressed to JPEG
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+        resolve({
+          base64: compressedBase64,
+          type: 'image/jpeg'
+        });
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 const ProfilePreviewAndUpload: React.FC<{
   code: string;
   type: 'frame' | 'sash' | 'mullion';
@@ -717,19 +798,67 @@ const ProfilePreviewAndUpload: React.FC<{
   onImageUploaded: (base64: string) => void;
   onImageCleared: () => void;
   lang: 'tr' | 'en';
-}> = ({ code, type, imageUrl, onImageUploaded, onImageCleared, lang }) => {
+  systemDrawings?: ProfileDrawing[];
+}> = ({ code, type, imageUrl, onImageUploaded, onImageCleared, lang, systemDrawings }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Robust, dynamic static profile asset progressive fallback state
+  const [resolvedSrc, setResolvedSrc] = React.useState<string | null>(null);
+  const [hasError, setHasError] = React.useState(false);
+  const [triedExtensions, setTriedExtensions] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (imageUrl) {
+      setResolvedSrc(imageUrl);
+      setHasError(false);
+    } else {
+      const cleanCode = code.trim();
+      setResolvedSrc(`/profiles/${cleanCode}.png`);
+      setHasError(false);
+      setTriedExtensions(['.png']);
+    }
+  }, [imageUrl, code]);
+
+  const handleImageError = () => {
+    if (imageUrl) {
+      // The uploaded base64 itself failed to load (extremely unlikely)
+      setHasError(true);
+      setResolvedSrc(null);
+      return;
+    }
+
+    const extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
+    const currentExtIndex = extensions.findIndex(ext => triedExtensions.includes(ext));
+    const nextExtIndex = currentExtIndex + 1;
+
+    if (nextExtIndex < extensions.length) {
+      const nextExt = extensions[nextExtIndex];
+      setTriedExtensions(prev => [...prev, nextExt]);
+      const cleanCode = code.trim();
+      setResolvedSrc(`/profiles/${cleanCode}${nextExt}`);
+    } else {
+      // All static extensions failed, gracefully fall back to vector CAD rendering
+      setHasError(true);
+      setResolvedSrc(null);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          onImageUploaded(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const res = await compressProfileImage(file);
+        onImageUploaded(res.base64);
+      } catch (err) {
+        console.error('Error compressing uploaded profile image:', err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            onImageUploaded(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -737,28 +866,37 @@ const ProfilePreviewAndUpload: React.FC<{
     fileInputRef.current?.click();
   };
 
+  const showImage = resolvedSrc && !hasError;
+
   return (
     <div className="relative group cursor-pointer shrink-0" onClick={triggerUpload} title={lang === 'tr' ? 'Katalog Kesit Resmi Yükle' : 'Upload Catalog Profile Drawing'}>
-      {imageUrl ? (
+      {showImage ? (
         <div className="relative w-14 h-14 bg-white rounded-xl border border-slate-750 p-1 overflow-hidden flex items-center justify-center shadow-lg transition-all hover:border-blue-500">
-          <img src={imageUrl} alt={code} className="w-full h-full object-contain transition-transform group-hover:scale-105" />
+          <img 
+            src={resolvedSrc!} 
+            alt={code} 
+            onError={handleImageError} 
+            className="w-full h-full object-contain transition-transform group-hover:scale-105" 
+          />
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
             <span className="text-[9px] font-bold uppercase tracking-wider">{lang === 'tr' ? 'Değiş' : 'Change'}</span>
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onImageCleared();
-            }}
-            className="absolute top-0 right-0 w-4 h-4 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center rounded-bl-lg transition-colors border-l border-b border-red-500 z-10 text-[10px] font-bold"
-            title={lang === 'tr' ? 'Resmi Kaldır' : 'Remove Image'}
-          >
-            ×
-          </button>
+          {imageUrl && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onImageCleared();
+              }}
+              className="absolute top-0 right-0 w-4 h-4 bg-red-600 hover:bg-red-700 text-white flex items-center justify-center rounded-bl-lg transition-colors border-l border-b border-red-500 z-10 text-[10px] font-bold"
+              title={lang === 'tr' ? 'Resmi Kaldır' : 'Remove Image'}
+            >
+              ×
+            </button>
+          )}
         </div>
       ) : (
         <div className="relative">
-          <ProfileCadDrawing code={code} type={type} />
+          <ProfileCadDrawing code={code} type={type} systemDrawings={systemDrawings} />
           <div className="absolute inset-0 bg-slate-900/80 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-blue-400 border border-dotted border-blue-500/40">
             <span className="text-[9px] font-bold uppercase tracking-wider">{lang === 'tr' ? 'Resim Ekle' : 'Add Image'}</span>
           </div>
@@ -775,6 +913,14 @@ const ProfilePreviewAndUpload: React.FC<{
   );
 };
 
+const getNormalizedSystemId = (sysIdOrName: string, systems: ProfileSystem[]) => {
+  if (!sysIdOrName || !systems || systems.length === 0) return '';
+  const found = systems.find(s => s.id === sysIdOrName) || 
+                systems.find(s => s.name === sysIdOrName) ||
+                systems.find(s => s.name.toLowerCase().includes(sysIdOrName.toLowerCase()));
+  return found ? found.id : systems[0].id;
+};
+
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
@@ -783,24 +929,24 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [viewPerspective, setViewPerspective] = useState<'interior' | 'exterior'>(initialUnit?.viewPerspective || 'interior');
-  const [systemId, setSystemId] = useState(initialUnit?.system || systems[0].id);
+  const [systemId, setSystemId] = useState(() => getNormalizedSystemId(initialUnit?.system || '', systems));
   const [planSectionUrl, setPlanSectionUrl] = useState<string>(initialUnit?.planSectionUrl || '');
   const [crossSectionUrl, setCrossSectionUrl] = useState<string>(initialUnit?.crossSectionUrl || '');
   const [planSectionProfileCode, setPlanSectionProfileCode] = useState<string>(initialUnit?.planSectionProfileCode || '');
   const [crossSectionProfileCode, setCrossSectionProfileCode] = useState<string>(initialUnit?.crossSectionProfileCode || '');
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
     if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
-    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
     return initialSysId === 'kurt-51ls' ? '51LS-101-00' : '70T-102-18';
   });
   const [selectedSashProfile, setSelectedSashProfile] = useState<string>(() => {
     if (initialUnit?.selectedSashProfile) return initialUnit.selectedSashProfile;
-    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
     return initialSysId === 'kurt-51ls' ? '51LS-201-00' : '70T-201-18';
   });
   const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(() => {
     if (initialUnit?.selectedMullionProfile) return initialUnit.selectedMullionProfile;
-    const initialSysId = initialUnit?.system || (systems.length > 0 ? systems[0].id : '');
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
     return initialSysId === 'kurt-51ls' ? '51LS-301-00' : '70T-301-18';
   });
 
@@ -843,9 +989,49 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     return unitImages;
   });
 
-  const selectedFrameProfileImage = customProfileImages[selectedFrameProfile] || '';
-  const selectedSashProfileImage = customProfileImages[selectedSashProfile] || '';
-  const selectedMullionProfileImage = customProfileImages[selectedMullionProfile] || '';
+  const selectedSystem = useMemo(() => {
+    return systems.find(s => s.id === systemId) || systems[0];
+  }, [systems, systemId]);
+
+  const getProfileImage = useCallback((code: string, type: 'frame' | 'sash' | 'mullion') => {
+    const norm = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
+    const targetNorm = norm(code);
+
+    // 1. check local storage overrides first
+    if (customProfileImages[code]) {
+      return customProfileImages[code];
+    }
+    const localMatchKey = Object.keys(customProfileImages).find(k => norm(k) === targetNorm);
+    if (localMatchKey) {
+      return customProfileImages[localMatchKey];
+    }
+
+    // 2. check system's custom drawings library from cloud
+    if (selectedSystem?.profileDrawings) {
+      const matches = selectedSystem.profileDrawings.filter(d => norm(d.code) === targetNorm);
+      const withUrls = matches.find(d => d.crossSectionUrl || d.planSectionUrl);
+      const found = withUrls || matches[0];
+      if (found) {
+        return found.crossSectionUrl || found.planSectionUrl || '';
+      }
+    }
+    // 3. check system's direct properties
+    if (type === 'frame') {
+      if (norm(code) === norm(selectedSystem?.framePlanSectionProfileCode || '') && selectedSystem?.framePlanSectionUrl) return selectedSystem.framePlanSectionUrl;
+      if (norm(code) === norm(selectedSystem?.frameCrossSectionProfileCode || '') && selectedSystem?.frameCrossSectionUrl) return selectedSystem.frameCrossSectionUrl;
+    } else if (type === 'sash') {
+      if (norm(code) === norm(selectedSystem?.sashPlanSectionProfileCode || '') && selectedSystem?.sashPlanSectionUrl) return selectedSystem.sashPlanSectionUrl;
+      if (norm(code) === norm(selectedSystem?.sashCrossSectionProfileCode || '') && selectedSystem?.sashCrossSectionUrl) return selectedSystem.sashCrossSectionUrl;
+    } else if (type === 'mullion') {
+      if (norm(code) === norm(selectedSystem?.mullionPlanSectionProfileCode || '') && selectedSystem?.mullionPlanSectionUrl) return selectedSystem.mullionPlanSectionUrl;
+      if (norm(code) === norm(selectedSystem?.mullionCrossSectionProfileCode || '') && selectedSystem?.mullionCrossSectionUrl) return selectedSystem.mullionCrossSectionUrl;
+    }
+    return '';
+  }, [customProfileImages, selectedSystem]);
+
+  const selectedFrameProfileImage = getProfileImage(selectedFrameProfile, 'frame');
+  const selectedSashProfileImage = getProfileImage(selectedSashProfile, 'sash');
+  const selectedMullionProfileImage = getProfileImage(selectedMullionProfile, 'mullion');
 
   const handleProfileImageUploaded = (code: string, base64: string) => {
     setCustomProfileImages(prev => {
@@ -941,7 +1127,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   };
   const [selectedTypology, setSelectedTypology] = useState<string>(() => {
     if (initialUnit?.typology) return initialUnit.typology;
-    const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
+    const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems));
     if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
       return initialSystem.supportedTypologies[0];
     }
@@ -1043,7 +1229,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     if (initialUnit?.typology) {
       initialType = initialUnit.typology;
     } else {
-      const initialSystem = systems.find(s => s.id === (initialUnit?.system || ''));
+      const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems));
       if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
         initialType = initialSystem.supportedTypologies[0];
       }
@@ -1483,8 +1669,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     setSelectedLockStriker(prev => checkAcc(prev));
     setSelectedOther(prev => checkAcc(prev));
   }, [systemId, systems, accessories]);
-
-  const selectedSystem = systems.find(s => s.id === systemId) || systems[0];
 
   const currentCatalog = useMemo(() => {
     if (systemId === 'kurt-51ls') return KURTOGLU_51LS_CATALOG;
@@ -2078,6 +2262,168 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         </div>
                       )}
                     </div>
+
+                    {/* POSITION CUSTOM CATALOG SECTION DRAWINGS */}
+                    <div className="p-4 bg-slate-950/70 border border-white/5 rounded-xl space-y-4 transition-all">
+                      <div className="flex items-center gap-2">
+                        <Layers size={14} className="text-blue-500" />
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          {lang === 'tr' ? 'Teklif Plan & Detay Çizimleri' : 'Quote Plan & Section Drawings'}
+                        </h4>
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-medium leading-tight">
+                        {lang === 'tr' 
+                          ? 'Bu poz için teklif çıktısında gösterilecek özel dikey kesit ve plan kesit resimlerini doğrudan yükleyebilirsiniz.'
+                          : 'You can directly upload custom cross-section and plan-section drawings for this position to show on the quote.'}
+                      </p>
+
+                      {/* PLAN SECTION */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                            {lang === 'tr' ? 'Plan Kesiti (Yatay)' : 'Plan Section (Horizontal)'}
+                          </label>
+                          {planSectionUrl && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setPlanSectionUrl('');
+                                setPlanSectionProfileCode('');
+                              }}
+                              className="text-[9px] text-red-450 hover:text-red-400 font-bold uppercase transition-colors"
+                            >
+                              {lang === 'tr' ? 'Kaldır' : 'Clear'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <input 
+                              type="text"
+                              value={planSectionProfileCode}
+                              onChange={e => setPlanSectionProfileCode(e.target.value)}
+                              placeholder={lang === 'tr' ? 'Profil Kodu (Örn: P-101)' : 'Profile Code (e.g., P-101)'}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="relative">
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="pos-plan-upload"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const res = await compressProfileImage(file);
+                                    setPlanSectionUrl(res.base64);
+                                  } catch (err) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      if (typeof reader.result === 'string') {
+                                        setPlanSectionUrl(reader.result);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }
+                              }}
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => document.getElementById('pos-plan-upload')?.click()}
+                              className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all ${
+                                planSectionUrl 
+                                  ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' 
+                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {planSectionUrl ? (lang === 'tr' ? 'Yüklendi ✓' : 'Uploaded ✓') : (lang === 'tr' ? 'Yükle' : 'Upload')}
+                            </button>
+                          </div>
+                        </div>
+                        {planSectionUrl && (
+                          <div className="mt-2 bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex justify-center max-h-24 overflow-hidden">
+                            <img src={planSectionUrl} alt="Plan Preview" className="max-h-20 object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CROSS SECTION */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                            {lang === 'tr' ? 'Dikey Kesit / Detay (Boy)' : 'Cross Section / Detail (Vertical)'}
+                          </label>
+                          {crossSectionUrl && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setCrossSectionUrl('');
+                                setCrossSectionProfileCode('');
+                              }}
+                              className="text-[9px] text-red-450 hover:text-red-400 font-bold uppercase transition-colors"
+                            >
+                              {lang === 'tr' ? 'Kaldır' : 'Clear'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <input 
+                              type="text"
+                              value={crossSectionProfileCode}
+                              onChange={e => setCrossSectionProfileCode(e.target.value)}
+                              placeholder={lang === 'tr' ? 'Profil Kodu (Örn: B-201)' : 'Profile Code (e.g., B-201)'}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="relative">
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              id="pos-cross-upload"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const res = await compressProfileImage(file);
+                                    setCrossSectionUrl(res.base64);
+                                  } catch (err) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      if (typeof reader.result === 'string') {
+                                        setCrossSectionUrl(reader.result);
+                                      }
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }
+                              }}
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => document.getElementById('pos-cross-upload')?.click()}
+                              className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all ${
+                                crossSectionUrl 
+                                  ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' 
+                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              {crossSectionUrl ? (lang === 'tr' ? 'Yüklendi ✓' : 'Uploaded ✓') : (lang === 'tr' ? 'Yükle' : 'Upload')}
+                            </button>
+                          </div>
+                        </div>
+                        {crossSectionUrl && (
+                          <div className="mt-2 bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex justify-center max-h-24 overflow-hidden">
+                            <img src={crossSectionUrl} alt="Cross Preview" className="max-h-20 object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="space-y-1">
                         <div className="space-y-1.5 pb-2.5 border-b border-white/5 mb-2.5 pt-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1 tracking-wider">
@@ -2128,126 +2474,181 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             <button 
+                                type="button"
                                 onClick={() => setShowSection(true)}
                                 className="p-2.5 bg-slate-800 hover:bg-blue-600/20 border border-white/5 rounded-xl text-blue-400 transition-all"
                                 title={t(lang, 'sectionDetail')}
-                             >
+                            >
                                 <Layers size={16} />
                             </button>
                         </div>
 
-                        {/* DETAYLI PROFİL KOD SEÇİMİ (SEÇİLEN SİSTEM KATALOĞU VARSA) */}
-                        {currentCatalog && (
-                          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 mt-3 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Sparkles className="text-amber-500 w-4 h-4 animate-pulse" />
-                              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                                {systemId === 'kurt-51ls' 
+                        {/* DETAYLI PROFİL KOD SEÇİMİ (SEÇİLEN SİSTEM KATALOĞU VARSA VEYA MANUEL GİRİŞ) */}
+                        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 mt-3 space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="text-amber-500 w-4 h-4 animate-pulse" />
+                            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                              {currentCatalog 
+                                ? (systemId === 'kurt-51ls' 
                                   ? (lang === 'tr' ? '51LS Detaylı Profil Kataloğu' : '51LS Detailed Profile Selection')
-                                  : (lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection')}
-                              </h4>
-                            </div>
-                            
-                            {/* KASA SEÇİMİ */}
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
-                                {lang === 'tr' ? 'Kasa Profili' : 'Frame Profile'}
-                              </label>
-                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                                <ProfilePreviewAndUpload 
-                                  code={selectedFrameProfile} 
-                                  type="frame" 
-                                  imageUrl={selectedFrameProfileImage} 
-                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedFrameProfile, b64)} 
-                                  onImageCleared={() => handleProfileImageCleared(selectedFrameProfile)} 
-                                  lang={lang} 
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <select 
-                                    value={selectedFrameProfile} 
-                                    onChange={e => setSelectedFrameProfile(e.target.value)} 
-                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
-                                  >
-                                    {currentCatalog.filter(x => x.type === 'frame').map(item => (
-                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
-                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedFrameProfile)?.weight} kg/m
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* KANAT SEÇİMİ */}
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
-                                {lang === 'tr' ? 'Kanat Profili' : 'Sash Profile'}
-                              </label>
-                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                                <ProfilePreviewAndUpload 
-                                  code={selectedSashProfile} 
-                                  type="sash" 
-                                  imageUrl={selectedSashProfileImage} 
-                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedSashProfile, b64)} 
-                                  onImageCleared={() => handleProfileImageCleared(selectedSashProfile)} 
-                                  lang={lang} 
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <select 
-                                    value={selectedSashProfile} 
-                                    onChange={e => setSelectedSashProfile(e.target.value)} 
-                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
-                                  >
-                                    {currentCatalog.filter(x => x.type === 'sash').map(item => (
-                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
-                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedSashProfile)?.weight} kg/m
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* ORTA KAYIT SEÇİMİ */}
-                            <div className="space-y-1.5">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
-                                {lang === 'tr' ? 'Orta Kayıt Profili' : 'Mullion Profile'}
-                              </label>
-                              <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                                <ProfilePreviewAndUpload 
-                                  code={selectedMullionProfile} 
-                                  type="mullion" 
-                                  imageUrl={selectedMullionProfileImage} 
-                                  onImageUploaded={(b64) => handleProfileImageUploaded(selectedMullionProfile, b64)} 
-                                  onImageCleared={() => handleProfileImageCleared(selectedMullionProfile)} 
-                                  lang={lang} 
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <select 
-                                    value={selectedMullionProfile} 
-                                    onChange={e => setSelectedMullionProfile(e.target.value)} 
-                                    className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
-                                  >
-                                    {currentCatalog.filter(x => x.type === 'mullion').map(item => (
-                                      <option key={item.code} value={item.code} className="bg-slate-950 text-white">
-                                        {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedMullionProfile)?.weight} kg/m
-                                  </div>
-                                </div>
+                                  : (lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection'))
+                                : (lang === 'tr' ? 'Detaylı Profil Kod ve Kesit Çizimleri' : 'Detailed Profile Codes & Section Drawings')}
+                            </h4>
+                          </div>
+                          
+                          {/* KASA SEÇİMİ */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                              {lang === 'tr' ? 'Kasa Profili' : 'Frame Profile'}
+                            </label>
+                            <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                              <ProfilePreviewAndUpload 
+                                code={selectedFrameProfile} 
+                                type="frame" 
+                                imageUrl={selectedFrameProfileImage} 
+                                onImageUploaded={(b64) => handleProfileImageUploaded(selectedFrameProfile, b64)} 
+                                onImageCleared={() => handleProfileImageCleared(selectedFrameProfile)} 
+                                lang={lang} 
+                                systemDrawings={selectedSystem?.profileDrawings}
+                              />
+                              <div className="flex-1 min-w-0">
+                                {currentCatalog ? (
+                                  <>
+                                    <select 
+                                      value={selectedFrameProfile} 
+                                      onChange={e => setSelectedFrameProfile(e.target.value)} 
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                    >
+                                      {currentCatalog.filter(x => x.type === 'frame').map(item => (
+                                        <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                          {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedFrameProfile)?.weight} kg/m
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <input 
+                                      type="text"
+                                      value={selectedFrameProfile}
+                                      onChange={e => setSelectedFrameProfile(e.target.value)}
+                                      placeholder={lang === 'tr' ? 'Kasa Kodu Girin...' : 'Enter Frame Code...'}
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none focus:ring-0 p-0 font-mono"
+                                    />
+                                    <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Örn: B-101 / Kasa Profili Kesiti Yükleyin' : 'e.g. B-101 / Upload Frame Section'}
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
-                        )}
+
+                          {/* KANAT SEÇİMİ */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                              {lang === 'tr' ? 'Kanat Profili' : 'Sash Profile'}
+                            </label>
+                            <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                              <ProfilePreviewAndUpload 
+                                code={selectedSashProfile} 
+                                type="sash" 
+                                imageUrl={selectedSashProfileImage} 
+                                onImageUploaded={(b64) => handleProfileImageUploaded(selectedSashProfile, b64)} 
+                                onImageCleared={() => handleProfileImageCleared(selectedSashProfile)} 
+                                lang={lang} 
+                                systemDrawings={selectedSystem?.profileDrawings}
+                              />
+                              <div className="flex-1 min-w-0">
+                                {currentCatalog ? (
+                                  <>
+                                    <select 
+                                      value={selectedSashProfile} 
+                                      onChange={e => setSelectedSashProfile(e.target.value)} 
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                    >
+                                      {currentCatalog.filter(x => x.type === 'sash').map(item => (
+                                        <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                          {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedSashProfile)?.weight} kg/m
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <input 
+                                      type="text"
+                                      value={selectedSashProfile}
+                                      onChange={e => setSelectedSashProfile(e.target.value)}
+                                      placeholder={lang === 'tr' ? 'Kanat Kodu Girin...' : 'Enter Sash Code...'}
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none focus:ring-0 p-0 font-mono"
+                                    />
+                                    <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Örn: B-201 / Kanat Profili Kesiti Yükleyin' : 'e.g. B-201 / Upload Sash Section'}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ORTA KAYIT SEÇİMİ */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                              {lang === 'tr' ? 'Orta Kayıt Profili' : 'Mullion Profile'}
+                            </label>
+                            <div className="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                              <ProfilePreviewAndUpload 
+                                code={selectedMullionProfile} 
+                                type="mullion" 
+                                imageUrl={selectedMullionProfileImage} 
+                                onImageUploaded={(b64) => handleProfileImageUploaded(selectedMullionProfile, b64)} 
+                                onImageCleared={() => handleProfileImageCleared(selectedMullionProfile)} 
+                                lang={lang} 
+                                systemDrawings={selectedSystem?.profileDrawings}
+                              />
+                              <div className="flex-1 min-w-0">
+                                {currentCatalog ? (
+                                  <>
+                                    <select 
+                                      value={selectedMullionProfile} 
+                                      onChange={e => setSelectedMullionProfile(e.target.value)} 
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none cursor-pointer focus:ring-0 p-0"
+                                    >
+                                      {currentCatalog.filter(x => x.type === 'mullion').map(item => (
+                                        <option key={item.code} value={item.code} className="bg-slate-950 text-white">
+                                          {item.code} ({lang === 'tr' ? item.nameTr : item.nameEn})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Ağırlık' : 'Weight'}: {currentCatalog.find(x => x.code === selectedMullionProfile)?.weight} kg/m
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <input 
+                                      type="text"
+                                      value={selectedMullionProfile}
+                                      onChange={e => setSelectedMullionProfile(e.target.value)}
+                                      placeholder={lang === 'tr' ? 'Orta Kayıt Kodu Girin...' : 'Enter Mullion Code...'}
+                                      className="w-full bg-transparent border-none text-xs text-white font-semibold outline-none focus:ring-0 p-0 font-mono"
+                                    />
+                                    <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                                      {lang === 'tr' ? 'Örn: B-301 / Orta Kayıt Kesiti Yükleyin' : 'e.g. B-301 / Upload Mullion Section'}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                     </div>
                     
                     <div className="pt-1.5">
@@ -2267,146 +2668,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                         </label>
                     </div>
                 </div>
-            </section>
-
-            {/* Custom Catalog Sections Uploads */}
-            <section className="pt-6 border-t border-white/5 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <ImageIcon size={14} className="text-blue-500" />
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {lang === 'tr' ? 'Sistem Katalog Kesitleri' : 'System Catalog Drawings'}
-                </h3>
-              </div>
-
-              <div className="space-y-4">
-                {/* Plan Kesit */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block">
-                    {lang === 'tr' ? '1. Plan Kesit Çizimi' : '1. Plan Section Drawing'}
-                  </label>
-                  <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/5 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
-                    {planSectionUrl ? (
-                      <>
-                        <img src={planSectionUrl} alt="Plan Kesit" className="w-full h-full object-contain p-1" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById('unit-plan-file'); el?.click(); }}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
-                          >
-                            {lang === 'tr' ? 'Değiştir' : 'Change'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setPlanSectionUrl(''); }}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
-                          >
-                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('unit-plan-file')?.click()}>
-                        <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
-                        <span className="text-[9px] font-bold text-slate-400">
-                          {lang === 'tr' ? 'Plan Kesitini Yükle' : 'Upload Plan Section'}
-                        </span>
-                        <span className="text-[8px] text-slate-600">
-                          {lang === 'tr' ? 'Genişlik Çizimi' : 'Width Detail'}
-                        </span>
-                      </div>
-                    )}
-                    <input
-                      id="unit-plan-file"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          try {
-                            const res = await compressImageIfNeeded(file);
-                            setPlanSectionUrl(res.base64);
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    value={planSectionProfileCode}
-                    onChange={(e) => setPlanSectionProfileCode(e.target.value)}
-                    placeholder={lang === 'tr' ? "Plan Kesiti Profil Kodu (örn: 51LS-101)" : "Plan Section Profile Code (e.g.: 51LS-101)"}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono mt-1.5"
-                  />
-                </div>
-
-                {/* Boy Kesit */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block">
-                    {lang === 'tr' ? '2. Dikey Kesit Çizimi' : '2. Vertical Cross Section'}
-                  </label>
-                  <div className="aspect-[4/1.2] bg-slate-950 rounded-xl border-2 border-dashed border-white/5 hover:border-blue-500/50 flex flex-col items-center justify-center p-2 text-center cursor-pointer transition-all hover:bg-blue-500/5 group text-slate-500 relative overflow-hidden min-h-[70px]">
-                    {crossSectionUrl ? (
-                      <>
-                        <img src={crossSectionUrl} alt="Boy Kesit" className="w-full h-full object-contain p-1" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById('unit-cross-file'); el?.click(); }}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
-                          >
-                            {lang === 'tr' ? 'Değiştir' : 'Change'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setCrossSectionUrl(''); }}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-lg"
-                          >
-                            {lang === 'tr' ? 'Kaldır' : 'Remove'}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center" onClick={() => document.getElementById('unit-cross-file')?.click()}>
-                        <Upload size={14} className="text-slate-500 group-hover:text-blue-400 transition-colors mb-1" />
-                        <span className="text-[9px] font-bold text-slate-400">
-                          {lang === 'tr' ? 'Dikey Kesiti Yükle' : 'Upload Vertical Section'}
-                        </span>
-                        <span className="text-[8px] text-slate-600">
-                          {lang === 'tr' ? 'Yükseklik Çizimi' : 'Height Detail'}
-                        </span>
-                      </div>
-                    )}
-                    <input
-                      id="unit-cross-file"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          try {
-                            const res = await compressImageIfNeeded(file);
-                            setCrossSectionUrl(res.base64);
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    value={crossSectionProfileCode}
-                    onChange={(e) => setCrossSectionProfileCode(e.target.value)}
-                    placeholder={lang === 'tr' ? "Dikey Kesit Profil Kodu (örn: 51LS-201)" : "Vertical Section Profile Code (e.g.: 51LS-201)"}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-colors font-mono mt-1.5"
-                  />
-                </div>
-              </div>
             </section>
 
             <section className="pt-6 border-t border-white/5">
@@ -2877,16 +3138,22 @@ max="0.95"
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file && accessoryImageModal.accessory) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      if (typeof reader.result === 'string') {
-                        handleAccessoryImageUploaded(accessoryImageModal.accessory!.id, reader.result);
-                      }
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      const res = await compressImageIfNeeded(file);
+                      handleAccessoryImageUploaded(accessoryImageModal.accessory.id, res.base64);
+                    } catch (err) {
+                      console.error('Error compressing uploaded accessory image:', err);
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        if (typeof reader.result === 'string') {
+                          handleAccessoryImageUploaded(accessoryImageModal.accessory!.id, reader.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
                   }
                 }}
               />

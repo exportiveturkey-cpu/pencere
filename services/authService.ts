@@ -131,8 +131,27 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
 export const cloud_saveSystems = async (licenseKey: string, systems: ProfileSystem[]) => {
   localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
   try {
-    const docRef = doc(db, "licenses", licenseKey, "settings", "systems");
-    await setDoc(docRef, { data: systems });
+    const colRef = collection(db, "licenses", licenseKey, "settings");
+    const snap = await getDocs(colRef);
+    
+    const existingSysDocIds = snap.docs
+      .map((d: any) => d.id)
+      .filter((id: string) => id.startsWith("sys_"));
+      
+    const newSysDocIds = systems.map(s => "sys_" + s.id);
+    
+    // Delete documents that are no longer in the systems array
+    for (const docId of existingSysDocIds) {
+      if (!newSysDocIds.includes(docId)) {
+        await deleteDoc(doc(db, "licenses", licenseKey, "settings", docId));
+      }
+    }
+    
+    // Save/Overwrite current systems
+    for (const system of systems) {
+      const docRef = doc(db, "licenses", licenseKey, "settings", "sys_" + system.id);
+      await setDoc(docRef, system);
+    }
   } catch (error) {
     console.warn("Could not save systems to Cloud Firestore (offline). Saved locally.", error);
   }
@@ -140,13 +159,44 @@ export const cloud_saveSystems = async (licenseKey: string, systems: ProfileSyst
 
 export const cloud_getSystems = async (licenseKey: string): Promise<ProfileSystem[] | null> => {
   try {
-    const docRef = doc(db, "licenses", licenseKey, "settings", "systems");
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const systems = snap.data().data;
+    const colRef = collection(db, "licenses", licenseKey, "settings");
+    const snap = await getDocs(colRef);
+    
+    const systems: ProfileSystem[] = [];
+    let oldSystemsDoc: ProfileSystem[] | null = null;
+    
+    snap.docs.forEach((d: any) => {
+      const id = d.id;
+      if (id.startsWith("sys_")) {
+        systems.push(d.data() as ProfileSystem);
+      } else if (id === "systems") {
+        oldSystemsDoc = d.data().data || [];
+      }
+    });
+    
+    if (systems.length > 0) {
       localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
       return systems;
     }
+    
+    // Fallback & Migration: If no individual system documents exist, but old document exists
+    if (oldSystemsDoc && oldSystemsDoc.length > 0) {
+      for (const system of oldSystemsDoc) {
+        const docRef = doc(db, "licenses", licenseKey, "settings", "sys_" + system.id);
+        await setDoc(docRef, system);
+        systems.push(system);
+      }
+      try {
+        const oldRef = doc(db, "licenses", licenseKey, "settings", "systems");
+        await deleteDoc(oldRef);
+      } catch (e) {
+        console.warn("Could not delete old systems doc:", e);
+      }
+      
+      localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
+      return systems;
+    }
+    
     return null;
   } catch (error) {
     console.warn("Could not load systems from Cloud Firestore (offline), falling back to local storage cache.", error);
@@ -158,8 +208,27 @@ export const cloud_getSystems = async (licenseKey: string): Promise<ProfileSyste
 export const cloud_saveAccessories = async (licenseKey: string, accessories: Accessory[]) => {
   localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
   try {
-    const docRef = doc(db, "licenses", licenseKey, "settings", "accessories");
-    await setDoc(docRef, { data: accessories });
+    const colRef = collection(db, "licenses", licenseKey, "settings");
+    const snap = await getDocs(colRef);
+    
+    const existingAccDocIds = snap.docs
+      .map((d: any) => d.id)
+      .filter((id: string) => id.startsWith("acc_"));
+      
+    const newAccDocIds = accessories.map(a => "acc_" + a.id);
+    
+    // Delete documents that are no longer in the accessories array
+    for (const docId of existingAccDocIds) {
+      if (!newAccDocIds.includes(docId)) {
+        await deleteDoc(doc(db, "licenses", licenseKey, "settings", docId));
+      }
+    }
+    
+    // Save/Overwrite current accessories
+    for (const acc of accessories) {
+      const docRef = doc(db, "licenses", licenseKey, "settings", "acc_" + acc.id);
+      await setDoc(docRef, acc);
+    }
   } catch (error) {
     console.warn("Could not save accessories to Cloud Firestore (offline). Saved locally.", error);
   }
@@ -167,13 +236,44 @@ export const cloud_saveAccessories = async (licenseKey: string, accessories: Acc
 
 export const cloud_getAccessories = async (licenseKey: string): Promise<Accessory[] | null> => {
   try {
-    const docRef = doc(db, "licenses", licenseKey, "settings", "accessories");
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const accessories = snap.data().data;
+    const colRef = collection(db, "licenses", licenseKey, "settings");
+    const snap = await getDocs(colRef);
+    
+    const accessories: Accessory[] = [];
+    let oldAccDoc: Accessory[] | null = null;
+    
+    snap.docs.forEach((d: any) => {
+      const id = d.id;
+      if (id.startsWith("acc_")) {
+        accessories.push(d.data() as Accessory);
+      } else if (id === "accessories") {
+        oldAccDoc = d.data().data || [];
+      }
+    });
+    
+    if (accessories.length > 0) {
       localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
       return accessories;
     }
+    
+    // Fallback & Migration
+    if (oldAccDoc && oldAccDoc.length > 0) {
+      for (const acc of oldAccDoc) {
+        const docRef = doc(db, "licenses", licenseKey, "settings", "acc_" + acc.id);
+        await setDoc(docRef, acc);
+        accessories.push(acc);
+      }
+      try {
+        const oldRef = doc(db, "licenses", licenseKey, "settings", "accessories");
+        await deleteDoc(oldRef);
+      } catch (e) {
+        console.warn("Could not delete old accessories doc:", e);
+      }
+      
+      localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
+      return accessories;
+    }
+    
     return null;
   } catch (error) {
     console.warn("Could not load accessories from Cloud Firestore (offline), falling back to local storage cache.", error);

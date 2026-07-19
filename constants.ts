@@ -7,6 +7,7 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     id: 'kurt-51ls', 
     name: 'Kurtoğlu 51LS (Thermal Sliding)', 
     type: 'sliding',
+    materialType: 'aluminum',
     uValue: 2.2, frameWidth: 51, frameDepth: 120, sashDepth: 45, thermalBreakWidth: 18, wallThickness: 1.8,
     pricePerMeter: 120, profileLength: 6.0,
     correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
@@ -17,11 +18,35 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     id: 'kurt-70t-th', 
     name: 'Kurtoğlu 70T-TH (Thermal Hinged)', 
     type: 'hinged',
+    materialType: 'aluminum',
     uValue: 1.6, frameWidth: 70, frameDepth: 70, sashDepth: 80, thermalBreakWidth: 24, wallThickness: 2.0,
     pricePerMeter: 105, profileLength: 6.0,
     correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
     profileCodes: { frame: '70T-101', sash: '70T-201', mullion: '70T-301', glazingBead: '70T-401' },
     profileWeights: { frame: 1.550, sash: 1.850, mullion: 1.650, glazingBead: 0.290 }
+  },
+  // --- PİMAPEN PVC SİSTEMLERİ ---
+  { 
+    id: 'pvc-carisma-70', 
+    name: 'Pimapen Carisma (70mm 5-Chamber PVC)', 
+    type: 'hinged',
+    materialType: 'pvc',
+    uValue: 1.3, frameWidth: 70, frameDepth: 70, sashDepth: 80, wallThickness: 3.0,
+    pricePerMeter: 85, profileLength: 6.0,
+    correctionConfig: { sashOverlap: 8, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 3 },
+    profileCodes: { frame: 'CRM-101', sash: 'CRM-201', mullion: 'CRM-301', glazingBead: 'CRM-401' },
+    profileWeights: { frame: 1.250, sash: 1.450, mullion: 1.350, glazingBead: 0.220 }
+  },
+  { 
+    id: 'pvc-albatros-sliding', 
+    name: 'Pimapen Albatros (Sliding PVC)', 
+    type: 'sliding',
+    materialType: 'pvc',
+    uValue: 1.8, frameWidth: 60, frameDepth: 100, sashDepth: 42, wallThickness: 2.8,
+    pricePerMeter: 95, profileLength: 6.0,
+    correctionConfig: { sashOverlap: 28, glassClearance: 4, mullionCorrection: 0, frameCornerWelding: 3 },
+    profileCodes: { frame: 'ALB-101', sash: 'ALB-201', mullion: 'ALB-301', glazingBead: 'ALB-401' },
+    profileWeights: { frame: 1.450, sash: 1.250, mullion: 1.350, glazingBead: 0.200 }
   }
 ];
 
@@ -40,7 +65,14 @@ export const MOCK_ACCESSORIES: Accessory[] = [
   { id: 'sig-sr3', name: 'Siegenia HS Portal Ağır Ray Makara Seti (300kg)', type: 'other', unit: 'pce', price: 74.0, maxWeightKg: 300, compatibility: 'sliding' },
   { id: 'sig-sr4', name: 'Siegenia HS Portal Tandem Ağır Sürme Arabası (400kg)', type: 'other', unit: 'pce', price: 125.0, maxWeightKg: 400, compatibility: 'sliding' },
   { id: 'sig-l1', name: 'Siegenia Titan AF Çift Açılım Kilit Takımı (3 Noktalı)', type: 'lock', unit: 'pce', price: 54.0, compatibility: 'hinged' },
-  { id: 'sig-c1', name: 'Kurtoğlu Köşe Birleştirme Takozu (Orijinal Alüminyum)', type: 'corner', unit: 'pce', price: 3.5, compatibility: 'both' }
+  { id: 'sig-c1', name: 'Kurtoğlu Köşe Birleştirme Takozu (Orijinal Alüminyum)', type: 'corner', unit: 'pce', price: 3.5, compatibility: 'both' },
+  // --- PVC AKSESUARLARI ---
+  { id: 'pvc-h1', name: 'Pvc Yaprak Menteşe (Standard PVC)', type: 'hinge', unit: 'pce', price: 2.5, maxWeightKg: 80, compatibility: 'hinged' },
+  { id: 'pvc-h2', name: 'Pvc 3D Ayarlı Menteşe (Ağır Tip 120kg)', type: 'hinge', unit: 'pce', price: 6.0, maxWeightKg: 120, compatibility: 'hinged' },
+  { id: 'pvc-l1', name: 'Pvc İspanyolet Kilit Seti (Tek Açılım)', type: 'lock', unit: 'pce', price: 8.5, compatibility: 'hinged' },
+  { id: 'pvc-l2', name: 'Pvc Çift Açılım İspanyolet Takımı', type: 'lock', unit: 'pce', price: 18.0, compatibility: 'hinged' },
+  { id: 'pvc-sr1', name: 'Pvc Ayarlı Tekli Sürme Tekerleği', type: 'other', unit: 'pce', price: 3.0, maxWeightKg: 80, compatibility: 'sliding' },
+  { id: 'pvc-g1', name: 'Pvc TPE Gri Cam Fitili (Orijinal Gri)', type: 'gasket', unit: 'meter', price: 0.8, compatibility: 'both' }
 ];
 
 export const GLASS_TYPES: GlassType[] = [

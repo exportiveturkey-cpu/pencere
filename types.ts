@@ -122,6 +122,7 @@ export interface ProfileSystem {
   id: string;
   name: string;
   type: 'sliding' | 'hinged';
+  materialType?: 'aluminum' | 'pvc';
   cncCode?: string; 
   uValue: number;
   frameWidth: number;
@@ -138,6 +139,32 @@ export interface ProfileSystem {
   laborPricePerKg?: number;
   laborPricePerKgUsd?: number;
   supportedTypologies?: string[];
+  planSectionUrl?: string;
+  crossSectionUrl?: string;
+  planSectionProfileCode?: string;
+  crossSectionProfileCode?: string;
+  framePlanSectionUrl?: string;
+  frameCrossSectionUrl?: string;
+  framePlanSectionProfileCode?: string;
+  frameCrossSectionProfileCode?: string;
+  sashPlanSectionUrl?: string;
+  sashCrossSectionUrl?: string;
+  sashPlanSectionProfileCode?: string;
+  sashCrossSectionProfileCode?: string;
+  mullionPlanSectionUrl?: string;
+  mullionCrossSectionUrl?: string;
+  mullionPlanSectionProfileCode?: string;
+  mullionCrossSectionProfileCode?: string;
+  profileDrawings?: ProfileDrawing[];
+}
+
+export interface ProfileDrawing {
+  id: string;
+  code: string;
+  type: 'frame' | 'sash' | 'mullion' | 'general' | 'other';
+  planSectionUrl?: string;
+  crossSectionUrl?: string;
+  description?: string;
 }
 
 export interface GlassType {

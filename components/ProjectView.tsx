@@ -111,7 +111,7 @@ const getCustomProfileImage = (code: string, customImages: Record<string, string
   // 1. Direct match
   if (customImages[code]) return customImages[code];
 
-  const clean = (s: string) => s.trim().toLowerCase().replace(/-00$/, '').replace(/[^a-z0-9]/g, '');
+  const clean = (s: string) => s.trim().toLowerCase().replace(/-00$/, '').replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
   const target = clean(code);
 
   // 2. Exact match with normalized keys
@@ -340,6 +340,18 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const [customProfileImages, setCustomProfileImages] = useState<Record<string, string>>({});
   const [customAccessoryImages, setCustomAccessoryImages] = useState<Record<string, string>>({});
+
+  const mergedProfileImages = useMemo(() => {
+    const merged = { ...customProfileImages };
+    if (project?.units) {
+      project.units.forEach(unit => {
+        if (unit.customProfileImages) {
+          Object.assign(merged, unit.customProfileImages);
+        }
+      });
+    }
+    return merged;
+  }, [customProfileImages, project?.units]);
 
   useEffect(() => {
     try {
@@ -3272,6 +3284,102 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     {project.units.map((unit, idx) => {
                                         const stats = getUnitStats(unit);
                                         const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
+                                        // Dynamic Profile Drawing Library Resolution
+                                        const selectedFrameCode = unit.selectedFrameProfile;
+                                        const selectedSashCode = unit.selectedSashProfile;
+                                        const selectedMullionCode = unit.selectedMullionProfile;
+
+                                        const normDraw = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/70th/, '70t');
+                                         const findDrawing = (code: string | undefined) => {
+                                             if (!code) return undefined;
+                                             
+                                             // 1. Check user uploaded custom profile images first
+                                             const targetNorm = normDraw(code);
+                                             const matchedKey = Object.keys(mergedProfileImages).find(k => normDraw(k) === targetNorm);
+                                             if (matchedKey) {
+                                                 const base64 = mergedProfileImages[matchedKey];
+                                                 return {
+                                                     code: code,
+                                                     crossSectionUrl: base64,
+                                                     planSectionUrl: base64
+                                                 };
+                                             }
+
+                                             // 2. Fall back to system catalog drawings
+                                             if (!sys?.profileDrawings) return undefined;
+                                             const matches = sys.profileDrawings.filter(d => normDraw(d.code) === targetNorm);
+                                             if (matches.length === 0) return undefined;
+                                             const withUrls = matches.find(d => d.planSectionUrl || d.crossSectionUrl);
+                                             return withUrls || matches[0];
+                                         };
+                                         const frameDraw = findDrawing(selectedFrameCode);
+                                         const sashDraw = findDrawing(selectedSashCode);
+                                         const mullionDraw = findDrawing(selectedMullionCode);
+
+                                        const hasSash = hasOpenablePanes(unit.rootNode);
+                                        const hasMullion = unit.rootNode && (unit.rootNode.type === 'container' || JSON.stringify(unit.rootNode).includes('"children":'));
+
+                                        // 1. Resolve Plan Section URL & Code
+                                        let planSectionUrl = '';
+                                        let planSectionCode = '';
+                                        if (unit.planSectionUrl) {
+                                            planSectionUrl = unit.planSectionUrl;
+                                            planSectionCode = unit.planSectionProfileCode || '';
+                                        } else if (hasMullion && mullionDraw?.planSectionUrl) {
+                                            planSectionUrl = mullionDraw.planSectionUrl;
+                                            planSectionCode = mullionDraw.code;
+                                        } else if (hasSash && sashDraw?.planSectionUrl) {
+                                            planSectionUrl = sashDraw.planSectionUrl;
+                                            planSectionCode = sashDraw.code;
+                                        } else if (frameDraw?.planSectionUrl) {
+                                            planSectionUrl = frameDraw.planSectionUrl;
+                                            planSectionCode = frameDraw.code;
+                                        } else {
+                                            if (hasSash && sys?.sashPlanSectionUrl) {
+                                                planSectionUrl = sys.sashPlanSectionUrl;
+                                                planSectionCode = sys.sashPlanSectionProfileCode || '';
+                                            } else if (hasMullion && sys?.mullionPlanSectionUrl) {
+                                                planSectionUrl = sys.mullionPlanSectionUrl;
+                                                planSectionCode = sys.mullionPlanSectionProfileCode || '';
+                                            } else if (sys?.framePlanSectionUrl) {
+                                                planSectionUrl = sys.framePlanSectionUrl;
+                                                planSectionCode = sys.framePlanSectionProfileCode || '';
+                                            } else {
+                                                planSectionUrl = sys?.planSectionUrl || '';
+                                                planSectionCode = sys?.planSectionProfileCode || '';
+                                            }
+                                        }
+
+                                        // 2. Resolve Vertical Section URL & Code
+                                        let verticalSectionUrl = '';
+                                        let verticalSectionCode = '';
+                                        if (unit.crossSectionUrl) {
+                                            verticalSectionUrl = unit.crossSectionUrl;
+                                            verticalSectionCode = unit.crossSectionProfileCode || '';
+                                        } else if (hasMullion && mullionDraw?.crossSectionUrl) {
+                                            verticalSectionUrl = mullionDraw.crossSectionUrl;
+                                            verticalSectionCode = mullionDraw.code;
+                                        } else if (hasSash && sashDraw?.crossSectionUrl) {
+                                            verticalSectionUrl = sashDraw.crossSectionUrl;
+                                            verticalSectionCode = sashDraw.code;
+                                        } else if (frameDraw?.crossSectionUrl) {
+                                            verticalSectionUrl = frameDraw.crossSectionUrl;
+                                            verticalSectionCode = frameDraw.code;
+                                        } else {
+                                            if (hasSash && sys?.sashCrossSectionUrl) {
+                                                verticalSectionUrl = sys.sashCrossSectionUrl;
+                                                verticalSectionCode = sys.sashCrossSectionProfileCode || '';
+                                            } else if (hasMullion && sys?.mullionCrossSectionUrl) {
+                                                verticalSectionUrl = sys.mullionCrossSectionUrl;
+                                                verticalSectionCode = sys.mullionCrossSectionProfileCode || '';
+                                            } else if (sys?.frameCrossSectionUrl) {
+                                                verticalSectionUrl = sys.frameCrossSectionUrl;
+                                                verticalSectionCode = sys.frameCrossSectionProfileCode || '';
+                                            } else {
+                                                verticalSectionUrl = sys?.crossSectionUrl || '';
+                                                verticalSectionCode = sys?.crossSectionProfileCode || '';
+                                            }
+                                        }
 
                                         return (
                                             <tr key={unit.id} className="border-b border-slate-100 group print:break-inside-avoid">
@@ -3293,15 +3401,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                                                              {/* Boy Kesit (Y-Y dikey kesit) */}
                                                              <div className="w-11 h-36 print:w-8 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
-                                                                 {unit.crossSectionUrl ? (
-                                                                     <>
-                                                                         <img src={unit.crossSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                                                                         {unit.crossSectionProfileCode && (
-                                                                             <div className="absolute bottom-0 inset-x-0 bg-blue-600 text-[8px] font-black text-white py-0.5 text-center truncate uppercase tracking-wider leading-none">
-                                                                                 {unit.crossSectionProfileCode}
-                                                                             </div>
-                                                                         )}
-                                                                     </>
+                                                                 {verticalSectionUrl ? (
+                                                                     <img src={verticalSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                                                                  ) : (
                                                                      <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
                                                                  )}
@@ -3310,8 +3411,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                                                         {/* Plan Kesit (X-X yatay kesit) */}
                                                         <div className="w-[192px] print:w-[148px] h-12 print:h-[38px] bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
-                                                            {unit.planSectionUrl ? (
-                                                                <img src={unit.planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                            {planSectionUrl ? (
+                                                                <img src={planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                                                             ) : (
                                                                 <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
                                                             )}
@@ -3320,9 +3421,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 </td>
                                                 <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[33%] print:w-[32%]">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
-                                                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{sys?.name}</div>
+                                                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">
+                                                        {sys?.name} {sys?.materialType === 'pvc' && <span className="ml-1.5 px-1 bg-amber-500/10 text-amber-600 border border-amber-500/15 rounded text-[8px] font-extrabold tracking-normal">PVC</span>}
+                                                    </div>
                                                     <div className="space-y-1 mb-4">
-                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}:</span> <span className="font-bold text-blue-700">{sys?.name}</span></div><div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
+                                                        <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}:</span> <span className="font-bold text-blue-700">{sys?.name} {sys?.materialType === 'pvc' && ' (PVC)'}</span></div><div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'width')}:</span> <span className="font-bold text-slate-900">{unit.width} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'height')}:</span> <span className="font-bold text-slate-900">{unit.height} mm</span></div>
                                                         <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium"><span>{t(lang, 'area')}:</span> <span className="font-bold text-slate-900">{((unit.width * unit.height) / 1000000).toFixed(2)} m²</span></div>
                                                         {(() => {
@@ -3685,7 +3788,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <div key={idx} className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 rounded px-1 transition-all">
                                                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                                 <div className="w-10 h-10 bg-white rounded-md border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex items-center justify-center p-1 shrink-0 select-none print:border-slate-350">
-                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={customProfileImages} />
+                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={mergedProfileImages} />
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <span className="font-bold text-slate-800 truncate block">
@@ -5964,7 +6067,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         <td className="px-8 py-5">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="w-11 h-11 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center p-1.5 shrink-0 select-none print:border-slate-300">
-                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={customProfileImages} />
+                                                                    <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={mergedProfileImages} />
                                                                 </div>
                                                                 <div>
                                                                     <div className="font-bold text-white text-base print:text-black">{t(lang, opt.profileLabel as any) || opt.profileLabel}</div>

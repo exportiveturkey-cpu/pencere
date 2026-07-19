@@ -105,13 +105,28 @@ const App: React.FC = () => {
       const cloudCustomers = await cloud_getCustomers(session.key);
 
       let finalSystems = cloudSystems;
-      if (cloudSystems) {
-        // Automatically migrate if old Default systems are present in the cloud list
+      if (cloudSystems && cloudSystems.length > 0) {
+        // Safe migration: only clean up legacy system IDs while preserving modified default systems and custom systems
         const hasOldSystems = cloudSystems.some(s => s.id.startsWith('asas-') || s.id === 'kurt-l60' || s.id.startsWith('saray-') || s.id.startsWith('cuha-') || s.id.startsWith('akpa-'));
         if (hasOldSystems) {
-          finalSystems = PROFILE_SYSTEMS;
+          const oldIds = ['kurt-l60'];
+          const oldPrefixes = ['asas-', 'saray-', 'cuha-', 'akpa-'];
+          const isOld = (id: string) => oldIds.includes(id) || oldPrefixes.some(pref => id.startsWith(pref));
+          
+          // Filter out the legacy systems
+          const preservedSystems = cloudSystems.filter(s => !isOld(s.id));
+          
+          // Merge with current PROFILE_SYSTEMS (keep modified version from cloud if present)
+          const mergedSystems = [...preservedSystems];
+          for (const stdSys of PROFILE_SYSTEMS) {
+            if (!mergedSystems.some(s => s.id === stdSys.id)) {
+              mergedSystems.push(stdSys);
+            }
+          }
+          
+          finalSystems = mergedSystems;
           try {
-            await cloud_saveSystems(session.key, PROFILE_SYSTEMS);
+            await cloud_saveSystems(session.key, finalSystems);
           } catch (migrateErr) {
             console.error("Could not write migrated systems to cloud:", migrateErr);
           }
@@ -296,6 +311,13 @@ const App: React.FC = () => {
     setSystems(updated);
     setIsSyncing(true);
     try { await cloud_saveSystems(session.key, updated); } catch (e) {}
+    setIsSyncing(false);
+  };
+
+  const handleSetSystems = async (updatedSystems: ProfileSystem[]) => {
+    setSystems(updatedSystems);
+    setIsSyncing(true);
+    try { await cloud_saveSystems(session.key, updatedSystems); } catch (e) {}
     setIsSyncing(false);
   };
 
@@ -545,6 +567,7 @@ const App: React.FC = () => {
           lang={lang}
           onAddSystem={handleAddSystem}
           onUpdateSystem={handleUpdateSystem}
+          onSetSystems={handleSetSystems}
           onDeleteSystem={handleDeleteSystem}
           onAddAccessory={handleAddAccessory}
           onUpdateAccessory={handleUpdateAccessory}

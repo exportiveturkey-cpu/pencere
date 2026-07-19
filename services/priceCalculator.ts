@@ -143,7 +143,13 @@ export const calculateProjectCost = (
       systemLaborRate = laborPerKgUsd || (laborPerKgTry / exchangeRate);
     }
 
-    const profileCost = (profileWeight * 1.10) * (colorPrice + systemLaborRate); // 10% wastage increase for costing included with labor per kg
+    let profileCost = 0;
+    if (system?.materialType === 'pvc') {
+      const convertedPricePerMeter = currency === 'TRY' ? (system.pricePerMeter || 85) : ((system.pricePerMeter || 85) / exchangeRate);
+      profileCost = (perimeterM * 1.10) * convertedPricePerMeter;
+    } else {
+      profileCost = (profileWeight * 1.10) * (colorPrice + systemLaborRate); // 10% wastage increase for costing included with labor per kg
+    }
     
     let glassCost = 0;
     if (unit.includeGlass !== false) {
