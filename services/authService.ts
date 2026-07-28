@@ -1,7 +1,7 @@
 
 // @ts-nocheck
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { Project, ProfileSystem, Accessory, MachineConfig, Customer } from "../types";
 
 const firebaseConfig = {
@@ -15,7 +15,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// ignoreUndefinedProperties: true -> Firestore, "undefined" alanlar yüzünden
+// tüm yazma işlemini reddetmez (ör. customGlassPrice gibi boş bırakılabilen alanlar).
+// Bu olmadan setDoc() sessizce hata veriyor ve proje Cloud'a hiç kaydedilmiyordu.
+const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
 
 export interface LicenseInfo {
   key: string;
