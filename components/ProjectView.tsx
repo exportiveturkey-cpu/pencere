@@ -8,7 +8,7 @@ import Visualizer from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
 import { ShadingBOMAndOpt, calculateShadingItemPrice, DEFAULT_CONFIG } from './ShadingBOMAndOpt';
-import { GLASS_TYPES, COLOR_GROUPS } from '../constants';
+import { GLASS_TYPES, COLOR_GROUPS, PROFILE_SYSTEMS } from '../constants';
 import { analyzeDrawing, generateSalesPitch, analyzeShadingImage, ShadingAnalysisResult } from '../services/geminiService';
 import { generateCNCCSV } from '../services/cncService';
 import { generateDXF } from '../services/dxfService';
@@ -20,6 +20,46 @@ import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
 
 const sortQuadrilateralPoints = (pts: any) => pts;
 const getPerspectiveTransform = (src: any, dst: any) => "matrix(1, 0, 0, 1, 0, 0)";
+
+export const getSystemForUnit = (unit: { system?: string; selectedFrameProfile?: string }, systems: ProfileSystem[]): ProfileSystem => {
+  if (!systems || systems.length === 0) {
+    return PROFILE_SYSTEMS[0];
+  }
+  const uSys = (unit.system || '').trim();
+  if (uSys) {
+    const sysLower = uSys.toLowerCase();
+    // 1. Exact ID
+    let found = systems.find(s => s.id === uSys) || systems.find(s => s.id.toLowerCase() === sysLower);
+    if (found) return found;
+
+    // 2. Exact Name
+    found = systems.find(s => s.name === uSys) || systems.find(s => s.name.toLowerCase() === sysLower);
+    if (found) return found;
+  }
+
+  // 3. Infer from selectedFrameProfile
+  if (unit.selectedFrameProfile) {
+    const code = unit.selectedFrameProfile.toUpperCase();
+    if (code.startsWith('70T')) {
+      const found70T = systems.find(s => s.id === 'kurt-70t-th' || s.id.includes('70t') || s.name.toUpperCase().includes('70T'));
+      if (found70T) return found70T;
+    }
+    if (code.startsWith('51LS') || code.startsWith('51LM') || code.startsWith('58T')) {
+      const found51LS = systems.find(s => s.id === 'kurt-51ls' || s.id.includes('51ls') || s.name.toUpperCase().includes('51LS'));
+      if (found51LS) return found51LS;
+    }
+  }
+
+  // 4. Substring / Keyword match
+  if (uSys) {
+    const sysLower = uSys.toLowerCase();
+    const found = systems.find(s => s.name.toLowerCase().includes(sysLower) || sysLower.includes(s.name.toLowerCase()) ||
+                          s.id.toLowerCase().includes(sysLower) || sysLower.includes(s.id.toLowerCase()));
+    if (found) return found;
+  }
+
+  return systems[0] || PROFILE_SYSTEMS[0];
+};
 
 const hasOpenablePanes = (node: WindowNode | undefined): boolean => {
   if (!node) return false;
@@ -2487,7 +2527,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           type: (d.type && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(d.type)) 
             ? (d.type as any) 
             : 'fixed',
-          system: systems[0]?.id || '',
+          system: (d.type === 'sliding')
+            ? (systems.find(s => s.type === 'sliding')?.id || systems[0]?.id || 'kurt-51ls')
+            : (systems.find(s => s.id === 'kurt-70t-th' || s.type === 'hinged')?.id || systems[0]?.id || 'kurt-70t-th'),
           selected: true
         }));
         setScannedReviewUnits(reviewItems);
@@ -2553,12 +2595,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   };
 
   const handleExportDXF = (unit: Unit) => {
-    let system = systems.find(s => s.id === unit.system);
-    if (!system) {
-      system = systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase()));
-    }
-    if (!system) system = systems[0];
-    
+    const system = getSystemForUnit(unit, systems);
     const dxfData = generateDXF(unit, system);
     const blob = new Blob([dxfData], { type: 'application/dxf' });
     const url = URL.createObjectURL(blob);
@@ -2571,14 +2608,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const getUnitStats = (unit: Unit) => {
     // Robust system lookup
-    let system = systems.find(s => s.id === unit.system);
-    if (!system) {
-      system = systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase()));
-    }
-    if (!system) {
-      system = systems[0];
-    }
-    
+    const system = getSystemForUnit(unit, systems);
     if (!system) return { cost: 0, weight: 0, selectedAccs: [], accCost: 0 };
     
     const cuttingListMap = getAggregatedCuttingList([unit], [system]);
@@ -2959,7 +2989,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 className="w-full h-full max-h-full max-w-full p-2"
                                                 preserveAspectRatio="xMidYMid meet"
                                               >
-                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0]} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
+                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={getSystemForUnit(unit, systems)} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
                                               </svg>
                                             </div>
                                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
@@ -3283,7 +3313,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 <tbody>
                                     {project.units.map((unit, idx) => {
                                         const stats = getUnitStats(unit);
-                                        const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
+                                        const sys = getSystemForUnit(unit, systems);
                                         // Dynamic Profile Drawing Library Resolution
                                         const selectedFrameCode = unit.selectedFrameProfile;
                                         const selectedSashCode = unit.selectedSashProfile;
@@ -6579,7 +6609,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                   {project.units.map((unit) => {
                     const isChecked = bulkCheckedUnitIds.includes(unit.id);
-                    const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
+                    const sys = getSystemForUnit(unit, systems);
                     return (
                       <div 
                         key={unit.id}

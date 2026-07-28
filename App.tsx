@@ -104,33 +104,23 @@ const App: React.FC = () => {
       const cloudMachines = await cloud_getMachines(session.key);
       const cloudCustomers = await cloud_getCustomers(session.key);
 
-      let finalSystems = cloudSystems;
+      let finalSystems: ProfileSystem[] = [];
       if (cloudSystems && cloudSystems.length > 0) {
-        // Safe migration: only clean up legacy system IDs while preserving modified default systems and custom systems
-        const hasOldSystems = cloudSystems.some(s => s.id.startsWith('asas-') || s.id === 'kurt-l60' || s.id.startsWith('saray-') || s.id.startsWith('cuha-') || s.id.startsWith('akpa-'));
-        if (hasOldSystems) {
-          const oldIds = ['kurt-l60'];
-          const oldPrefixes = ['asas-', 'saray-', 'cuha-', 'akpa-'];
-          const isOld = (id: string) => oldIds.includes(id) || oldPrefixes.some(pref => id.startsWith(pref));
-          
-          // Filter out the legacy systems
-          const preservedSystems = cloudSystems.filter(s => !isOld(s.id));
-          
-          // Merge with current PROFILE_SYSTEMS (keep modified version from cloud if present)
-          const mergedSystems = [...preservedSystems];
-          for (const stdSys of PROFILE_SYSTEMS) {
-            if (!mergedSystems.some(s => s.id === stdSys.id)) {
-              mergedSystems.push(stdSys);
-            }
-          }
-          
-          finalSystems = mergedSystems;
-          try {
-            await cloud_saveSystems(session.key, finalSystems);
-          } catch (migrateErr) {
-            console.error("Could not write migrated systems to cloud:", migrateErr);
+        const oldIds = ['kurt-l60'];
+        const oldPrefixes = ['asas-', 'saray-', 'cuha-', 'akpa-'];
+        const isOld = (id: string) => oldIds.includes(id) || oldPrefixes.some(pref => id.startsWith(pref));
+        
+        // Filter out legacy systems
+        const preservedSystems = cloudSystems.filter(s => !isOld(s.id));
+        
+        // Always merge with PROFILE_SYSTEMS to guarantee standard systems exist
+        const mergedSystems = [...preservedSystems];
+        for (const stdSys of PROFILE_SYSTEMS) {
+          if (!mergedSystems.some(s => s.id === stdSys.id)) {
+            mergedSystems.push(stdSys);
           }
         }
+        finalSystems = mergedSystems;
       } else {
         finalSystems = PROFILE_SYSTEMS;
       }

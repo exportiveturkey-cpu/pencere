@@ -9,6 +9,7 @@ import {
   User, Calendar, Landmark, Coins, FileCheck, CircleDollarSign
 } from 'lucide-react';
 import { cloud_saveProject } from '../services/authService';
+import { getSystemForUnit } from './ProjectView';
 
 const hasOpenablePanes = (node: WindowNode | undefined): boolean => {
   if (!node) return false;
@@ -110,7 +111,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const projectTotalStats = React.useMemo(() => {
     let subTotal = 0;
     const itemsStats = project.units.map(unit => {
-      const sys = systems.find(s => s.id === unit.system) || systems[0];
+      const sys = getSystemForUnit(unit, systems);
       const bom = calculateUnitBOM(unit, sys);
       const totalCost = bom.cost * (unit.quantity || 1);
       subTotal += totalCost;
@@ -410,7 +411,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                   </div>
                 ) : (
                   projectTotalStats.itemsStats.map(({ unit, bom, totalCost }, idx) => {
-                    const sys = systems.find(s => s.id === unit.system) || (unit.system ? systems.find(s => s.name.toLowerCase().includes(unit.system.toLowerCase())) : undefined) || systems[0];
+                    const sys = getSystemForUnit(unit, systems);
                     return (
                       <div key={unit.id} className="bg-slate-950/30 border border-white/5 rounded-3xl overflow-hidden print:bg-white print:border-slate-200 print:text-black">
                         

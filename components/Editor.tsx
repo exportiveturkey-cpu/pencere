@@ -913,12 +913,45 @@ const ProfilePreviewAndUpload: React.FC<{
   );
 };
 
-const getNormalizedSystemId = (sysIdOrName: string, systems: ProfileSystem[]) => {
-  if (!sysIdOrName || !systems || systems.length === 0) return '';
-  const found = systems.find(s => s.id === sysIdOrName) || 
-                systems.find(s => s.name === sysIdOrName) ||
-                systems.find(s => s.name.toLowerCase().includes(sysIdOrName.toLowerCase()));
-  return found ? found.id : systems[0].id;
+const getNormalizedSystemId = (sysIdOrName: string, systems: ProfileSystem[], frameProfileCode?: string) => {
+  if (!systems || systems.length === 0) return 'kurt-51ls';
+
+  if (sysIdOrName && sysIdOrName.trim() !== '') {
+    const raw = sysIdOrName.trim();
+    const sysLower = raw.toLowerCase();
+    
+    // 1. Direct ID match
+    let found = systems.find(s => s.id === raw) || systems.find(s => s.id.toLowerCase() === sysLower);
+    if (found) return found.id;
+
+    // 2. Exact Name match
+    found = systems.find(s => s.name === raw) || systems.find(s => s.name.toLowerCase() === sysLower);
+    if (found) return found.id;
+  }
+
+  // 3. Infer from frame profile code (e.g., "70T-102-18", "51LS-101", etc.)
+  if (frameProfileCode) {
+    const code = frameProfileCode.toUpperCase();
+    if (code.startsWith('70T')) {
+      const found70T = systems.find(s => s.id === 'kurt-70t-th' || s.id.includes('70t') || s.name.toUpperCase().includes('70T'));
+      if (found70T) return found70T.id;
+    }
+    if (code.startsWith('51LS') || code.startsWith('51LM') || code.startsWith('58T')) {
+      const found51LS = systems.find(s => s.id === 'kurt-51ls' || s.id.includes('51ls') || s.name.toUpperCase().includes('51LS'));
+      if (found51LS) return found51LS.id;
+    }
+  }
+
+  // 4. Substring / Keyword match
+  if (sysIdOrName && sysIdOrName.trim() !== '') {
+    const raw = sysIdOrName.trim();
+    const sysLower = raw.toLowerCase();
+    const found = systems.find(s => s.name.toLowerCase().includes(sysLower) || sysLower.includes(s.name.toLowerCase()) ||
+                          s.id.toLowerCase().includes(sysLower) || sysLower.includes(s.id.toLowerCase()));
+    if (found) return found.id;
+  }
+
+  return systems[0]?.id || 'kurt-51ls';
 };
 
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
@@ -929,26 +962,36 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [viewPerspective, setViewPerspective] = useState<'interior' | 'exterior'>(initialUnit?.viewPerspective || 'interior');
-  const [systemId, setSystemId] = useState(() => getNormalizedSystemId(initialUnit?.system || '', systems));
+  const [systemId, setSystemId] = useState(() => getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile));
   const [planSectionUrl, setPlanSectionUrl] = useState<string>(initialUnit?.planSectionUrl || '');
   const [crossSectionUrl, setCrossSectionUrl] = useState<string>(initialUnit?.crossSectionUrl || '');
   const [planSectionProfileCode, setPlanSectionProfileCode] = useState<string>(initialUnit?.planSectionProfileCode || '');
   const [crossSectionProfileCode, setCrossSectionProfileCode] = useState<string>(initialUnit?.crossSectionProfileCode || '');
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
     if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
-    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
     return initialSysId === 'kurt-51ls' ? '51LS-101-00' : '70T-102-18';
   });
   const [selectedSashProfile, setSelectedSashProfile] = useState<string>(() => {
     if (initialUnit?.selectedSashProfile) return initialUnit.selectedSashProfile;
-    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
     return initialSysId === 'kurt-51ls' ? '51LS-201-00' : '70T-201-18';
   });
   const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(() => {
     if (initialUnit?.selectedMullionProfile) return initialUnit.selectedMullionProfile;
-    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems);
+    const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
     return initialSysId === 'kurt-51ls' ? '51LS-301-00' : '70T-301-18';
   });
+
+  // Keep systemId synced if initialUnit or systems prop changes
+  useEffect(() => {
+    if (initialUnit) {
+      const normSys = getNormalizedSystemId(initialUnit.system || '', systems, initialUnit.selectedFrameProfile);
+      if (normSys && normSys !== systemId) {
+        setSystemId(normSys);
+      }
+    }
+  }, [initialUnit?.id, initialUnit?.system, initialUnit?.selectedFrameProfile, systems]);
 
   useEffect(() => {
     // If we switched systems, auto-switch to valid default profile codes
@@ -1127,7 +1170,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   };
   const [selectedTypology, setSelectedTypology] = useState<string>(() => {
     if (initialUnit?.typology) return initialUnit.typology;
-    const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems));
+    const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile));
     if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
       return initialSystem.supportedTypologies[0];
     }
@@ -1229,7 +1272,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     if (initialUnit?.typology) {
       initialType = initialUnit.typology;
     } else {
-      const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems));
+      const initialSystem = systems.find(s => s.id === getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile));
       if (initialSystem && initialSystem.supportedTypologies && initialSystem.supportedTypologies.length > 0) {
         initialType = initialSystem.supportedTypologies[0];
       }
