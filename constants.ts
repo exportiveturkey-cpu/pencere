@@ -4,17 +4,6 @@ import { ProfileSystem, GlassType, Project, Accessory, CatalogProfileItem } from
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
   // --- KURTOĞLU ALÜMİNYUM ---
   { 
-    id: 'kurt-51ls', 
-    name: 'Kurtoğlu 51LS (Thermal Sliding)', 
-    type: 'sliding',
-    materialType: 'aluminum',
-    uValue: 2.2, frameWidth: 51, frameDepth: 120, sashDepth: 45, thermalBreakWidth: 18, wallThickness: 1.8,
-    pricePerMeter: 120, profileLength: 6.0,
-    correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
-    profileCodes: { frame: '51LS-101', sash: '51LS-201', mullion: '51LS-301', glazingBead: '51LS-401' },
-    profileWeights: { frame: 2.350, sash: 1.750, mullion: 1.950, glazingBead: 0.280 }
-  },
-  { 
     id: 'kurt-70t-th', 
     name: 'Kurtoğlu 70T-TH (Thermal Hinged)', 
     type: 'hinged',
@@ -24,6 +13,17 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
     profileCodes: { frame: '70T-101', sash: '70T-201', mullion: '70T-301', glazingBead: '70T-401' },
     profileWeights: { frame: 1.550, sash: 1.850, mullion: 1.650, glazingBead: 0.290 }
+  },
+  { 
+    id: 'kurt-51ls', 
+    name: 'Kurtoğlu 51LS (Thermal Sliding)', 
+    type: 'sliding',
+    materialType: 'aluminum',
+    uValue: 2.2, frameWidth: 51, frameDepth: 120, sashDepth: 45, thermalBreakWidth: 18, wallThickness: 1.8,
+    pricePerMeter: 120, profileLength: 6.0,
+    correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: '51LS-101', sash: '51LS-201', mullion: '51LS-301', glazingBead: '51LS-401' },
+    profileWeights: { frame: 2.350, sash: 1.750, mullion: 1.950, glazingBead: 0.280 }
   },
   // --- PİMAPEN PVC SİSTEMLERİ ---
   { 
