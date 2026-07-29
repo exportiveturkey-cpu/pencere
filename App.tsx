@@ -63,9 +63,13 @@ const App: React.FC = () => {
     if (theme === 'light') {
       root.classList.add('light-theme');
       body.classList.add('light-theme');
+      root.classList.remove('dark');
+      body.classList.remove('dark');
     } else {
       root.classList.remove('light-theme');
       body.classList.remove('light-theme');
+      root.classList.add('dark');
+      body.classList.add('dark');
     }
     localStorage.setItem('alucraft_theme', theme);
   }, [theme]);
@@ -489,7 +493,7 @@ const App: React.FC = () => {
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
       
       {permissionError && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-full max-w-2xl px-4 animate-in fade-in slide-in-from-top-4">

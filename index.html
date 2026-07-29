@@ -22,8 +22,9 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #0f172a; /* Slate 900 */
-        color: #e2e8f0; /* Slate 200 */
+        background-color: #0f172a; /* Rich Dark Slate/Anthracite */
+        color: #f8fafc; /* Crisp White/Slate 50 */
+        transition: background-color 0.2s ease, color 0.2s ease;
       }
       /* Custom Scrollbar for technical feel */
       ::-webkit-scrollbar {
@@ -31,58 +32,94 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #1e293b; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #475569; 
+        background: #334155; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
+        background: #475569; 
       }
 
-      /* LIGHT THEME SPECIFIC OVERRIDES */
+      /* RICH HIGH-CONTRAST DARK MODE (Deep Anthracite / Slate) */
+      html.dark, html.dark body, body:not(.light-theme) {
+        background-color: #0b1329 !important; /* Deep Rich Dark Anthracite Canvas */
+        color: #f8fafc !important;
+      }
+
+      /* Dark mode card & panel backgrounds for sharp contrast */
+      .dark .bg-slate-950,
+      .dark .bg-slate-900,
+      body:not(.light-theme) .bg-slate-950,
+      body:not(.light-theme) .bg-slate-900 {
+        background-color: #0f172a !important; /* Deep Slate 900 Card Background */
+        border-color: #1e293b !important;
+      }
+
+      .dark .bg-slate-800,
+      .dark .bg-slate-800\/50,
+      .dark .bg-slate-800\/80,
+      .dark .bg-slate-800\/90,
+      body:not(.light-theme) .bg-slate-800,
+      body:not(.light-theme) .bg-slate-800\/50,
+      body:not(.light-theme) .bg-slate-800\/80,
+      body:not(.light-theme) .bg-slate-800\/90 {
+        background-color: #1e293b !important; /* Rich Dark Elevated Panel */
+        border-color: #334155 !important;
+      }
+
+      /* Dark mode Modal Overlay */
+      .dark .bg-black\/80,
+      .dark .bg-slate-950\/80,
+      body:not(.light-theme) .bg-black\/80,
+      body:not(.light-theme) .bg-slate-950\/80 {
+        background-color: rgba(11, 19, 41, 0.85) !important;
+        backdrop-filter: blur(8px) !important;
+      }
+
+      /* LIGHT THEME SPECIFIC OVERRIDES (Crisp, High-Contrast Light Theme) */
       body.light-theme {
-        background-color: #f1f5f9 !important; /* Soft premium grey */
+        background-color: #f8fafc !important; /* Crisp Slate 50 Canvas */
         color: #0f172a !important;
       }
       
-      /* Target background color of pages & primary containers */
+      /* Target background color of cards & primary containers in light mode */
       body.light-theme .bg-slate-950,
-      body.light-theme .bg-slate-900\/40,
       body.light-theme .bg-slate-900,
-      body.light-theme .h-screen.w-full.fixed.top-0.left-0.z-50.bg-slate-900 {
+      body.light-theme .bg-slate-900\/90,
+      body.light-theme .bg-slate-900\/80,
+      body.light-theme .bg-slate-900\/60,
+      body.light-theme .bg-slate-900\/50,
+      body.light-theme .bg-slate-900\/40,
+      body.light-theme .bg-slate-900\/30 {
         background-color: #ffffff !important;
         color: #0f172a !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05) !important;
       }
       
-      body.light-theme .bg-slate-900\/50,
-      body.light-theme .bg-slate-900\/60,
-      body.light-theme .bg-slate-950\/40,
-      body.light-theme .bg-slate-950\/60,
-      body.light-theme .bg-slate-950\/70 {
-        background-color: #f8fafc !important;
-        color: #0f172a !important;
-      }
-      
-      /* Dark panels / navigation items / edit bars */
+      /* Panels, header bars, inputs in light mode */
       body.light-theme .bg-slate-800,
-      body.light-theme .bg-slate-800\/50,
+      body.light-theme .bg-slate-800\/90,
       body.light-theme .bg-slate-800\/80,
-      body.light-theme .bg-slate-800\/85 {
+      body.light-theme .bg-slate-800\/50,
+      body.light-theme .bg-slate-700 {
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
+        border-color: #cbd5e1 !important;
       }
 
       /* Dropdown lists inside selects & popup containers */
-      body.light-theme .bg-slate-950\/80 {
-        background-color: rgba(255, 255, 255, 0.95) !important;
+      body.light-theme .bg-slate-950\/80,
+      body.light-theme select {
+        background-color: #ffffff !important;
         color: #0f172a !important;
         border-color: #cbd5e1 !important;
       }
 
       body.light-theme select {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e") !important;
         background-position: right 0.75rem center !important;
         background-size: 1.5em 1.5em !important;
         background-repeat: no-repeat !important;
@@ -98,22 +135,69 @@
         color: #0f172a !important;
       }
       body.light-theme input::placeholder {
-        color: #94a3b8 !important;
+        color: #64748b !important;
       }
 
-      /* Text color overrides */
+      /* Light Theme Text Contrast Enhancements - Ensures high legibility on white/light grounds */
       body.light-theme .text-white,
       body.light-theme .text-slate-100,
-      body.light-theme .text-slate-200,
-      body.light-theme .text-slate-300 {
+      body.light-theme .text-slate-200 {
         color: #0f172a !important;
       }
-      body.light-theme .text-slate-400,
-      body.light-theme .text-slate-500 {
+      body.light-theme .text-slate-300,
+      body.light-theme .text-slate-400 {
+        color: #334155 !important;
+      }
+      body.light-theme .text-slate-500,
+      body.light-theme .text-slate-600 {
         color: #475569 !important;
       }
+
+      /* High contrast colored text in light theme */
+      body.light-theme .text-blue-300,
+      body.light-theme .text-blue-400 {
+        color: #1d4ed8 !important; /* Dark Blue */
+      }
+      body.light-theme .text-emerald-300,
+      body.light-theme .text-emerald-400 {
+        color: #047857 !important; /* Dark Emerald */
+      }
+      body.light-theme .text-amber-300,
+      body.light-theme .text-amber-400 {
+        color: #b45309 !important; /* Dark Amber */
+      }
+      body.light-theme .text-purple-300,
+      body.light-theme .text-purple-400 {
+        color: #6b21a8 !important; /* Dark Purple */
+      }
+      body.light-theme .text-indigo-300,
+      body.light-theme .text-indigo-400 {
+        color: #3730a3 !important; /* Dark Indigo */
+      }
+
+      /* Light Mode Alert & Highlight Boxes - High contrast backgrounds */
+      body.light-theme .bg-blue-500\/10,
+      body.light-theme .bg-blue-900\/20 {
+        background-color: #eff6ff !important;
+        border-color: #bfdbfe !important;
+      }
+      body.light-theme .bg-emerald-500\/10,
+      body.light-theme .bg-emerald-900\/20 {
+        background-color: #ecfdf5 !important;
+        border-color: #a7f3d0 !important;
+      }
+      body.light-theme .bg-amber-500\/10,
+      body.light-theme .bg-amber-900\/20 {
+        background-color: #fffbeb !important;
+        border-color: #fde68a !important;
+      }
+      body.light-theme .bg-purple-500\/10,
+      body.light-theme .bg-purple-900\/20 {
+        background-color: #faf5ff !important;
+        border-color: #e9d5ff !important;
+      }
       body.light-theme .text-slate-600 {
-        color: #64748b !important;
+        color: #475569 !important;
       }
 
       /* Border adjustments */
@@ -121,8 +205,9 @@
       body.light-theme .border-slate-700,
       body.light-theme .border-white\/5,
       body.light-theme .border-white\/10,
-      body.light-theme .border-slate-800\/80 {
-        border-color: #cbd5e1 !important;
+      body.light-theme .border-slate-800\/80,
+      body.light-theme .border-slate-800\/60 {
+        border-color: #e2e8f0 !important;
       }
 
       /* Scrollbar Light mode adjustment */
