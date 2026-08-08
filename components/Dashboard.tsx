@@ -62,6 +62,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [blockError, setBlockError] = useState<string | null>(null);
   const [showCustomerReport, setShowCustomerReport] = useState(false);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<Customer | null>(null);
+  const [reportCustomerFilterId, setReportCustomerFilterId] = useState<string>('ALL');
   
   const toggleLang = () => setLang(lang === 'en' ? 'tr' : 'en');
   const session = getSessionInfo();
@@ -242,14 +243,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   if (showCustomerReport) {
-    const activeCustomers = customers.filter(c => c.status === 'active');
+    const reportCustomers = reportCustomerFilterId === 'ALL'
+      ? customers
+      : customers.filter(c => c.id === reportCustomerFilterId);
+
+    const activeCustomers = reportCustomers.filter(c => c.status === 'active');
     
-    // Calculate global stats for customers
+    // Calculate stats for filtered customers
     let grandTotalProjects = 0;
     let grandTotalValue = 0;
     let grandApprovedProjects = 0;
     
-    customers.forEach(customer => {
+    reportCustomers.forEach(customer => {
       const { totalCount, totalValue, approvedCount } = getCustomerStats(customer);
       grandTotalProjects += totalCount;
       grandTotalValue += totalValue;
@@ -257,6 +262,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
 
     const averageConversionRate = grandTotalProjects > 0 ? Math.round((grandApprovedProjects / grandTotalProjects) * 100) : 0;
+    const selectedFilterCustomer = customers.find(c => c.id === reportCustomerFilterId);
 
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 p-6 sm:p-8 font-sans print:bg-white print:text-black print:p-0">
@@ -270,10 +276,24 @@ const Dashboard: React.FC<DashboardProps> = ({
               <ArrowLeft size={14} />
               {lang === 'tr' ? 'Kontrol Paneline Dön' : 'Back to Dashboard'}
             </button>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-slate-400">
-                {lang === 'tr' ? 'Müşteri Kayıtları Raporu' : 'Customer Database Report'}
-              </span>
+
+            {/* Customer Filter Selector */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-white/10">
+                <Users size={14} className="text-blue-400 shrink-0" />
+                <span className="text-xs font-bold text-slate-300">{lang === 'tr' ? 'Rapor Kapsamı:' : 'Report Scope:'}</span>
+                <select
+                  value={reportCustomerFilterId}
+                  onChange={(e) => setReportCustomerFilterId(e.target.value)}
+                  className="bg-slate-950 text-white font-bold text-xs rounded-lg px-2.5 py-1 outline-none border border-slate-700 focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="ALL">{lang === 'tr' ? 'Tüm Müşteriler (Genel Liste)' : 'All Customers (Global Summary)'}</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
               <button 
                 onClick={() => window.print()}
                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/10"
@@ -292,7 +312,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <Logo className="w-10 h-10" theme={theme} />
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight print:text-black">
-                    {lang === 'tr' ? 'MÜŞTERİ KAYİTLARİ & TEKLİF RAPORU' : 'CUSTOMER DATABASE & BID REPORT'}
+                    {selectedFilterCustomer 
+                      ? (lang === 'tr' ? `MÜŞTERİ ÖZEL TEKLİF & SİPARİŞ RAPORU (${selectedFilterCustomer.name.toUpperCase()})` : `CUSTOMER SPECIAL BID & ORDER REPORT (${selectedFilterCustomer.name.toUpperCase()})`)
+                      : (lang === 'tr' ? 'MÜŞTERİ KAYITLARI & TEKLİF RAPORU' : 'CUSTOMER DATABASE & BID REPORT')
+                    }
                   </h1>
                   <p className="text-slate-400 text-xs font-medium mt-1 print:text-slate-600">
                     Vizyon Pergola Suite • {new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')}
@@ -300,8 +323,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
               <div className="text-right mt-4 md:mt-0 font-mono text-xs text-slate-500 print:text-slate-700">
-                <div>{lang === 'tr' ? 'Firma: ' : 'Company: '} {displayName}</div>
-                <div>{lang === 'tr' ? 'Sistem: ' : 'System: '} VIZYON Pergola</div>
+                {selectedFilterCustomer ? (
+                  <>
+                    <div className="font-bold text-slate-200 print:text-slate-900 text-sm">{selectedFilterCustomer.name}</div>
+                    {selectedFilterCustomer.company && <div className="text-blue-400 print:text-blue-900 font-bold">{selectedFilterCustomer.company}</div>}
+                    <div className="text-slate-400 print:text-slate-600">{lang === 'tr' ? 'Hazırlayan: ' : 'Issued By: '}{displayName}</div>
+                  </>
+                ) : (
+                  <>
+                    <div>{lang === 'tr' ? 'Firma: ' : 'Company: '} {displayName}</div>
+                    <div>{lang === 'tr' ? 'Sistem: ' : 'System: '} VIZYON Pergola</div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -309,25 +342,25 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 print:gap-2 print:mb-6">
               <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
-                  {lang === 'tr' ? 'TOPLAM MÜŞTERİ' : 'TOTAL CUSTOMERS'}
+                  {selectedFilterCustomer ? (lang === 'tr' ? 'SEÇİLİ MÜŞTERİ' : 'SELECTED CUSTOMER') : (lang === 'tr' ? 'TOPLAM MÜŞTERİ' : 'TOTAL CUSTOMERS')}
                 </span>
-                <span className="text-xl font-bold text-white print:text-slate-950 block">
-                  {customers.length} <span className="text-xs font-normal text-slate-500 font-sans">({activeCustomers.length} {lang === 'tr' ? 'Aktif' : 'Active'})</span>
-                </span>
-              </div>
-              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
-                  {lang === 'tr' ? 'TOPLAM TEKLİF' : 'TOTAL ESTIMATIONS'}
-                </span>
-                <span className="text-xl font-bold text-blue-400 print:text-blue-700 block">
-                  {grandTotalProjects}
+                <span className="text-lg font-bold text-white print:text-slate-950 block truncate">
+                  {selectedFilterCustomer ? selectedFilterCustomer.name : `${customers.length} (${activeCustomers.length} ${lang === 'tr' ? 'Aktif' : 'Active'})`}
                 </span>
               </div>
               <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
-                  {lang === 'tr' ? 'ONAY / SİPARİŞ' : 'CONVERSION RATE'}
+                  {lang === 'tr' ? 'VERİLEN TEKLİFLER' : 'ISSUED PROPOSALS'}
                 </span>
-                <span className="text-xl font-bold text-emerald-400 print:text-emerald-700 block">
+                <span className="text-xl font-bold text-blue-400 print:text-blue-700 block font-mono">
+                  {grandTotalProjects} {lang === 'tr' ? 'Teklif' : 'Bids'}
+                </span>
+              </div>
+              <div className="bg-slate-950/40 border border-white/5 p-4 rounded-xl print:bg-slate-50 print:border-slate-200">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1 print:text-slate-500">
+                  {lang === 'tr' ? 'SİPARİŞ DÖNÜŞÜMÜ' : 'CONVERSION RATE'}
+                </span>
+                <span className="text-xl font-bold text-emerald-400 print:text-emerald-700 block font-mono">
                   %{averageConversionRate} <span className="text-xs font-normal text-slate-500 font-sans">({grandApprovedProjects} {lang === 'tr' ? 'Sipariş' : 'Order'})</span>
                 </span>
               </div>
@@ -344,16 +377,19 @@ const Dashboard: React.FC<DashboardProps> = ({
             {/* Customer Records Listing */}
             <div className="space-y-6">
               <h2 className="text-sm font-black text-indigo-400 uppercase tracking-widest border-b border-white/5 pb-2 mb-4 print:text-indigo-800 print:border-slate-300">
-                {lang === 'tr' ? 'MÜŞTERİ BAZLI TEKLİF GEÇMİŞİ' : 'CUSTOMER DETAILED QUOTATION LOG'}
+                {selectedFilterCustomer 
+                  ? (lang === 'tr' ? `${selectedFilterCustomer.name.toUpperCase()} TEKLİF VE SİPARİŞ GEÇMİŞİ` : `${selectedFilterCustomer.name.toUpperCase()} QUOTATION & ORDER HISTORY`)
+                  : (lang === 'tr' ? 'MÜŞTERİ BAZLI TEKLİF GEÇMİŞİ' : 'CUSTOMER DETAILED QUOTATION LOG')
+                }
               </h2>
 
-              {customers.length === 0 ? (
+              {reportCustomers.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 border border-dashed border-white/5 rounded-2xl">
                   {lang === 'tr' ? 'Henüz müşteri kaydı bulunmamaktadır.' : 'No customer records available.'}
                 </div>
               ) : (
                 <div className="divide-y divide-white/5 print:divide-slate-200 space-y-6">
-                  {customers.map((customer, idx) => {
+                  {reportCustomers.map((customer, idx) => {
                     const cStats = getCustomerStats(customer);
                     const cProjects = getCustomerProjects(customer);
                     
@@ -491,7 +527,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
-      <div className="border-b border-white/5 bg-slate-900/40 backdrop-blur-md sticky top-0 z-20">
+      {/* Main Dashboard UI (Hidden during print when selectedCustomerDetail report modal is active) */}
+      <div className={`flex-1 flex flex-col ${selectedCustomerDetail ? 'print:hidden' : ''}`}>
+        <div className="border-b border-white/5 bg-slate-900/40 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
             <div className="flex items-center gap-3">
                 <Logo className="w-8 h-8" theme={theme} />
@@ -1189,6 +1227,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </>
           )}
         </div>
+      </div>
       </div>
 
       {/* Edit Project Modal */}
