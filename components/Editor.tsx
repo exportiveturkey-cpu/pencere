@@ -2307,23 +2307,60 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                     </div>
 
                     {/* POSITION CUSTOM CATALOG SECTION DRAWINGS */}
-                    <div className="p-4 bg-slate-950/70 border border-white/5 rounded-xl space-y-4 transition-all">
-                      <div className="flex items-center gap-2">
-                        <Layers size={14} className="text-blue-500" />
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          {lang === 'tr' ? 'Teklif Plan & Detay Çizimleri' : 'Quote Plan & Section Drawings'}
-                        </h4>
+                    <div className="p-4 bg-slate-900 border border-slate-700/60 rounded-xl space-y-4 transition-all shadow-sm">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Layers size={14} className="text-blue-400 shrink-0" />
+                          <h4 className="text-[11px] font-black text-slate-200 uppercase tracking-widest">
+                            {lang === 'tr' ? 'Teklif Plan & Detay Çizimleri' : 'Quote Plan & Section Drawings'}
+                          </h4>
+                        </div>
+
+                        {selectedSystem && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const planUrl = selectedSystem.planSectionUrl || selectedSystem.framePlanSectionUrl || '';
+                              const planCode = selectedSystem.planSectionProfileCode || selectedSystem.framePlanSectionProfileCode || '';
+                              const crossUrl = selectedSystem.crossSectionUrl || selectedSystem.frameCrossSectionUrl || '';
+                              const crossCode = selectedSystem.crossSectionProfileCode || selectedSystem.frameCrossSectionProfileCode || '';
+
+                              if (planUrl) setPlanSectionUrl(planUrl);
+                              if (planCode) setPlanSectionProfileCode(planCode);
+                              if (crossUrl) setCrossSectionUrl(crossUrl);
+                              if (crossCode) setCrossSectionProfileCode(crossCode);
+                            }}
+                            className="px-2.5 py-1 bg-blue-600/25 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                            title={lang === 'tr' ? 'Ayarlar > Sistem Yapılandırması sayfasındaki varsayılan kesitleri bu poza aktarır' : 'Loads default drawings from System Configurations into this unit'}
+                          >
+                            <Sparkles size={12} className="text-blue-400" />
+                            {lang === 'tr' ? 'Sistem Kütüphanesinden Getir' : 'Load From System Library'}
+                          </button>
+                        )}
                       </div>
-                      <p className="text-[9px] text-slate-500 font-medium leading-tight">
+
+                      <p className="text-[10px] text-slate-300 font-medium leading-relaxed">
                         {lang === 'tr' 
-                          ? 'Bu poz için teklif çıktısında gösterilecek özel dikey kesit ve plan kesit resimlerini doğrudan yükleyebilirsiniz.'
-                          : 'You can directly upload custom cross-section and plan-section drawings for this position to show on the quote.'}
+                          ? 'Bu poz için teklif çıktısında gösterilecek dikey ve yatay kesit resimlerini doğrudan yükleyebilir veya Sistem Kütüphanesinden tek tıkla çekebilirsiniz.'
+                          : 'Upload custom cross-section & plan drawings for this unit or pull them instantly from the System Library.'}
                       </p>
+
+                      {/* System Library Automatic Fallback Status Notice */}
+                      {selectedSystem && (selectedSystem.planSectionUrl || selectedSystem.crossSectionUrl || selectedSystem.framePlanSectionUrl) && !planSectionUrl && !crossSectionUrl && (
+                        <div className="p-2.5 bg-blue-950/40 border border-blue-500/25 rounded-xl text-[10px] text-blue-300 flex items-center gap-2">
+                          <Sparkles size={13} className="text-blue-400 shrink-0" />
+                          <span>
+                            {lang === 'tr' 
+                              ? `Kütüphane Bağlantılı: Seçili sistem (${selectedSystem.name}) için tanımlı kütüphane kesitleri teklifte otomatik kullanılacaktır.` 
+                              : `Library Linked: Default section drawings for ${selectedSystem.name} will automatically appear in quotes.`}
+                          </span>
+                        </div>
+                      )}
 
                       {/* PLAN SECTION */}
                       <div className="space-y-1.5 pt-1">
                         <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                          <label className="text-[10px] font-extrabold text-slate-200 uppercase block ml-1">
                             {lang === 'tr' ? 'Plan Kesiti (Yatay)' : 'Plan Section (Horizontal)'}
                           </label>
                           {planSectionUrl && (
@@ -2346,7 +2383,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                               value={planSectionProfileCode}
                               onChange={e => setPlanSectionProfileCode(e.target.value)}
                               placeholder={lang === 'tr' ? 'Profil Kodu (Örn: P-101)' : 'Profile Code (e.g., P-101)'}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500"
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder:text-slate-400 outline-none focus:border-blue-500"
                             />
                           </div>
                           <div className="relative">
@@ -2379,7 +2416,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                               className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all ${
                                 planSectionUrl 
                                   ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' 
-                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                                  : 'bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-200'
                               }`}
                             >
                               {planSectionUrl ? (lang === 'tr' ? 'Yüklendi ✓' : 'Uploaded ✓') : (lang === 'tr' ? 'Yükle' : 'Upload')}
@@ -2396,7 +2433,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                       {/* CROSS SECTION */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase block ml-1">
+                          <label className="text-[10px] font-extrabold text-slate-200 uppercase block ml-1">
                             {lang === 'tr' ? 'Dikey Kesit / Detay (Boy)' : 'Cross Section / Detail (Vertical)'}
                           </label>
                           {crossSectionUrl && (
@@ -2419,7 +2456,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                               value={crossSectionProfileCode}
                               onChange={e => setCrossSectionProfileCode(e.target.value)}
                               placeholder={lang === 'tr' ? 'Profil Kodu (Örn: B-201)' : 'Profile Code (e.g., B-201)'}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500"
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder:text-slate-400 outline-none focus:border-blue-500"
                             />
                           </div>
                           <div className="relative">
@@ -2452,7 +2489,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                               className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all ${
                                 crossSectionUrl 
                                   ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' 
-                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                                  : 'bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-200'
                               }`}
                             >
                               {crossSectionUrl ? (lang === 'tr' ? 'Yüklendi ✓' : 'Uploaded ✓') : (lang === 'tr' ? 'Yükle' : 'Upload')}

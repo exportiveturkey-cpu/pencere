@@ -87,12 +87,8 @@
       /* Target background color of cards & primary containers in light mode */
       body.light-theme .bg-slate-950,
       body.light-theme .bg-slate-900,
-      body.light-theme .bg-slate-900\/90,
-      body.light-theme .bg-slate-900\/80,
-      body.light-theme .bg-slate-900\/60,
-      body.light-theme .bg-slate-900\/50,
-      body.light-theme .bg-slate-900\/40,
-      body.light-theme .bg-slate-900\/30 {
+      body.light-theme [class*="bg-slate-950"],
+      body.light-theme [class*="bg-slate-900"] {
         background-color: #ffffff !important;
         color: #0f172a !important;
         border-color: #e2e8f0 !important;
@@ -101,10 +97,9 @@
       
       /* Panels, header bars, inputs in light mode */
       body.light-theme .bg-slate-800,
-      body.light-theme .bg-slate-800\/90,
-      body.light-theme .bg-slate-800\/80,
-      body.light-theme .bg-slate-800\/50,
-      body.light-theme .bg-slate-700 {
+      body.light-theme .bg-slate-700,
+      body.light-theme [class*="bg-slate-800"],
+      body.light-theme [class*="bg-slate-700"] {
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
         border-color: #cbd5e1 !important;
