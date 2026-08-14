@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { ShadingItem, Language, Project } from '../types';
-import { Scissors, FileText, Package, Cpu, Layers, Download, LayoutGrid, Tag, Info, Percent, Wrench, CheckCircle, Settings, RefreshCw, Save, Edit2, DollarSign, TrendingUp } from 'lucide-react';
+import { Scissors, FileText, Package, Cpu, Layers, Download, LayoutGrid, Tag, Info, Percent, Wrench, CheckCircle, Settings, RefreshCw, Save, Edit2, DollarSign, TrendingUp, Zap } from 'lucide-react';
 
 interface ShadingBOMAndOptProps {
   shadingItems: ShadingItem[];
@@ -36,7 +36,27 @@ export interface ShadingConfig {
   pricingMethod?: 'piece' | 'weight';
   aluminiumKgPrice?: number;
   profileWeights?: Record<string, number>;
+  brandMotorCosts?: Record<string, Record<string, number>>;
+  brandFabricCosts?: Record<string, number>;
 }
+
+export const DEFAULT_BRAND_MOTOR_COSTS: Record<string, Record<string, number>> = {
+  'Somfy': { 'PRG': 450, 'RRF': 480, 'GUI': 480, 'ZIP': 220, 'AWN': 180, 'GLS': 550 },
+  'Becker': { 'PRG': 420, 'RRF': 450, 'GUI': 450, 'ZIP': 200, 'AWN': 170, 'GLS': 520 },
+  'Cherubini': { 'PRG': 380, 'RRF': 410, 'GUI': 410, 'ZIP': 180, 'AWN': 150, 'GLS': 480 },
+  'Albert Genau': { 'PRG': 430, 'RRF': 460, 'GUI': 460, 'ZIP': 210, 'AWN': 175, 'GLS': 530 },
+  'Mosel': { 'PRG': 240, 'RRF': 270, 'GUI': 260, 'ZIP': 110, 'AWN': 95, 'GLS': 320 },
+  'Nice': { 'PRG': 400, 'RRF': 430, 'GUI': 430, 'ZIP': 190, 'AWN': 160, 'GLS': 500 },
+};
+
+export const DEFAULT_BRAND_FABRIC_COSTS: Record<string, number> = {
+  'Serge Ferrari Soltis': 15,
+  'Sauleda Acrylic': 12,
+  'Dickson Constant': 14,
+  'Recasens': 11,
+  'Mehler Texnologies': 13,
+  'Sattler': 16,
+};
 
 export const DEFAULT_PROFILE_WEIGHTS: Record<string, number> = {
   'PRG-RAIL-200': 6.2, // 6.2 kg/m
@@ -817,6 +837,8 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
   const [tempCustomCode, setTempCustomCode] = useState('');
   const [tempCustomNameTr, setTempCustomNameTr] = useState('');
   const [tempCustomNameEn, setTempCustomNameEn] = useState('');
+  const [tempCustomCost, setTempCustomCost] = useState('');
+  const [settingsSubTab, setSettingsSubTab] = useState<'codes' | 'brand-matrix'>('codes');
 
   // Update form values if config changes
   useEffect(() => {
@@ -872,6 +894,25 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
 
   const handleSaveGlobalParams = (e: React.FormEvent) => {
     e.preventDefault();
+    const updatedMaterialCosts = { ...(config.materialCosts || {}) };
+    
+    // If brand is in motor costs matrix, sync default motor items
+    const brandMotorCosts = (config.brandMotorCosts || DEFAULT_BRAND_MOTOR_COSTS)[localMotor];
+    if (brandMotorCosts) {
+      if (brandMotorCosts.PRG) updatedMaterialCosts['MOT-PRG-DRV'] = brandMotorCosts.PRG;
+      if (brandMotorCosts.RRF) updatedMaterialCosts['MOT-RRF-DRV'] = brandMotorCosts.RRF;
+      if (brandMotorCosts.GUI) updatedMaterialCosts['MOT-AG-GUI'] = brandMotorCosts.GUI;
+      if (brandMotorCosts.ZIP) updatedMaterialCosts['MOT-SOM-ZIP'] = brandMotorCosts.ZIP;
+      if (brandMotorCosts.AWN) updatedMaterialCosts['MOT-SOM-AWN'] = brandMotorCosts.AWN;
+      if (brandMotorCosts.GLS) updatedMaterialCosts['MOT-GLS-ROOF'] = brandMotorCosts.GLS;
+    }
+
+    const brandFabricCost = (config.brandFabricCosts || DEFAULT_BRAND_FABRIC_COSTS)[localFabric];
+    if (brandFabricCost) {
+      updatedMaterialCosts['FAB-FER-SOL'] = brandFabricCost;
+      updatedMaterialCosts['FAB-ACR-AWN'] = brandFabricCost;
+    }
+
     const updated = {
       ...config,
       motorBrand: localMotor,
@@ -881,23 +922,27 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
       enableBomPricing: localEnableBomPricing,
       markupPercentage: Number(localMarkupPercentage) ?? 35,
       pricingMethod: localPricingMethod,
-      aluminiumKgPrice: localAluminiumKgPrice
+      aluminiumKgPrice: localAluminiumKgPrice,
+      materialCosts: updatedMaterialCosts
     };
     saveConfig(updated);
     alert(lang === 'tr' ? 'Küresel marka, ebat ve fiyatlandırma parametreleri kaydedildi!' : 'Global brand, dimension and pricing settings saved successfully!');
   };
 
-  const handleStartEditingCode = (code: string, currentCustomCode: string, currentNameTr: string, currentNameEn: string) => {
+  const handleStartEditingCode = (code: string, currentCustomCode: string, currentNameTr: string, currentNameEn: string, currentCost?: number) => {
     setEditingCode(code);
     setTempCustomCode(currentCustomCode || code);
     setTempCustomNameTr(config.nameOverridesTr[code] || currentNameTr);
     setTempCustomNameEn(config.nameOverridesEn[code] || currentNameEn);
+    const cost = currentCost ?? (config.materialCosts?.[code] ?? DEFAULT_CONFIG.materialCosts?.[code] ?? 0);
+    setTempCustomCost(cost.toString());
   };
 
   const handleSaveCodeOverride = (defaultCode: string) => {
     const updatedCodes = { ...config.codeOverrides };
     const updatedNamesTr = { ...config.nameOverridesTr };
     const updatedNamesEn = { ...config.nameOverridesEn };
+    const updatedCosts = { ...(config.materialCosts || {}) };
 
     if (tempCustomCode.trim() !== '' && tempCustomCode !== defaultCode) {
       updatedCodes[defaultCode] = tempCustomCode.trim();
@@ -917,11 +962,19 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
       delete updatedNamesEn[defaultCode];
     }
 
+    if (tempCustomCost.trim() !== '') {
+      const parsed = parseFloat(tempCustomCost);
+      if (!isNaN(parsed)) {
+        updatedCosts[defaultCode] = parsed;
+      }
+    }
+
     const updated = {
       ...config,
       codeOverrides: updatedCodes,
       nameOverridesTr: updatedNamesTr,
-      nameOverridesEn: updatedNamesEn
+      nameOverridesEn: updatedNamesEn,
+      materialCosts: updatedCosts
     };
     saveConfig(updated);
     setEditingCode(null);
@@ -995,12 +1048,15 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
       fabricBrandLabel: 'Varsayılan Kumaş/Tente Markası',
       stockBarLengthLabel: 'Standart Stok Profil Boyu (mm)',
       sawBladeKerfLabel: 'Testere Bıçağı Kalınlığı (mm)',
-      customCodeMappings: 'Malzeme Kodları ve İsim Özelleştirme Kütüphanesi',
-      customCodeDesc: 'Aşağıdaki tabloda Alumetric tarafında otomatik üretilen malzemelerin varsayılan kodlarını ve açıklamalarını kendi ERP sisteminize veya üretici kodlarınıza göre özelleştirebilirsiniz.',
+      customCodeMappings: 'Malzeme Kodları ve Fiyat Listesi',
+      customCodeDesc: 'Aşağıdaki tabloda Alumetric tarafında otomatik üretilen malzemelerin varsayılan kodlarını, açıklamalarını ve birim alış maliyetlerini kendi ERP sisteminize göre özelleştirebilirsiniz.',
       originalCode: 'Sistem Kodu',
       customCode: 'Sizin Kodunuz (SKU)',
       customNameTr: 'Özel Türkçe İsim',
       customNameEn: 'Özel İngilizce İsim',
+      unitCostLabel: 'Birim Fiyat ($)',
+      brandMatrixTab: '⚡ Motor & Kumaş Marka Matrisi',
+      codeListTab: '📋 Malzeme Kod & Fiyat Listesi',
       actions: 'İşlem',
       edit: 'Düzenle',
       save: 'Kaydet',
@@ -1040,12 +1096,15 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
       fabricBrandLabel: 'Default Screen/Fabric Brand',
       stockBarLengthLabel: 'Stock Profile Length (mm)',
       sawBladeKerfLabel: 'Saw Blade Kerf/Thickness (mm)',
-      customCodeMappings: 'Custom SKU & Description Mapping Library',
-      customCodeDesc: 'Customize the default Alumetric material codes and descriptions in the table below to match your internal ERP, manufacturer part numbers, or regional naming conventions.',
+      customCodeMappings: 'Material SKU & Price Library',
+      customCodeDesc: 'Customize the default Alumetric material codes, descriptions, and default unit costs in the table below to match your internal ERP or supplier price lists.',
       originalCode: 'System Code',
       customCode: 'Your Code (SKU)',
       customNameTr: 'Custom Name (TR)',
       customNameEn: 'Custom Name (EN)',
+      unitCostLabel: 'Unit Cost ($)',
+      brandMatrixTab: '⚡ Motor & Fabric Brand Matrix',
+      codeListTab: '📋 Material Codes & Prices',
       actions: 'Actions',
       edit: 'Edit',
       save: 'Save',
@@ -2163,109 +2222,308 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
               </div>
             </form>
 
-            {/* Right Col: Custom Stock Codes Mapping Table */}
+            {/* Right Col: Custom Stock Codes & Brand Pricing Matrix */}
             <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
-              <div>
-                <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-3">
-                  <Tag size={14} className="text-indigo-400" />
-                  {tLocal('customCodeMappings')}
-                </h3>
-                <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-2.5">
-                  {tLocal('customCodeDesc')}
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+                <div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                    <Tag size={14} className="text-indigo-400" />
+                    {settingsSubTab === 'codes' ? tLocal('customCodeMappings') : (lang === 'tr' ? 'Motor & Kumaş Marka Fiyat Kütüphanesi' : 'Motor & Fabric Brand Price Library')}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-1">
+                    {settingsSubTab === 'codes' ? tLocal('customCodeDesc') : (lang === 'tr' ? 'Tüm motor ve kumaş markalarının varsayılan alış maliyetlerini tek bir matristen yönetin.' : 'Manage default supplier unit costs for all motor and fabric brands in a single matrix.')}
+                  </p>
+                </div>
+
+                <div className="flex bg-slate-950 p-1 rounded-xl border border-white/5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('codes')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${settingsSubTab === 'codes' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    {tLocal('codeListTab')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab('brand-matrix')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${settingsSubTab === 'brand-matrix' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    {tLocal('brandMatrixTab')}
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto max-h-[450px] border border-slate-800 rounded-2xl bg-slate-950">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-slate-950 border-b border-slate-850 text-[10px] text-slate-400 uppercase">
-                    <tr>
-                      <th className="px-4 py-3 font-bold font-mono">{tLocal('originalCode')}</th>
-                      <th className="px-4 py-3 font-bold">{tLocal('customCode')}</th>
-                      <th className="px-4 py-3 font-bold">{tLocal('itemName')}</th>
-                      <th className="px-4 py-3 text-center font-bold">{tLocal('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-850">
-                    {allDefaultMaterialsInProject.map((defItem, dIdx) => {
-                      const isEditing = editingCode === defItem.code;
-                      const hasCustomSku = !!config.codeOverrides[defItem.code];
-                      const activeSku = config.codeOverrides[defItem.code] || defItem.code;
-                      const activeNameTr = config.nameOverridesTr[defItem.code] || defItem.nameTr;
+              {settingsSubTab === 'codes' ? (
+                <div className="overflow-x-auto max-h-[480px] border border-slate-800 rounded-2xl bg-slate-950">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-slate-950 border-b border-slate-850 text-[10px] text-slate-400 uppercase sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-4 py-3 font-bold font-mono">{tLocal('originalCode')}</th>
+                        <th className="px-4 py-3 font-bold">{tLocal('customCode')}</th>
+                        <th className="px-4 py-3 font-bold">{tLocal('itemName')}</th>
+                        <th className="px-4 py-3 font-bold text-right text-emerald-400">{tLocal('unitCostLabel')}</th>
+                        <th className="px-4 py-3 text-center font-bold">{tLocal('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850">
+                      {allDefaultMaterialsInProject.map((defItem, dIdx) => {
+                        const isEditing = editingCode === defItem.code;
+                        const hasCustomSku = !!config.codeOverrides[defItem.code];
+                        const activeSku = config.codeOverrides[defItem.code] || defItem.code;
+                        const activeNameTr = config.nameOverridesTr[defItem.code] || defItem.nameTr;
+                        const currentItemCost = config.materialCosts?.[defItem.code] ?? DEFAULT_CONFIG.materialCosts?.[defItem.code] ?? 0;
 
-                      return (
-                        <tr key={dIdx} className="hover:bg-slate-900/60 transition-colors">
-                          <td className="px-4 py-3 font-mono font-bold text-slate-500">
-                            {defItem.code}
-                          </td>
-                          <td className="px-4 py-3 font-mono">
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={tempCustomCode}
-                                onChange={(e) => setTempCustomCode(e.target.value)}
-                                className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2.5 py-1 text-xs font-mono w-full focus:outline-none"
-                              />
-                            ) : (
-                              <span className={hasCustomSku ? "text-emerald-400 font-bold" : "text-slate-400 font-medium"}>
-                                {activeSku}
+                        return (
+                          <tr key={dIdx} className="hover:bg-slate-900/60 transition-colors">
+                            <td className="px-4 py-3 font-mono font-bold text-slate-500">
+                              <span className="bg-slate-900 px-2 py-0.5 rounded border border-white/5">
+                                {defItem.code}
                               </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {isEditing ? (
-                              <div className="space-y-1">
+                            </td>
+                            <td className="px-4 py-3 font-mono">
+                              {isEditing ? (
                                 <input
                                   type="text"
-                                  value={tempCustomNameTr}
-                                  onChange={(e) => setTempCustomNameTr(e.target.value)}
-                                  className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2 py-0.5 text-xs w-full focus:outline-none"
-                                  placeholder="TR"
+                                  value={tempCustomCode}
+                                  onChange={(e) => setTempCustomCode(e.target.value)}
+                                  className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2.5 py-1 text-xs font-mono w-full focus:outline-none focus:border-indigo-500"
+                                  placeholder={defItem.code}
                                 />
+                              ) : (
+                                <span className={hasCustomSku ? "text-emerald-400 font-bold" : "text-slate-400 font-medium"}>
+                                  {activeSku}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {isEditing ? (
+                                <div className="space-y-1.5">
+                                  <input
+                                    type="text"
+                                    value={tempCustomNameTr}
+                                    onChange={(e) => setTempCustomNameTr(e.target.value)}
+                                    className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2 py-0.5 text-xs w-full focus:outline-none"
+                                    placeholder="TR"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={tempCustomNameEn}
+                                    onChange={(e) => setTempCustomNameEn(e.target.value)}
+                                    className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2 py-0.5 text-xs w-full focus:outline-none"
+                                    placeholder="EN"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="truncate max-w-[200px]" title={lang === 'tr' ? activeNameTr : (config.nameOverridesEn[defItem.code] || defItem.nameEn)}>
+                                  {lang === 'tr' ? activeNameTr : (config.nameOverridesEn[defItem.code] || defItem.nameEn)}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-xs">
+                              {isEditing ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={tempCustomCost}
+                                    onChange={(e) => setTempCustomCost(e.target.value)}
+                                    className="bg-slate-950 border border-emerald-500/50 text-emerald-400 rounded px-2 py-1 text-xs font-mono font-bold w-20 text-right focus:outline-none"
+                                    placeholder="0.00"
+                                  />
+                                  <span className="text-slate-500 text-[10px]">$</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <span className="text-emerald-400">
+                                    {currentItemCost.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} $
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isEditing ? (
+                                <div className="flex gap-1 justify-center">
+                                  <button
+                                    onClick={() => handleSaveCodeOverride(defItem.code)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] px-2.5 py-1 rounded shadow"
+                                  >
+                                    {tLocal('save')}
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingCode(null)}
+                                    className="bg-slate-800 hover:bg-slate-750 text-slate-400 font-bold text-[9px] px-2 py-1 rounded"
+                                  >
+                                    {tLocal('cancel')}
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleStartEditingCode(defItem.code, activeSku, defItem.nameTr, defItem.nameEn, currentItemCost)}
+                                  className="bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors"
+                                >
+                                  {tLocal('edit')}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Motor Brands Matrix */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Zap size={13} />
+                        {lang === 'tr' ? 'Motor Markaları & Sistem Fiyat Matrisi ($)' : 'Motor Brands & System Price Matrix ($)'}
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {lang === 'tr' ? 'Varsayılan marka seçildiğinde bu fiyatlar otomatik kullanılır' : 'Used automatically when selected as default'}
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-950 border-b border-slate-850 text-[10px] text-slate-400 uppercase">
+                          <tr>
+                            <th className="px-3.5 py-3 font-bold">{lang === 'tr' ? 'Motor Markası' : 'Motor Brand'}</th>
+                            <th className="px-3 py-3 text-right font-bold">Pergola</th>
+                            <th className="px-3 py-3 text-right font-bold">Rolling Roof</th>
+                            <th className="px-3 py-3 text-right font-bold">Giyotin</th>
+                            <th className="px-3 py-3 text-right font-bold">Zip Perde</th>
+                            <th className="px-3 py-3 text-right font-bold">Tente</th>
+                            <th className="px-3 py-3 text-right font-bold">Cam Tavan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-850 font-mono">
+                          {PREDEFINED_MOTORS.map((mBrand, mIdx) => {
+                            const isCurrentSelected = localMotor === mBrand;
+                            const brandCosts = config.brandMotorCosts?.[mBrand] || DEFAULT_BRAND_MOTOR_COSTS[mBrand] || { 'PRG': 400, 'RRF': 430, 'GUI': 430, 'ZIP': 190, 'AWN': 160, 'GLS': 500 };
+
+                            const updateMotorBrandCost = (sysKey: string, val: number) => {
+                              const updatedBrandCosts = { ...(config.brandMotorCosts || DEFAULT_BRAND_MOTOR_COSTS) };
+                              updatedBrandCosts[mBrand] = {
+                                ...(updatedBrandCosts[mBrand] || {}),
+                                [sysKey]: val
+                              };
+
+                              // Also update active material costs if this is the currently active motor brand
+                              const updatedMaterialCosts = { ...(config.materialCosts || {}) };
+                              if (isCurrentSelected) {
+                                if (sysKey === 'PRG') updatedMaterialCosts['MOT-PRG-DRV'] = val;
+                                if (sysKey === 'RRF') updatedMaterialCosts['MOT-RRF-DRV'] = val;
+                                if (sysKey === 'GUI') updatedMaterialCosts['MOT-AG-GUI'] = val;
+                                if (sysKey === 'ZIP') updatedMaterialCosts['MOT-SOM-ZIP'] = val;
+                                if (sysKey === 'AWN') updatedMaterialCosts['MOT-SOM-AWN'] = val;
+                                if (sysKey === 'GLS') updatedMaterialCosts['MOT-GLS-ROOF'] = val;
+                              }
+
+                              const updated = {
+                                ...config,
+                                brandMotorCosts: updatedBrandCosts,
+                                materialCosts: updatedMaterialCosts
+                              };
+                              saveConfig(updated);
+                            };
+
+                            return (
+                              <tr key={mIdx} className={`hover:bg-slate-900/60 transition-colors ${isCurrentSelected ? 'bg-indigo-950/20' : ''}`}>
+                                <td className="px-3.5 py-3 font-bold font-sans flex items-center gap-2 text-slate-200">
+                                  <span>{mBrand}</span>
+                                  {isCurrentSelected && (
+                                    <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">
+                                      {lang === 'tr' ? 'Seçili' : 'Active'}
+                                    </span>
+                                  )}
+                                </td>
+                                {['PRG', 'RRF', 'GUI', 'ZIP', 'AWN', 'GLS'].map(sysKey => (
+                                  <td key={sysKey} className="px-3 py-2 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <input
+                                        type="number"
+                                        value={brandCosts[sysKey] ?? 0}
+                                        onChange={(e) => updateMotorBrandCost(sysKey, parseFloat(e.target.value) || 0)}
+                                        className="w-16 bg-slate-900 border border-slate-800 focus:border-indigo-500 text-right px-1.5 py-1 text-xs font-mono font-bold text-emerald-400 rounded focus:outline-none"
+                                      />
+                                      <span className="text-[10px] text-slate-500">$</span>
+                                    </div>
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Fabric Brands List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers size={13} />
+                        {lang === 'tr' ? 'Kumaş & Tente Markaları m² Fiyat Kütüphanesi ($/m²)' : 'Fabric & Screen Brands m² Price Library ($/m²)'}
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {PREDEFINED_FABRICS.map((fBrand, fIdx) => {
+                        const isCurrentFabric = localFabric === fBrand;
+                        const fPrice = config.brandFabricCosts?.[fBrand] ?? DEFAULT_BRAND_FABRIC_COSTS[fBrand] ?? 14;
+
+                        const updateFabricCost = (val: number) => {
+                          const updatedFabricCosts = { ...(config.brandFabricCosts || DEFAULT_BRAND_FABRIC_COSTS) };
+                          updatedFabricCosts[fBrand] = val;
+
+                          const updatedMaterialCosts = { ...(config.materialCosts || {}) };
+                          if (isCurrentFabric) {
+                            updatedMaterialCosts['FAB-FER-SOL'] = val;
+                            updatedMaterialCosts['FAB-ACR-AWN'] = val;
+                          }
+
+                          const updated = {
+                            ...config,
+                            brandFabricCosts: updatedFabricCosts,
+                            materialCosts: updatedMaterialCosts
+                          };
+                          saveConfig(updated);
+                        };
+
+                        return (
+                          <div key={fIdx} className={`p-3.5 rounded-2xl border transition-all ${isCurrentFabric ? 'bg-indigo-950/30 border-indigo-500/40' : 'bg-slate-950 border-slate-800'}`}>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="font-bold text-xs text-slate-200 truncate" title={fBrand}>
+                                {fBrand}
+                              </span>
+                              {isCurrentFabric && (
+                                <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-black uppercase">
+                                  {lang === 'tr' ? 'Seçili' : 'Active'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-slate-400 font-medium">{lang === 'tr' ? 'Birim m² Alış:' : 'Unit m² Cost:'}</span>
+                              <div className="flex items-center gap-1">
                                 <input
-                                  type="text"
-                                  value={tempCustomNameEn}
-                                  onChange={(e) => setTempCustomNameEn(e.target.value)}
-                                  className="bg-slate-950 border border-indigo-500/30 text-white rounded px-2 py-0.5 text-xs w-full focus:outline-none"
-                                  placeholder="EN"
+                                  type="number"
+                                  step="any"
+                                  value={fPrice}
+                                  onChange={(e) => updateFabricCost(parseFloat(e.target.value) || 0)}
+                                  className="w-16 bg-slate-900 border border-slate-800 focus:border-indigo-500 text-right px-2 py-1 text-xs font-mono font-bold text-emerald-400 rounded focus:outline-none"
                                 />
+                                <span className="text-[10px] text-slate-400 font-mono font-bold">$/m²</span>
                               </div>
-                            ) : (
-                              <div className="truncate max-w-[200px]" title={lang === 'tr' ? activeNameTr : (config.nameOverridesEn[defItem.code] || defItem.nameEn)}>
-                                {lang === 'tr' ? activeNameTr : (config.nameOverridesEn[defItem.code] || defItem.nameEn)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {isEditing ? (
-                              <div className="flex gap-1 justify-center">
-                                <button
-                                  onClick={() => handleSaveCodeOverride(defItem.code)}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] px-2 py-1 rounded"
-                                >
-                                  {tLocal('save')}
-                                </button>
-                                <button
-                                  onClick={() => setEditingCode(null)}
-                                  className="bg-slate-800 hover:bg-slate-750 text-slate-400 font-bold text-[9px] px-2 py-1 rounded"
-                                >
-                                  {tLocal('cancel')}
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleStartEditingCode(defItem.code, activeSku, defItem.nameTr, defItem.nameEn)}
-                                className="text-slate-400 hover:text-white font-bold text-[10px] underline hover:no-underline px-1"
-                              >
-                                {tLocal('edit')}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </div>
 
