@@ -69,6 +69,12 @@ export const DEFAULT_PROFILE_WEIGHTS: Record<string, number> = {
   'BAL-SIDE-80': 1.4,
   'BAL-SASH-B': 1.3,
   'BAL-SASH-V': 0.9,
+
+  'GLS-RAIL-220': 6.8, // 6.8 kg/m
+  'GLS-BEAM-250': 7.9, // 7.9 kg/m
+  'GLS-POST-120': 5.2, // 5.2 kg/m
+  'GLS-GUT-160': 3.6,  // 3.6 kg/m
+  'GLS-SASH-100': 3.2, // 3.2 kg/m
 };
 
 export const DEFAULT_CONFIG: ShadingConfig = {
@@ -120,6 +126,15 @@ export const DEFAULT_CONFIG: ShadingConfig = {
     'BAL-SASH-V': 8,
     'ACC-BAL-GLS': 55,
     'ACC-BAL-ACC': 40,
+    // Retractable Glass Roof
+    'GLS-RAIL-220': 52,
+    'GLS-BEAM-250': 62,
+    'GLS-POST-120': 42,
+    'GLS-GUT-160': 34,
+    'GLS-SASH-100': 38,
+    'MOT-GLS-ROOF': 550,
+    'ACC-GLS-LAM': 110,
+    'ACC-GLS-KIT': 120,
     // Add variations for other types
     'RRF-RAIL-200': 48,
     'RRF-BEAM-220': 58,
@@ -552,6 +567,97 @@ export const getShadingItemBOM = (item: ShadingItem, config: ShadingConfig): Sha
       nameTr: 'Paslanmaz Rulmanlı Çiftli Tekerlek, Kilit, Çekme Kolu ve Mıknatıslı Mıknatıs Conta Kiti',
       nameEn: 'Stainless Dual Ball-Bearing Wheels, Heavy Duty Lock, Pull Handle & Magnetic Gasket Kit',
       code: 'ACC-BAL-ACC',
+      quantity: 1 * qty,
+      unit: 'pce'
+    }));
+
+  } else if (type === 'retractable-glass') {
+    // Profiles
+    materials.push(applyOverrides({
+      category: 'profile',
+      nameTr: 'Hareketli Cam Tavan Ağır Hizmet Ray Profili',
+      nameEn: 'Retractable Glass Heavy Duty Carrier Guide Rail',
+      code: 'GLS-RAIL-220',
+      quantity: 2 * qty,
+      unit: 'pce',
+      dimensions: `${d || h} mm`,
+      lengths: Array(2).fill(d || h)
+    }));
+
+    materials.push(applyOverrides({
+      category: 'profile',
+      nameTr: 'Ön ve Arka Ağır Yük Taşıyıcı Çelik Takviyeli Kiriş Profili',
+      nameEn: 'Front & Rear Heavy Load Bearing Steel-Reinforced Beam',
+      code: 'GLS-BEAM-250',
+      quantity: 2 * qty,
+      unit: 'pce',
+      dimensions: `${w} mm`,
+      lengths: Array(2).fill(w)
+    }));
+
+    materials.push(applyOverrides({
+      category: 'profile',
+      nameTr: 'Ağır Hizmet Taşıyıcı Dikme Kolon Profili (Flanşlı)',
+      nameEn: 'Heavy Structural Post Pillar Profile (With Base Flange)',
+      code: 'GLS-POST-120',
+      quantity: 4 * qty,
+      unit: 'pce',
+      dimensions: `${h} mm`,
+      lengths: Array(4).fill(h)
+    }));
+
+    materials.push(applyOverrides({
+      category: 'profile',
+      nameTr: 'Entegre Gizli Drenaj ve Su Tahliye Oluk Profili',
+      nameEn: 'Integrated Concealed Gutter & Water Drainage Profile',
+      code: 'GLS-GUT-160',
+      quantity: 1 * qty,
+      unit: 'pce',
+      dimensions: `${w} mm`,
+      lengths: [w]
+    }));
+
+    // Sashes / Modüllü Kanatlar (3 veya 4 hareketli cam modülü)
+    const glassModuleCount = 4;
+    const sashLength = w - 120;
+    materials.push(applyOverrides({
+      category: 'profile',
+      nameTr: 'Hareketli Cam Panel Taşıyıcı Kanat Baza Profili',
+      nameEn: 'Retractable Glass Panel Sash Clamping Profile',
+      code: 'GLS-SASH-100',
+      quantity: glassModuleCount * 2 * qty,
+      unit: 'pce',
+      dimensions: `${sashLength} mm`,
+      lengths: Array(glassModuleCount * 2).fill(sashLength)
+    }));
+
+    // Motor
+    materials.push(applyOverrides({
+      category: 'motor',
+      nameTr: `${config.motorBrand} Ağır Hizmet Teleskobik Cam Tavan Motor & Zincir Sürücü Kiti`,
+      nameEn: `${config.motorBrand} Heavy Duty Retractable Glass Roof Motor & Chain Driver Kit`,
+      code: 'MOT-GLS-ROOF',
+      quantity: 1 * qty,
+      unit: 'pce'
+    }));
+
+    // Accessories & Glass
+    const singleGlassDepth = Math.round(((d || h) / glassModuleCount) + 80);
+    materials.push(applyOverrides({
+      category: 'accessory',
+      nameTr: '4+4 Lamine Temperli Çift Cam Güneş Korumalı Isıcam Paketi',
+      nameEn: '4+4 Laminated Tempered Double Glazed Sun Protection Glass Pack',
+      code: 'ACC-GLS-LAM',
+      quantity: glassModuleCount * qty,
+      unit: 'pce',
+      dimensions: `${w - 140}x${singleGlassDepth} mm`
+    }));
+
+    materials.push(applyOverrides({
+      category: 'accessory',
+      nameTr: 'EPDM Kauçuk Fitil, Triger Çekme Kayışı, Paslanmaz Rulman ve Bağlantı Kiti',
+      nameEn: 'EPDM Rubber Gaskets, Timing Belt Drive, Stainless Bearings & Hardware Kit',
+      code: 'ACC-GLS-KIT',
       quantity: 1 * qty,
       unit: 'pce'
     }));
