@@ -3938,17 +3938,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <div className="flex items-center gap-2 mb-1.5">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                 <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest font-mono">
-                                    {lang === 'tr' ? 'CANLI ENTEGRASYON AKTİF' : 'LIVE INTEGRATION ACTIVE'}
+                                    {lang === 'tr' ? 'AÇIK ALAN VE GÖLGELENDİRME MOTORU AKTİF' : 'OUTDOOR LIVING & SHADING ENGINE ACTIVE'}
                                 </span>
                             </div>
                             <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight flex flex-wrap items-center gap-2">
-                                <span>SHADEVISION</span> 
-                                <span className="text-indigo-400 font-medium font-sans">3D DESIGN STUDIO</span>
+                                <span>ALUMETRİK</span> 
+                                <span className="text-indigo-400 font-medium font-sans">GÖLGELENDİRME STÜDYOSU</span>
                             </h2>
                             <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
                                 {lang === 'tr' 
-                                  ? 'ShadeVision 3D gölgelendirme ve tasarım yazılımı Alumetric ile tam entegre çalışır. Tasarladığınız pergola, tente ve zip perde sistemlerini anında teklifinize aktarabilirsiniz.' 
-                                  : 'ShadeVision 3D shading design application runs fully integrated with Alumetric. Seamlessly transfer your designed pergola, awning, and zip blind systems to your commercial proposal.'}
+                                  ? 'Bioklimatik Pergola, Rolling Roof, Zip Perde, Giyotin Cam, Mafsallı Tente ve Cam Balkon sistemlerini parametrik olarak tasarlayın, teklif ve kesim listelerinizi anında oluşturun.' 
+                                  : 'Parametrically design Bioclimatic Pergolas, Rolling Roofs, Zip Screens, Guillotine Glass, Retractable Awnings and Glass Balconies with instant quote calculation.'}
                             </p>
                         </div>
 
@@ -3961,7 +3961,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/15"
                             >
                                 <ExternalLink size={14} />
-                                <span>{lang === 'tr' ? 'YENİ SEKMEDE TAM EKRAN AÇ' : 'OPEN FULLSCREEN'}</span>
+                                <span>{lang === 'tr' ? '3D TASARIMCIYI TAM EKRAN AÇ' : 'OPEN 3D DESIGNER FULLSCREEN'}</span>
                             </a>
                         </div>
                     </div>
@@ -3972,7 +3972,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             onClick={() => setShadingSubTab('designer')}
                             className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${shadingSubTab === 'designer' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
                         >
-                            {lang === 'tr' ? '3D Tasarım & Entegrasyon' : '3D Design & Integration'}
+                            {lang === 'tr' ? '3D Tasarım & Sistem Parametreleri' : '3D Design & System Parameters'}
                         </button>
                         <button
                             onClick={() => setShadingSubTab('bom_opt')}
@@ -3985,126 +3985,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     {shadingSubTab === 'designer' ? (
                         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
                         
-                        {/* LEFT: Alumetric Integration Bridge & Sync Panel (Col: 5) */}
+                        {/* LEFT: Shading Parameters & Active Quotes List (Col: 5) */}
                         <div className="xl:col-span-5 space-y-6">
                             
-                            {/* Card 1: Connection & Sync Bridge */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
-                                <div className="border-b border-white/5 pb-4 flex justify-between items-center">
-                                    <div>
-                                        <h3 className="text-sm font-black uppercase tracking-wider text-indigo-400 flex items-center gap-2">
-                                            <Cpu size={16} />
-                                            <span>{lang === 'tr' ? 'ENTEGRASYON KÖPRÜSÜ' : 'INTEGRATION BRIDGE'}</span>
-                                        </h3>
-                                        <p className="text-[11px] text-slate-400 mt-1">
-                                            {lang === 'tr' ? 'ShadeVision verilerini Alumetric teklifine bağlayın' : 'Connect ShadeVision quotes to Alumetric proposals'}
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                        <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                            PORTAL ONLINE
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Live postMessage Status indicator */}
-                                <div className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-                                            {lang === 'tr' ? 'ANLIK VERİ DİNLEYİCİ' : 'LIVE DATA LISTENER'}
-                                        </span>
-                                        <span className="text-[9px] font-mono text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                                            HTML5 postMessage
-                                        </span>
-                                    </div>
-                                    {lastMessageReceived ? (
-                                        <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl flex items-start gap-2.5 animate-in fade-in duration-300">
-                                            <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
-                                            <div className="text-[11px]">
-                                                <p className="text-emerald-400 font-bold uppercase tracking-wider">
-                                                    {lang === 'tr' ? 'ANLIK POZ AKTARILDI!' : 'LIVE POSITION IMPORTED!'}
-                                                </p>
-                                                <p className="text-slate-300 mt-0.5 font-bold">{lastMessageReceived.name}</p>
-                                                <p className="text-slate-400 font-mono text-[10px] mt-0.5">
-                                                    {lastMessageReceived.width}x{lastMessageReceived.height} mm • {lastMessageReceived.quantity} {lang === 'tr' ? 'Adet' : 'Qty'} • {currencySymbol}{lastMessageReceived.unitPrice.toLocaleString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="p-3 bg-slate-900 rounded-xl border border-white/5 flex items-center gap-2.5 text-slate-400">
-                                            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-                                            <span className="text-[11px] font-medium">
-                                                {lang === 'tr' 
-                                                    ? 'ShadeVision uygulamasından veri gönderilmesi bekleniyor...' 
-                                                    : 'Waiting for instant data payload from ShadeVision...'}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Text Copy-Paste Auto Extractor */}
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-mono">
-                                            {lang === 'tr' ? '1. METİN KOPYALA-YAPIŞTIR İLE AKTAR' : '1. COPY-PASTE AUTO IMPORT'}
-                                        </label>
-                                        <span className="text-[8px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">
-                                            {lang === 'tr' ? 'Akıllı Ayrıştırıcı' : 'Smart Parser'}
-                                        </span>
-                                    </div>
-                                    <textarea
-                                        value={shadeVisionPasteData}
-                                        onChange={(e) => setShadeVisionPasteData(e.target.value)}
-                                        placeholder={
-                                            lang === 'tr'
-                                              ? "ShadeVision'dan aldığınız teklif satırlarını buraya yapıştırın...\nÖrn: Bioklimatik Pergole 6000x3500, 1 adet, 5200 €\nZip Perde 3500x2500, 3 adet, 850 €"
-                                              : "Paste quotation lines copied from ShadeVision here...\nE.g. Bioclimatic Pergola 6000x3500, 1 qty, 5200 EUR\nZip Screen 3500x2500, 3 qty, 850 EUR"
-                                        }
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 placeholder-slate-600 font-mono text-[11px] h-[100px] outline-none focus:border-indigo-500/50 resize-none transition-all"
-                                    />
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShadeVisionPasteData(
-                                                    lang === 'tr'
-                                                    ? "Bioklimatik Pergole 6000x3500, 1 adet, 5200 €\nZip Perde 3500x2500, 3 adet, 850 €"
-                                                    : "Bioclimatic Pergola 6000x3500, 1 qty, 5200 EUR\nZip Screen 3500x2500, 3 qty, 850 EUR"
-                                                );
-                                                showToast(lang === 'tr' ? "Örnek şablon metni eklendi!" : "Sample template pasted!", "info");
-                                            }}
-                                            className="bg-slate-850 hover:bg-slate-800 text-slate-400 font-bold text-[10px] uppercase tracking-wider px-4 py-3 rounded-xl border border-white/5 transition-all"
-                                        >
-                                            {lang === 'tr' ? 'ŞABLON YAPIŞTIR' : 'INSERT TEMPLATE'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={isSyncingShadeVision}
-                                            onClick={handleSyncShadeVision}
-                                            className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-600/15 transition-all flex items-center justify-center gap-2 border border-indigo-500/20"
-                                        >
-                                            {isSyncingShadeVision ? (
-                                                <>
-                                                    <Loader2 size={14} className="animate-spin text-white" />
-                                                    <span>{lang === 'tr' ? 'AYRIŞTIRILIYOR...' : 'PARSING DATA...'}</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <ClipboardCheck size={14} className="text-emerald-400" />
-                                                    <span>{lang === 'tr' ? 'METNİ TEKLİFE AKTAR' : 'PARSE & SAVE TO QUOTE'}</span>
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Card 2: Manual Position Quick Form */}
+                            {/* Card 1: System Configuration & Position Add Form */}
                             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
                                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
                                     <PlusCircle size={15} className="text-blue-400" />
-                                    <span>{lang === 'tr' ? '2. HIZLI MANUEL GÖLGELENDİRME EKLE' : '2. ADD MANUAL SHADING POSITION'}</span>
+                                    <span>{lang === 'tr' ? 'GÖLGELENDİRME SİSTEMİ EKLE & PARAMETRELER' : 'ADD SHADING SYSTEM & PARAMETERS'}</span>
                                 </h3>
 
                                 <div className="grid grid-cols-2 gap-3">
@@ -4459,11 +4347,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 backdrop-blur border border-white/5 p-3 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex justify-between items-center">
                                         <span className="text-[10px] text-slate-300 font-medium">
                                             💡 {lang === 'tr' 
-                                                ? 'Tasarım ekranında teklifinizi oluşturduktan sonra, teklif satırlarını kopyalayıp sol taraftaki Akıllı Köprüye yapıştırarak Alumetrike aktarabilirsiniz!' 
-                                                : 'After designing your systems, simply copy quotation lines and paste them into the Smart Bridge on the left!'}
+                                                ? '3D Stüdyoda pergola, zip perde ve cam sistemlerinizi görselleştirip sol panelden parametrik teklif detaylarını kaydedebilirsiniz.' 
+                                                : 'Visualize pergolas, zip screens and glass systems in 3D and record parametric quote details from the left panel.'}
                                         </span>
                                         <span className="text-[9px] text-indigo-400 font-bold bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">
-                                            {lang === 'tr' ? 'KOLAY AKTARIM' : 'EASY EXPORT'}
+                                            {lang === 'tr' ? '3D MODELLEME' : '3D MODELING'}
                                         </span>
                                     </div>
                                 </div>
