@@ -1014,12 +1014,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [productTypes, setProductTypes] = useState<{ id: string; nameTr: string; nameEn: string; imageUrl?: string }[]>(() => {
     const defaults = [
       { id: 'bioclimatic-pergola', nameTr: 'Bioklimatik Pergole', nameEn: 'Bioclimatic Pergola', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
-      { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
-      { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
-      { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
-      { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Guillotine Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
-      { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
-      { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
+      { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof System', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+      { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind / Screen', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
+      { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Retractable Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
+      { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Motorized Guillotine Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+      { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Sliding / Folding Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+      { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass Roof', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
     ];
     try {
       const storedDefaultImages = localStorage.getItem('alumetric_default_product_type_images');
@@ -1063,12 +1063,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           setProductTypes(prev => {
             const defaults = [
               { id: 'bioclimatic-pergola', nameTr: 'Bioklimatik Pergole', nameEn: 'Bioclimatic Pergola', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
-              { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
-              { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
-              { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
-              { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Giyotin Cam Sistemi', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
-              { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
-              { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
+              { id: 'rolling-roof', nameTr: 'Rolling Roof / Açılır Tavan', nameEn: 'Rolling Roof System', imageUrl: 'https://images.unsplash.com/photo-1615874959474-d609969a20ed?w=600&auto=format&fit=crop' },
+              { id: 'zip-blind', nameTr: 'Zip Perde / Stor', nameEn: 'Zip Blind / Screen', imageUrl: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop' },
+              { id: 'awning', nameTr: 'Mafsallı / Kasetli Tente', nameEn: 'Retractable Awning System', imageUrl: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop' },
+              { id: 'guillotine', nameTr: 'Giyotin Cam Sistemi', nameEn: 'Motorized Guillotine Glass', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+              { id: 'glass-balcony', nameTr: 'Katlanır / Sürme Cam Balkon', nameEn: 'Sliding / Folding Glass Balcony', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' },
+              { id: 'retractable-glass', nameTr: 'Hareketli Cam Tavan', nameEn: 'Retractable Glass Roof', imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&auto=format&fit=crop' }
             ];
             
             if (defaultProductTypeImages) {
@@ -1172,7 +1172,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return id;
   };
 
-  const [shadingFormName, setShadingFormName] = useState('Premium Bioklimatik Pergole');
+  const [shadingFormName, setShadingFormName] = useState(() => lang === 'tr' ? 'Premium Bioklimatik Pergole' : 'Premium Bioclimatic Pergola');
   const [shadingFormWidth, setShadingFormWidth] = useState(4000);
   const [shadingFormHeight, setShadingFormHeight] = useState(2500);
   const [shadingFormDepth, setShadingFormDepth] = useState(3000);
@@ -1180,8 +1180,17 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   const [shadingFormBackHeight, setShadingFormBackHeight] = useState(2500);
   const [shadingFormQty, setShadingFormQty] = useState(1);
   const [shadingFormPrice, setShadingFormPrice] = useState(4500);
-  const [shadingFormColor, setShadingFormColor] = useState('RAL 7016 Antrasit Gri');
+  const [shadingFormColor, setShadingFormColor] = useState(() => lang === 'tr' ? 'RAL 7016 Antrasit Gri' : 'RAL 7016 Anthracite Grey');
   const [shadingFormNotes, setShadingFormNotes] = useState('');
+
+  // Sync form defaults when active language changes
+  useEffect(() => {
+    const found = productTypes.find(t => t.id === shadingFormProduct);
+    if (found) {
+      setShadingFormName(lang === 'tr' ? found.nameTr : found.nameEn);
+    }
+    setShadingFormColor(lang === 'tr' ? 'RAL 7016 Antrasit Gri' : 'RAL 7016 Anthracite Grey');
+  }, [lang]);
   const [shadingFormImageUrl, setShadingFormImageUrl] = useState(() => {
     const found = productTypes.find(t => t.id === 'bioclimatic-pergola');
     return found ? (found.imageUrl || '') : '';
@@ -3942,8 +3951,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </span>
                             </div>
                             <h2 className="text-2xl font-black text-slate-100 uppercase tracking-tight flex flex-wrap items-center gap-2">
-                                <span>ALUMETRİK</span> 
-                                <span className="text-indigo-400 font-medium font-sans">GÖLGELENDİRME STÜDYOSU</span>
+                                <span>{lang === 'tr' ? 'ALUMETRİK' : 'ALUMETRIC'}</span> 
+                                <span className="text-indigo-400 font-medium font-sans">{lang === 'tr' ? 'GÖLGELENDİRME STÜDYOSU' : 'SHADING STUDIO'}</span>
                             </h2>
                             <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
                                 {lang === 'tr' 
@@ -4040,7 +4049,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                     }
                                                 }
                                             }}
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 pr-8 text-slate-200 text-xs outline-none focus:border-indigo-500/50 appearance-none cursor-pointer"
                                         >
                                             {productTypes.map(pt => (
                                                 <option key={pt.id} value={pt.id}>
@@ -4134,7 +4143,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                             type="text"
                                             value={shadingFormNotes}
                                             onChange={(e) => setShadingFormNotes(e.target.value)}
-                                            placeholder="Motor, sensör, vb."
+                                            placeholder={lang === 'tr' ? 'Motor, sensör, vb.' : 'Motor, sensor, etc.'}
                                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 text-xs outline-none focus:border-indigo-500/50"
                                         />
                                     </div>

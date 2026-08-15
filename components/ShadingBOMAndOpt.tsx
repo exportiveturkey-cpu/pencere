@@ -2392,10 +2392,10 @@ export const ShadingBOMAndOpt: React.FC<ShadingBOMAndOptProps> = ({ shadingItems
                             <th className="px-3.5 py-3 font-bold">{lang === 'tr' ? 'Motor Markası' : 'Motor Brand'}</th>
                             <th className="px-3 py-3 text-right font-bold">Pergola</th>
                             <th className="px-3 py-3 text-right font-bold">Rolling Roof</th>
-                            <th className="px-3 py-3 text-right font-bold">Giyotin</th>
-                            <th className="px-3 py-3 text-right font-bold">Zip Perde</th>
-                            <th className="px-3 py-3 text-right font-bold">Tente</th>
-                            <th className="px-3 py-3 text-right font-bold">Cam Tavan</th>
+                            <th className="px-3 py-3 text-right font-bold">{lang === 'tr' ? 'Giyotin' : 'Guillotine'}</th>
+                            <th className="px-3 py-3 text-right font-bold">{lang === 'tr' ? 'Zip Perde' : 'Zip Screen'}</th>
+                            <th className="px-3 py-3 text-right font-bold">{lang === 'tr' ? 'Tente' : 'Awning'}</th>
+                            <th className="px-3 py-3 text-right font-bold">{lang === 'tr' ? 'Cam Tavan' : 'Glass Roof'}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850 font-mono">
