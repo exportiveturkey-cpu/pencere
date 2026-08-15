@@ -2933,7 +2933,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         onClick={() => onUpdateProject({ ...project, status: 'Completed' })}
                                         className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                                     >
-                                        &check; {t(lang, 'complete') || 'Tamamla'}
+                                        {t(lang, 'complete') || (lang === 'tr' ? 'Tamamla' : 'Complete')}
                                     </button>
                                 </>
                             )}
