@@ -502,11 +502,17 @@ const App: React.FC = () => {
                       <ShieldAlert size={24} />
                   </div>
                   <div className="flex-1">
-                      <h3 className="font-bold text-white text-lg leading-tight">Veritabanı Erişim Hatası</h3>
+                      <h3 className="font-bold text-white text-lg leading-tight">
+                        {lang === 'tr' ? 'Veritabanı Erişim Hatası' : 'Database Access Error'}
+                      </h3>
                       <p className="text-red-100 text-sm mt-1 leading-relaxed">
-                          Firebase Firestore kurallarınız buluta veri yazılmasını veya okunmasını engelliyor.
+                        {lang === 'tr' 
+                          ? 'Firebase Firestore kurallarınız buluta veri yazılmasını veya okunmasını engelliyor.' 
+                          : 'Your Firebase Firestore rules are preventing cloud read/write operations.'}
                       </p>
-                      <button onClick={() => setPermissionError(false)} className="mt-4 bg-white text-red-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">Anladım</button>
+                      <button onClick={() => setPermissionError(false)} className="mt-4 bg-white text-red-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
+                        {lang === 'tr' ? 'Anladım' : 'Dismiss'}
+                      </button>
                   </div>
               </div>
           </div>
@@ -514,11 +520,11 @@ const App: React.FC = () => {
 
       <div className="fixed bottom-4 right-4 z-[60] flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 backdrop-blur border border-white/5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-all">
           {isSyncing ? (
-            <><Loader2 size={12} className="text-blue-400 animate-spin" /><span className="text-blue-400">Buluta Yazılıyor...</span></>
+            <><Loader2 size={12} className="text-blue-400 animate-spin" /><span className="text-blue-400">{lang === 'tr' ? 'Buluta Yazılıyor...' : 'Syncing to Cloud...'}</span></>
           ) : permissionError ? (
-            <><AlertTriangle size={12} className="text-red-400" /><span className="text-red-400">Erişim Yetkisi Yok</span></>
+            <><AlertTriangle size={12} className="text-red-400" /><span className="text-red-400">{lang === 'tr' ? 'Erişim Yetkisi Yok' : 'Access Restricted'}</span></>
           ) : (
-            <><Cloud size={12} className="text-emerald-400" /><span className="text-emerald-400">Bulut ile Senkronize</span></>
+            <><Cloud size={12} className="text-emerald-400" /><span className="text-emerald-400">{lang === 'tr' ? 'Bulut ile Senkronize' : 'Synced with Cloud'}</span></>
           )}
       </div>
 

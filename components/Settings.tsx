@@ -9,21 +9,21 @@ import { getSessionInfo } from '../services/authService';
 import { COLOR_GROUPS, MOCK_ACCESSORIES, PROFILE_SYSTEMS } from '../constants';
 
 export const TYPOLOGIES = [
-  { id: 'fixed_storefront', nameTr: 'Fixed / Sabit', nameEn: 'Fixed / Sabit' },
-  { id: 'top_hung_window', nameTr: 'Vasistas / Top Hung', nameEn: 'Top Hung / Vasistas' },
-  { id: 'hinged_window', nameTr: 'Tek Açılım / Side Hung Window', nameEn: 'Side Hung Window / Tek Açılım' },
-  { id: 'tilt_turn_window', nameTr: 'Çift Açılım / Tilt & Turn Window', nameEn: 'Tilt & Turn Window / Çift Açılım' },
-  { id: 'double_sash_window', nameTr: 'Çift Kanat Açılım / Double Sash', nameEn: 'Double Sash / Çift Kanat Açılım' },
-  { id: 'angular_junction', nameTr: 'Açılı Dönüş / Angular', nameEn: 'Angular / Açılı Dönüş' },
-  { id: 'inside_opening_door', nameTr: 'İçe Açılır Kapı / Inside Opening Door', nameEn: 'Inside Opening Door / İçe Açılır Kapı' },
-  { id: 'inside_opening_double_door', nameTr: 'İçe Açılır Çift Kanat Kapı / Inside Opening Double Sash Door', nameEn: 'Inside Opening Double Sash Door / İçe Açılır Çift Kanat Kapı' },
-  { id: 'outside_opening_door', nameTr: 'Dışa Açılır Kapı / Outside Opening Door', nameEn: 'Outside Opening Door / Dışa Açılır Kapı' },
-  { id: 'outside_opening_double_door', nameTr: 'Dışa Açılır Çift Kanat Kapı / Outside Opening Double Sash Door', nameEn: 'Outside Opening Double Sash Door / Dışa Açılır Çift Kanat Kapı' },
-  { id: 'pivot_opening', nameTr: 'Pivot Açılım / Pivot Opening', nameEn: 'Pivot Opening / Pivot Açılım' },
-  { id: 'sliding_window', nameTr: 'Sürme Pencere / Sliding Window', nameEn: 'Sliding Window / Sürme Pencere' },
-  { id: 'sliding_door', nameTr: 'Sürme Kapı / Sliding Door', nameEn: 'Sliding Door / Sürme Kapı' },
-  { id: 'tilt_slide_door', nameTr: 'Paralel Sürme / Tilt & Slide Opening Door', nameEn: 'Tilt & Slide Opening Door / Paralel Sürme' },
-  { id: 'folding_door', nameTr: 'Katlanır Kapı / Folding Door', nameEn: 'Folding Door / Katlanır Kapı' }
+  { id: 'fixed_storefront', nameTr: 'Sabit Doğrama / Vitrin', nameEn: 'Fixed Storefront / Window' },
+  { id: 'top_hung_window', nameTr: 'Vasistas Pencere', nameEn: 'Top Hung Window' },
+  { id: 'hinged_window', nameTr: 'Tek Açılım Pencere', nameEn: 'Side Hung Window' },
+  { id: 'tilt_turn_window', nameTr: 'Çift Açılım Pencere', nameEn: 'Tilt & Turn Window' },
+  { id: 'double_sash_window', nameTr: 'Çift Kanat Açılım Pencere', nameEn: 'Double Sash Window' },
+  { id: 'angular_junction', nameTr: 'Açılı Köşe Dönüş', nameEn: 'Angular Corner Junction' },
+  { id: 'inside_opening_door', nameTr: 'İçe Açılır Kapı', nameEn: 'Inside Opening Door' },
+  { id: 'inside_opening_double_door', nameTr: 'İçe Açılır Çift Kanat Kapı', nameEn: 'Inside Opening Double Door' },
+  { id: 'outside_opening_door', nameTr: 'Dışa Açılır Kapı', nameEn: 'Outside Opening Door' },
+  { id: 'outside_opening_double_door', nameTr: 'Dışa Açılır Çift Kanat Kapı', nameEn: 'Outside Opening Double Door' },
+  { id: 'pivot_opening', nameTr: 'Pivot Açılım', nameEn: 'Pivot Opening' },
+  { id: 'sliding_window', nameTr: 'Sürme Pencere', nameEn: 'Sliding Window' },
+  { id: 'sliding_door', nameTr: 'Sürme Kapı', nameEn: 'Sliding Door' },
+  { id: 'tilt_slide_door', nameTr: 'Paralel / Devirmeli Sürme Kapı', nameEn: 'Tilt & Slide Door' },
+  { id: 'folding_door', nameTr: 'Katlanır Kapı (Bi-fold)', nameEn: 'Folding Door' }
 ];
 
 const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
@@ -805,42 +805,48 @@ const Settings: React.FC<SettingsProps> = ({
 
                              <div className="grid grid-cols-2 gap-4">
                                  <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Sistem Tipi</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Sistem Tipi' : 'System Type'}
+                                    </label>
                                     <select value={sysForm.type} onChange={e => setSysForm({...sysForm, type: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
-                                        <option value="hinged">Menteşeli (Pencere/Kapı)</option>
-                                        <option value="sliding">Sürme (Sliding)</option>
+                                        <option value="hinged">{lang === 'tr' ? 'Menteşeli (Pencere/Kapı)' : 'Hinged (Window/Door)'}</option>
+                                        <option value="sliding">{lang === 'tr' ? 'Sürme (Sliding)' : 'Sliding'}</option>
                                     </select>
                                  </div>
                                  <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Malzeme Türü</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Malzeme Türü' : 'Material Type'}
+                                    </label>
                                     <select value={sysForm.materialType || 'aluminum'} onChange={e => setSysForm({...sysForm, materialType: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
-                                        <option value="aluminum">Alüminyum</option>
+                                        <option value="aluminum">{lang === 'tr' ? 'Alüminyum' : 'Aluminum'}</option>
                                         <option value="pvc">PVC</option>
                                     </select>
                                  </div>
                              </div>
                              
                              <div className="bg-slate-950/50 p-4 rounded-xl border border-white/5 space-y-3">
-                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">KODLAR VE AĞIRLIKLAR (kg/m)</h4>
+                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  {lang === 'tr' ? 'KODLAR VE AĞIRLIKLAR (kg/m)' : 'CODES & WEIGHTS (kg/m)'}
+                                </h4>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">Kasa</label>
-                                        <input type="text" value={sysForm.profileCodes?.frame} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, frame: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder="Kod" />
+                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">{lang === 'tr' ? 'Kasa' : 'Frame'}</label>
+                                        <input type="text" value={sysForm.profileCodes?.frame} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, frame: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder={lang === 'tr' ? "Kod" : "Code"} />
                                         <input type="number" step="0.001" value={sysForm.profileWeights?.frame} onChange={e => setSysForm({...sysForm, profileWeights: { ...sysForm.profileWeights!, frame: Number(e.target.value) }})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-emerald-400 font-mono" placeholder="kg/m" />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">Kanat</label>
-                                        <input type="text" value={sysForm.profileCodes?.sash} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, sash: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder="Kod" />
+                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">{lang === 'tr' ? 'Kanat' : 'Sash'}</label>
+                                        <input type="text" value={sysForm.profileCodes?.sash} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, sash: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder={lang === 'tr' ? "Kod" : "Code"} />
                                         <input type="number" step="0.001" value={sysForm.profileWeights?.sash} onChange={e => setSysForm({...sysForm, profileWeights: { ...sysForm.profileWeights!, sash: Number(e.target.value) }})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-emerald-400 font-mono" placeholder="kg/m" />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">O.Kayıt</label>
-                                        <input type="text" value={sysForm.profileCodes?.mullion} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, mullion: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder="Kod" />
+                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">{lang === 'tr' ? 'O.Kayıt' : 'Mullion'}</label>
+                                        <input type="text" value={sysForm.profileCodes?.mullion} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, mullion: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder={lang === 'tr' ? "Kod" : "Code"} />
                                         <input type="number" step="0.001" value={sysForm.profileWeights?.mullion} onChange={e => setSysForm({...sysForm, profileWeights: { ...sysForm.profileWeights!, mullion: Number(e.target.value) }})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-emerald-400 font-mono" placeholder="kg/m" />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">Cam Çıtası</label>
-                                        <input type="text" value={sysForm.profileCodes?.glazingBead} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, glazingBead: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder="Kod" />
+                                        <label className="text-[8px] font-bold text-slate-500 uppercase block">{lang === 'tr' ? 'Cam Çıtası' : 'Glazing Bead'}</label>
+                                        <input type="text" value={sysForm.profileCodes?.glazingBead} onChange={e => setSysForm({...sysForm, profileCodes: { ...sysForm.profileCodes!, glazingBead: e.target.value }})} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-white font-mono" placeholder={lang === 'tr' ? "Kod" : "Code"} />
                                         <input type="number" step="0.001" value={sysForm.profileWeights?.glazingBead} onChange={e => setSysForm({...sysForm, profileWeights: { ...sysForm.profileWeights!, glazingBead: Number(e.target.value) }})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs outline-none focus:border-blue-500/50 text-emerald-400 font-mono" placeholder="kg/m" />
                                     </div>
                                 </div>
@@ -856,13 +862,13 @@ const Settings: React.FC<SettingsProps> = ({
                              </div>
                              {/* Added technical dimension fields for ProfileSystem */}
                              <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Kasa Derinliği (mm)</label><input type="number" value={sysForm.frameDepth} onChange={e => setSysForm({...sysForm, frameDepth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Kanat Derinliği (mm)</label><input type="number" value={sysForm.sashDepth} onChange={e => setSysForm({...sysForm, sashDepth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Kasa Derinliği (mm)' : 'Frame Depth (mm)'}</label><input type="number" value={sysForm.frameDepth} onChange={e => setSysForm({...sysForm, frameDepth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Kanat Derinliği (mm)' : 'Sash Depth (mm)'}</label><input type="number" value={sysForm.sashDepth} onChange={e => setSysForm({...sysForm, sashDepth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
                              </div>
                              <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Isı Köprüsü (mm)</label><input type="number" value={sysForm.thermalBreakWidth || ''} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
-                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Et Kalınlığı (mm)</label><input type="number" step="0.1" value={sysForm.wallThickness || ''} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
-                              </div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Isı Köprüsü (mm)' : 'Thermal Break (mm)'}</label><input type="number" value={sysForm.thermalBreakWidth || ''} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Et Kalınlığı (mm)' : 'Wall Thickness (mm)'}</label><input type="number" step="0.1" value={sysForm.wallThickness || ''} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                             </div>
 
                               {/* Sistem Katalog Kesit Kütüphanesi */}
                               <div className="p-4 bg-slate-950/50 rounded-xl border border-white/5 space-y-4 my-4">
@@ -1966,15 +1972,19 @@ const Settings: React.FC<SettingsProps> = ({
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Uyumluluk</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Uyumluluk' : 'Compatibility'}
+                                    </label>
                                     <select value={accForm.compatibility} onChange={e => setAccForm({...accForm, compatibility: e.target.value as any})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white outline-none">
-                                        <option value="both">Hepsi (Her İkisi)</option>
-                                        <option value="hinged">Sadece Menteşeli</option>
-                                        <option value="sliding">Sadece Sürme</option>
+                                        <option value="both">{lang === 'tr' ? 'Hepsi (Her İkisi)' : 'Both (All)'}</option>
+                                        <option value="hinged">{lang === 'tr' ? 'Sadece Menteşeli' : 'Hinged Only'}</option>
+                                        <option value="sliding">{lang === 'tr' ? 'Sadece Sürme' : 'Sliding Only'}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Yük Kapasitesi (kg)</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Yük Kapasitesi (kg)' : 'Load Capacity (kg)'}
+                                    </label>
                                     <input type="number" value={accForm.maxWeightKg} onChange={e => setAccForm({...accForm, maxWeightKg: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" />
                                 </div>
                             </div>
@@ -2187,21 +2197,29 @@ const Settings: React.FC<SettingsProps> = ({
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Marka</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Marka' : 'Brand'}
+                                    </label>
                                     <input type="text" value={machForm.brand} onChange={e => setMachForm({...machForm, brand: e.target.value})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Testere Payı (mm)</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Testere Payı (mm)' : 'Saw Blade Thickness (mm)'}
+                                    </label>
                                     <input type="number" value={machForm.bladeThickness} onChange={e => setMachForm({...machForm, bladeThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Min Fire (mm)</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Min Fire (mm)' : 'Min Waste (mm)'}
+                                    </label>
                                     <input type="number" value={machForm.minWaste} onChange={e => setMachForm({...machForm, minWaste: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Kelepçe Payı (mm)</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">
+                                      {lang === 'tr' ? 'Kelepçe Payı (mm)' : 'Clamping Offset (mm)'}
+                                    </label>
                                     <input type="number" value={machForm.clampingOffset} onChange={e => setMachForm({...machForm, clampingOffset: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white" />
                                 </div>
                             </div>
@@ -2217,7 +2235,7 @@ const Settings: React.FC<SettingsProps> = ({
                                 <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400"><Cpu size={24} /></div>
                                 <div>
                                     <h3 className="font-bold text-white text-lg">{m.name}</h3>
-                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">{m.brand} • {m.bladeThickness}mm Testere • {m.minWaste}mm Fire</p>
+                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">{m.brand} • {m.bladeThickness}mm {lang === 'tr' ? 'Testere' : 'Blade'} • {m.minWaste}mm {lang === 'tr' ? 'Fire' : 'Waste'}</p>
                                 </div>
                             </div>
                             <div className="flex gap-2">
