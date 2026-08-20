@@ -13,7 +13,7 @@ import { analyzeDrawing, generateSalesPitch, analyzeShadingImage, ShadingAnalysi
 import { generateCNCCSV } from '../services/cncService';
 import { generateDXF } from '../services/dxfService';
 import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
-import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice } from '../services/priceCalculator';
+import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice, getUnitSashLaborCounts } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
 import { cloud_saveProductTypes, cloud_getProductTypes } from '../services/authService';
 import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
@@ -2693,13 +2693,48 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       }
     });
 
+    // Calculate per-sash accessory mounting labor costs
+    const sashCounts = getUnitSashLaborCounts(unit, system);
+
+    // Tilt-Turn Accessory Mounting Labor (ALÜMİNYUM ÇİFT AÇILIM PENCERE KANAT AKSESUAR MONTAJ BEDELİ)
+    const tiltTurnTry = system.tiltTurnLaborPrice !== undefined ? system.tiltTurnLaborPrice : 0;
+    const tiltTurnUsd = system.tiltTurnLaborPriceUsd !== undefined ? system.tiltTurnLaborPriceUsd : 0;
+    let tiltTurnRate = 0;
+    if (currency === 'TRY') {
+      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * exchangeRate);
+    } else {
+      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / exchangeRate);
+    }
+    const tiltTurnLaborCost = sashCounts.tiltTurnCount * tiltTurnRate;
+
+    // HBSB Lift-Slide Accessory Mounting Labor (ALÜMİNYUM HBSB SÜRME AKSESUAR MONTAJ BEDELİ (HER KANAT İÇİN))
+    const hbsbTry = system.hbsbLaborPrice !== undefined ? system.hbsbLaborPrice : 0;
+    const hbsbUsd = system.hbsbLaborPriceUsd !== undefined ? system.hbsbLaborPriceUsd : 0;
+    let hbsbRate = 0;
+    if (currency === 'TRY') {
+      hbsbRate = hbsbTry || (hbsbUsd * exchangeRate);
+    } else {
+      hbsbRate = hbsbUsd || (hbsbTry / exchangeRate);
+    }
+    const hbsbLaborCost = sashCounts.slidingCount * hbsbRate;
+
+    const totalLaborCost = ((profileWeight * 1.10) * systemLaborRate) + tiltTurnLaborCost + hbsbLaborCost;
+    const unitTotalCost = profileCost + glassCost + accCost + tiltTurnLaborCost + hbsbLaborCost;
+
     return { 
-      cost: profileCost + glassCost + accCost, 
+      cost: unitTotalCost, 
       weight: profileWeight, 
       selectedAccs, 
       accCost,
       laborRate: systemLaborRate,
-      colorPrice
+      colorPrice,
+      tiltTurnLaborCost,
+      tiltTurnCount: sashCounts.tiltTurnCount,
+      tiltTurnRate,
+      hbsbLaborCost,
+      slidingCount: sashCounts.slidingCount,
+      hbsbRate,
+      totalLaborCost
     };
   };
 
@@ -3480,6 +3515,22 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                   <span>{lang === 'tr' ? 'Sistem İşçiliği (Kg):' : 'System Labor (Kg):'}</span>
                                                                   <span className="font-bold text-slate-900 font-mono">
                                                                     {currency === 'TRY' ? `${stats.laborRate.toFixed(2)} TL/kg` : `${currencySymbol}${stats.laborRate.toFixed(2)}/kg`}
+                                                                  </span>
+                                                                </div>
+                                                              )}
+                                                              {showCostDetails && stats.tiltTurnLaborCost > 0 && (
+                                                                <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                                  <span>{lang === 'tr' ? `Çift Açılım Montajı (${stats.tiltTurnCount} Adet):` : `Tilt-Turn Labor (${stats.tiltTurnCount} Qty):`}</span>
+                                                                  <span className="font-bold text-slate-900 font-mono">
+                                                                    {currencySymbol}{stats.tiltTurnLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                  </span>
+                                                                </div>
+                                                              )}
+                                                              {showCostDetails && stats.hbsbLaborCost > 0 && (
+                                                                <div className="text-xs text-slate-500 flex justify-between w-[240px] font-medium">
+                                                                  <span>{lang === 'tr' ? `HBSB Sürme Montajı (${stats.slidingCount} Kanat):` : `HBSB Sliding Labor (${stats.slidingCount} Sash):`}</span>
+                                                                  <span className="font-bold text-slate-900 font-mono">
+                                                                    {currencySymbol}{stats.hbsbLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                   </span>
                                                                 </div>
                                                               )}

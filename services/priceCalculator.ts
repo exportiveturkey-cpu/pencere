@@ -1,6 +1,46 @@
-import { Project, Unit, ProfileSystem, Accessory } from '../types';
+import { Project, Unit, ProfileSystem, Accessory, WindowNode } from '../types';
 import { GLASS_TYPES } from '../constants';
 import { getAggregatedCuttingList } from './optimizationService';
+
+export interface UnitSashLaborCounts {
+  tiltTurnCount: number;
+  slidingCount: number;
+  totalSashCount: number;
+}
+
+export const getUnitSashLaborCounts = (unit: Unit, system?: ProfileSystem): UnitSashLaborCounts => {
+  let tiltTurnCount = 0;
+  let slidingCount = 0;
+  let totalSashCount = 0;
+
+  const traverse = (node?: WindowNode) => {
+    if (!node) return;
+    const isSash = node.type === 'sash' || (node.openingType && node.openingType !== 'fixed');
+    if (isSash) {
+      totalSashCount += 1;
+      const op = (node.openingType || '').toLowerCase();
+      if (op === 'tilt-turn-left' || op === 'tilt-turn-right' || op.includes('tilt-turn') || op.includes('tilt_turn') || op.includes('çift açılım') || op.includes('cift acilim')) {
+        tiltTurnCount += 1;
+      } else if (op === 'sliding' || op.includes('surme') || op.includes('sürme')) {
+        slidingCount += 1;
+      }
+    }
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(traverse);
+    }
+  };
+
+  traverse(unit.rootNode);
+
+  // If system is a sliding type (or 50LS / 51LS) and slidingCount is 0 but unit has openable/sash nodes, treat sashes as sliding leafs
+  const sysName = ((system?.name || unit.system || '')).toLowerCase();
+  const isSlidingSys = (system?.type === 'sliding') || sysName.includes('50ls') || sysName.includes('51ls') || sysName.includes('sürme') || sysName.includes('sliding');
+  if (isSlidingSys && slidingCount === 0 && totalSashCount > 0) {
+    slidingCount = totalSashCount;
+  }
+
+  return { tiltTurnCount, slidingCount, totalSashCount };
+};
 
 export interface ProjectCostReport {
   subTotal: number;
@@ -184,7 +224,32 @@ export const calculateProjectCost = (
       }
     });
 
-    const unitCost = profileCost + glassCost + accCost;
+    // Calculate per-sash accessory mounting labor costs
+    const sashCounts = getUnitSashLaborCounts(unit, system);
+    
+    // Tilt-Turn Accessory Mounting Labor (ALÜMİNYUM ÇİFT AÇILIM PENCERE KANAT AKSESUAR MONTAJ BEDELİ)
+    const tiltTurnTry = system?.tiltTurnLaborPrice || 0;
+    const tiltTurnUsd = system?.tiltTurnLaborPriceUsd || 0;
+    let tiltTurnRate = 0;
+    if (currency === 'TRY') {
+      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * exchangeRate);
+    } else {
+      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / exchangeRate);
+    }
+    const tiltTurnLaborCost = sashCounts.tiltTurnCount * tiltTurnRate;
+
+    // HBSB Lift-Slide Accessory Mounting Labor (ALÜMİNYUM HBSB SÜRME AKSESUAR MONTAJ BEDELİ (HER KANAT İÇİN))
+    const hbsbTry = system?.hbsbLaborPrice || 0;
+    const hbsbUsd = system?.hbsbLaborPriceUsd || 0;
+    let hbsbRate = 0;
+    if (currency === 'TRY') {
+      hbsbRate = hbsbTry || (hbsbUsd * exchangeRate);
+    } else {
+      hbsbRate = hbsbUsd || (hbsbTry / exchangeRate);
+    }
+    const hbsbLaborCost = sashCounts.slidingCount * hbsbRate;
+
+    const unitCost = profileCost + glassCost + accCost + tiltTurnLaborCost + hbsbLaborCost;
     subTotal += unitCost * (unit.quantity || 1);
   });
 

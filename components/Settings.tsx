@@ -208,6 +208,10 @@ const Settings: React.FC<SettingsProps> = ({
         },
         laborPricePerKg: newSysFormState.laborPricePerKg !== undefined ? Number(newSysFormState.laborPricePerKg) : (existing?.laborPricePerKg ?? sysForm.laborPricePerKg),
         laborPricePerKgUsd: newSysFormState.laborPricePerKgUsd !== undefined ? Number(newSysFormState.laborPricePerKgUsd) : (existing?.laborPricePerKgUsd ?? sysForm.laborPricePerKgUsd),
+        tiltTurnLaborPrice: newSysFormState.tiltTurnLaborPrice !== undefined ? Number(newSysFormState.tiltTurnLaborPrice) : (existing?.tiltTurnLaborPrice ?? sysForm.tiltTurnLaborPrice),
+        tiltTurnLaborPriceUsd: newSysFormState.tiltTurnLaborPriceUsd !== undefined ? Number(newSysFormState.tiltTurnLaborPriceUsd) : (existing?.tiltTurnLaborPriceUsd ?? sysForm.tiltTurnLaborPriceUsd),
+        hbsbLaborPrice: newSysFormState.hbsbLaborPrice !== undefined ? Number(newSysFormState.hbsbLaborPrice) : (existing?.hbsbLaborPrice ?? sysForm.hbsbLaborPrice),
+        hbsbLaborPriceUsd: newSysFormState.hbsbLaborPriceUsd !== undefined ? Number(newSysFormState.hbsbLaborPriceUsd) : (existing?.hbsbLaborPriceUsd ?? sysForm.hbsbLaborPriceUsd),
         supportedTypologies: newSysFormState.supportedTypologies || existing?.supportedTypologies || sysForm.supportedTypologies || [],
         planSectionUrl: newSysFormState.planSectionUrl ?? existing?.planSectionUrl ?? sysForm.planSectionUrl,
         crossSectionUrl: newSysFormState.crossSectionUrl ?? existing?.crossSectionUrl ?? sysForm.crossSectionUrl,
@@ -536,6 +540,10 @@ const Settings: React.FC<SettingsProps> = ({
         },
         laborPricePerKg: sysForm.laborPricePerKg !== undefined ? Number(sysForm.laborPricePerKg) : undefined,
         laborPricePerKgUsd: sysForm.laborPricePerKgUsd !== undefined ? Number(sysForm.laborPricePerKgUsd) : undefined,
+        tiltTurnLaborPrice: sysForm.tiltTurnLaborPrice !== undefined ? Number(sysForm.tiltTurnLaborPrice) : undefined,
+        tiltTurnLaborPriceUsd: sysForm.tiltTurnLaborPriceUsd !== undefined ? Number(sysForm.tiltTurnLaborPriceUsd) : undefined,
+        hbsbLaborPrice: sysForm.hbsbLaborPrice !== undefined ? Number(sysForm.hbsbLaborPrice) : undefined,
+        hbsbLaborPriceUsd: sysForm.hbsbLaborPriceUsd !== undefined ? Number(sysForm.hbsbLaborPriceUsd) : undefined,
         supportedTypologies: sysForm.supportedTypologies || [],
         planSectionUrl: sysForm.planSectionUrl,
         crossSectionUrl: sysForm.crossSectionUrl,
@@ -868,6 +876,101 @@ const Settings: React.FC<SettingsProps> = ({
                              <div className="grid grid-cols-2 gap-4">
                                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Isı Köprüsü (mm)' : 'Thermal Break (mm)'}</label><input type="number" value={sysForm.thermalBreakWidth || ''} onChange={e => setSysForm({...sysForm, thermalBreakWidth: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
                                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{lang === 'tr' ? 'Et Kalınlığı (mm)' : 'Wall Thickness (mm)'}</label><input type="number" step="0.1" value={sysForm.wallThickness || ''} onChange={e => setSysForm({...sysForm, wallThickness: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 text-white" /></div>
+                             </div>
+
+                             {/* İŞÇİLİK BEDELLERİ (LABOR PRICING) */}
+                             <div className="p-4 bg-slate-950/60 rounded-xl border border-white/5 space-y-3 my-3">
+                                <label className="text-xs font-bold text-blue-400 uppercase tracking-wider block flex items-center gap-2">
+                                  <Factory size={14} />
+                                  {lang === 'tr' ? 'Sistem İşçilik ve Montaj Bedelleri' : 'System Labor & Mounting Rates'}
+                                </label>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                                      {lang === 'tr' ? 'İmalat İşçiliği (TL/kg)' : 'Labor Price (TL/kg)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.laborPricePerKg !== undefined ? sysForm.laborPricePerKg : ''} 
+                                      onChange={e => setSysForm({...sysForm, laborPricePerKg: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-blue-400 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                                      {lang === 'tr' ? 'İmalat İşçiliği (USD/kg)' : 'Labor Price (USD/kg)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.laborPricePerKgUsd !== undefined ? sysForm.laborPricePerKgUsd : ''} 
+                                      onChange={e => setSysForm({...sysForm, laborPricePerKgUsd: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-emerald-400 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-amber-400 block mb-1">
+                                      {lang === 'tr' ? 'Çift Açılım Montaj (TL/Adet)' : 'Tilt-Turn Labor (TL/pc)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.tiltTurnLaborPrice !== undefined ? sysForm.tiltTurnLaborPrice : ''} 
+                                      onChange={e => setSysForm({...sysForm, tiltTurnLaborPrice: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-amber-400 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-amber-400 block mb-1">
+                                      {lang === 'tr' ? 'Çift Açılım Montaj (USD/Adet)' : 'Tilt-Turn Labor (USD/pc)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.tiltTurnLaborPriceUsd !== undefined ? sysForm.tiltTurnLaborPriceUsd : ''} 
+                                      onChange={e => setSysForm({...sysForm, tiltTurnLaborPriceUsd: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-amber-300 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-cyan-400 block mb-1">
+                                      {lang === 'tr' ? 'HBSB Sürme Montaj (TL/Kanat)' : 'HBSB Sliding Labor (TL/Sash)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.hbsbLaborPrice !== undefined ? sysForm.hbsbLaborPrice : ''} 
+                                      onChange={e => setSysForm({...sysForm, hbsbLaborPrice: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-cyan-400 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-cyan-400 block mb-1">
+                                      {lang === 'tr' ? 'HBSB Sürme Montaj (USD/Kanat)' : 'HBSB Sliding Labor (USD/Sash)'}
+                                    </label>
+                                    <input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={sysForm.hbsbLaborPriceUsd !== undefined ? sysForm.hbsbLaborPriceUsd : ''} 
+                                      onChange={e => setSysForm({...sysForm, hbsbLaborPriceUsd: Number(e.target.value)})} 
+                                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-cyan-300 font-mono font-bold" 
+                                      placeholder="0.00" 
+                                    />
+                                  </div>
+                                </div>
                              </div>
 
                               {/* Sistem Katalog Kesit Kütüphanesi */}
@@ -2364,80 +2467,214 @@ const Settings: React.FC<SettingsProps> = ({
         )}
 
         {activeTab === 'labor' && (
-            <div className="max-w-4xl animate-in fade-in space-y-6">
-                <div className="bg-slate-900 border border-white/5 p-8 rounded-[2rem]">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400">
-                            <Factory size={24} />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-white">
-                                {lang === 'tr' ? 'Profil Sistemleri İşçilik Kg Fiyatları' : 'Profile Systems Labor Prices per kg'}
-                            </h2>
-                            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl mt-1">
-                                {lang === 'tr' 
-                                  ? 'Alüminyum profillerin işlenmesi için profil ağırlığı (kg) üzerinden hesaplanacak işçilik prim ve maliyetlerini belirleyin. Belirlediğiniz işçilikler tekliflerde her pozun profil birim maliyetine otomatik olarak ilave edilecektir.' 
-                                  : 'Specify labor and processing costs based on aluminum profile weight (kg). These workmanship rates will be automatically factored into each unit\'s profile pricing breakdown.'}
-                            </p>
+            <div className="max-w-6xl animate-in fade-in space-y-6">
+                {/* Information cards for the 3 labor categories */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-900/80 border border-blue-500/20 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-blue-500/10 rounded-xl text-blue-400">
+                        <Factory size={18} />
+                      </div>
+                      <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                        {lang === 'tr' ? '1. Profil İşleme İşçiliği (Kg)' : '1. Profile Processing (Kg)'}
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {lang === 'tr' 
+                        ? 'Her pozdaki alüminyum profil net ağırlığı (kg) üzerinden hesaplanan temel imalat ve kesim/büküm işçilik bedelidir.' 
+                        : 'Base fabrication labor calculated per kilogram of aluminum profile weight in each unit.'}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-amber-500/20 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400">
+                        <Wrench size={18} />
+                      </div>
+                      <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                        {lang === 'tr' ? '2. Çift Açılım Montaj Bedeli' : '2. Tilt-Turn Assembly Labor'}
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {lang === 'tr' 
+                        ? 'Alüminyum çift açılım pencere kanat aksesuar montaj bedeli. Pozdaki çift açılım kanat adedine göre ilave edilir.' 
+                        : 'Tilt-turn accessory mounting labor charged per tilt-turn sash quantity in the unit.'}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-cyan-500/20 p-4 rounded-2xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-cyan-500/10 rounded-xl text-cyan-400">
+                        <Layers size={18} />
+                      </div>
+                      <h3 className="font-bold text-white text-xs uppercase tracking-wider">
+                        {lang === 'tr' ? '3. HBSB Sürme Montaj Bedeli' : '3. HBSB Sliding Assembly Labor'}
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {lang === 'tr' 
+                        ? 'Alüminyum HBSB sürme aksesuar montaj bedeli (50LS vb.). Pozdaki sürme kanat adedine göre hesaplanır.' 
+                        : 'Lift-and-slide (HBSB) mechanism labor (e.g. 50LS), charged per sliding sash leaf.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-white/5 p-6 rounded-[2rem]">
+                    <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-400">
+                              <Factory size={22} />
+                          </div>
+                          <div>
+                              <h2 className="text-lg font-bold text-white">
+                                  {lang === 'tr' ? 'Sistem Bazında İşçilik ve Aksesuar Montaj Fiyatları' : 'Labor & Accessory Assembly Rates by System'}
+                              </h2>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                  {lang === 'tr' 
+                                    ? 'Aşağıdaki tablodan sistemlere ait kg ve kanat başı montaj işçiliklerini TL veya USD olarak düzenleyebilirsiniz.' 
+                                    : 'Configure kg rates and per-sash accessory mounting costs in TL or USD.'}
+                              </p>
+                          </div>
                         </div>
                     </div>
 
-                    <div className="border border-white/5 bg-slate-900/50 rounded-2xl overflow-hidden">
-                        <table className="w-full text-left border-collapse">
+                    <div className="border border-white/5 bg-slate-950/40 rounded-2xl overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[850px]">
                             <thead>
-                                <tr className="border-b border-white/5 bg-slate-950/45 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                                    <th className="px-6 py-4">{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}</th>
-                                    <th className="px-6 py-4 hidden md:table-cell">{lang === 'tr' ? 'Sistem Tipi' : 'System Type'}</th>
-                                    <th className="px-6 py-4 w-40">{lang === 'tr' ? 'TL İşçilik (Kg)' : 'TL Labor Price (Kg)'}</th>
-                                    <th className="px-6 py-4 w-40">{lang === 'tr' ? 'USD İşçilik (Kg)' : 'USD Labor Price (Kg)'}</th>
+                                <tr className="border-b border-white/5 bg-slate-950/80 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                    <th className="px-4 py-3.5">{lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}</th>
+                                    <th className="px-4 py-3.5">{lang === 'tr' ? 'Sistem Tipi' : 'System Type'}</th>
+                                    <th className="px-4 py-3.5">{lang === 'tr' ? 'Profil Kg İşçiliği' : 'Kg Labor (Weight)'}</th>
+                                    <th className="px-4 py-3.5">{lang === 'tr' ? 'Çift Açılım Aksesuar Montaj (Adet)' : 'Tilt-Turn Assembly (Per Sash)'}</th>
+                                    <th className="px-4 py-3.5">{lang === 'tr' ? 'HBSB Sürme Montaj (Kanat Başı)' : 'HBSB Sliding Assembly (Per Sash)'}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-sm">
                                 {systems.map(system => {
                                     const currentLabor = system.laborPricePerKg !== undefined ? system.laborPricePerKg : 0;
                                     const currentLaborUsd = system.laborPricePerKgUsd !== undefined ? system.laborPricePerKgUsd : 0;
+                                    const currentTilt = system.tiltTurnLaborPrice !== undefined ? system.tiltTurnLaborPrice : 0;
+                                    const currentTiltUsd = system.tiltTurnLaborPriceUsd !== undefined ? system.tiltTurnLaborPriceUsd : 0;
+                                    const currentHbsb = system.hbsbLaborPrice !== undefined ? system.hbsbLaborPrice : 0;
+                                    const currentHbsbUsd = system.hbsbLaborPriceUsd !== undefined ? system.hbsbLaborPriceUsd : 0;
+
                                     return (
                                         <tr key={system.id} className="hover:bg-white/[0.02] transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-white">{system.name}</div>
+                                            <td className="px-4 py-3.5">
+                                                <div className="font-bold text-white text-xs">{system.name}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono">{system.materialType === 'pvc' ? 'PVC' : 'Alüminyum'}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-xs text-slate-400 md:table-cell">
-                                                {system.type === 'sliding' 
-                                                  ? (lang === 'tr' ? 'Sürme' : 'Sliding') 
-                                                  : (lang === 'tr' ? 'Menteşeli' : 'Hinged')}
+                                            <td className="px-4 py-3.5">
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${system.type === 'sliding' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+                                                  {system.type === 'sliding' ? (lang === 'tr' ? 'Sürme' : 'Sliding') : (lang === 'tr' ? 'Menteşeli' : 'Hinged')}
+                                                </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5">
-                                                    <input 
-                                                        type="number" 
-                                                        value={currentLabor || ''} 
-                                                        onChange={e => {
-                                                            const val = parseFloat(e.target.value) || 0;
-                                                            onUpdateSystem({ ...system, laborPricePerKg: val });
-                                                        }}
-                                                        placeholder="0.00"
-                                                        className="w-24 bg-slate-950 border border-slate-800 focus:border-blue-500/50 rounded-xl px-2.5 py-1.5 text-xs text-blue-400 outline-none font-mono font-bold" 
-                                                        min="0"
-                                                        step="0.01"
-                                                    />
-                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">TL</span>
+                                            
+                                            {/* Kg Labor */}
+                                            <td className="px-4 py-3.5">
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentLabor || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, laborPricePerKg: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-blue-500/50 rounded-lg px-2 py-1 text-xs text-blue-400 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">TL/kg</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentLaborUsd || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, laborPricePerKgUsd: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-emerald-500/50 rounded-lg px-2 py-1 text-xs text-emerald-400 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">USD/kg</span>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5">
-                                                    <input 
-                                                        type="number" 
-                                                        value={currentLaborUsd || ''} 
-                                                        onChange={e => {
-                                                            const val = parseFloat(e.target.value) || 0;
-                                                            onUpdateSystem({ ...system, laborPricePerKgUsd: val });
-                                                        }}
-                                                        placeholder="0.00"
-                                                        className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 outline-none font-mono font-bold" 
-                                                        min="0"
-                                                        step="0.01"
-                                                    />
-                                                    <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">USD</span>
+
+                                            {/* Tilt-Turn Assembly Labor */}
+                                            <td className="px-4 py-3.5">
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentTilt || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, tiltTurnLaborPrice: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-amber-500/50 rounded-lg px-2 py-1 text-xs text-amber-400 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">TL/Adet</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentTiltUsd || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, tiltTurnLaborPriceUsd: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-amber-500/50 rounded-lg px-2 py-1 text-xs text-amber-300 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">USD/Adet</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* HBSB Assembly Labor */}
+                                            <td className="px-4 py-3.5">
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentHbsb || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, hbsbLaborPrice: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-cyan-500/50 rounded-lg px-2 py-1 text-xs text-cyan-400 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">TL/Kanat</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input 
+                                                            type="number" 
+                                                            value={currentHbsbUsd || ''} 
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0;
+                                                                onUpdateSystem({ ...system, hbsbLaborPriceUsd: val });
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-20 bg-slate-900 border border-slate-800 focus:border-cyan-500/50 rounded-lg px-2 py-1 text-xs text-cyan-300 outline-none font-mono font-bold" 
+                                                            min="0"
+                                                            step="0.01"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-500 font-mono">USD/Kanat</span>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>

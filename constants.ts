@@ -4,15 +4,49 @@ import { ProfileSystem, GlassType, Project, Accessory, CatalogProfileItem } from
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
   // --- KURTOĞLU ALÜMİNYUM ---
   { 
+    id: 'kurt-ktr-64t', 
+    name: 'Kurtoğlu KTR 64T (Thermal Hinged)', 
+    type: 'hinged',
+    materialType: 'aluminum',
+    uValue: 1.8, frameWidth: 64, frameDepth: 64, sashDepth: 74, thermalBreakWidth: 24, wallThickness: 1.6,
+    pricePerMeter: 98, profileLength: 6.0,
+    laborPricePerKg: 35,
+    laborPricePerKgUsd: 1.05,
+    tiltTurnLaborPrice: 350,
+    tiltTurnLaborPriceUsd: 10.5,
+    correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: '64T-101', sash: '64T-201', mullion: '64T-301', glazingBead: '64T-401' },
+    profileWeights: { frame: 1.420, sash: 1.680, mullion: 1.520, glazingBead: 0.280 }
+  },
+  { 
     id: 'kurt-70t-th', 
     name: 'Kurtoğlu 70T-TH (Thermal Hinged)', 
     type: 'hinged',
     materialType: 'aluminum',
     uValue: 1.6, frameWidth: 70, frameDepth: 70, sashDepth: 80, thermalBreakWidth: 24, wallThickness: 2.0,
     pricePerMeter: 105, profileLength: 6.0,
+    laborPricePerKg: 38,
+    laborPricePerKgUsd: 1.15,
+    tiltTurnLaborPrice: 350,
+    tiltTurnLaborPriceUsd: 10.5,
     correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
     profileCodes: { frame: '70T-101', sash: '70T-201', mullion: '70T-301', glazingBead: '70T-401' },
     profileWeights: { frame: 1.550, sash: 1.850, mullion: 1.650, glazingBead: 0.290 }
+  },
+  { 
+    id: 'kurt-50ls', 
+    name: 'Kurtoğlu 50LS (Thermal Lift & Slide / HBSB)', 
+    type: 'sliding',
+    materialType: 'aluminum',
+    uValue: 2.1, frameWidth: 50, frameDepth: 120, sashDepth: 50, thermalBreakWidth: 20, wallThickness: 1.8,
+    pricePerMeter: 130, profileLength: 6.0,
+    laborPricePerKg: 45,
+    laborPricePerKgUsd: 1.35,
+    hbsbLaborPrice: 750,
+    hbsbLaborPriceUsd: 22.5,
+    correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: '50LS-101', sash: '50LS-201', mullion: '50LS-301', glazingBead: '50LS-401' },
+    profileWeights: { frame: 2.450, sash: 1.850, mullion: 2.050, glazingBead: 0.280 }
   },
   { 
     id: 'kurt-51ls', 
@@ -21,6 +55,10 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     materialType: 'aluminum',
     uValue: 2.2, frameWidth: 51, frameDepth: 120, sashDepth: 45, thermalBreakWidth: 18, wallThickness: 1.8,
     pricePerMeter: 120, profileLength: 6.0,
+    laborPricePerKg: 42,
+    laborPricePerKgUsd: 1.25,
+    hbsbLaborPrice: 750,
+    hbsbLaborPriceUsd: 22.5,
     correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
     profileCodes: { frame: '51LS-101', sash: '51LS-201', mullion: '51LS-301', glazingBead: '51LS-401' },
     profileWeights: { frame: 2.350, sash: 1.750, mullion: 1.950, glazingBead: 0.280 }
@@ -270,4 +308,25 @@ export const KURTOGLU_51LS_CATALOG: CatalogProfileItem[] = [
   { code: '51LS-541-00', weight: 1.389, type: 'mullion', nameTr: 'Eşik Profili / Damlalık', nameEn: 'Threshold Profile / Drip' },
   { code: '07-123-00', weight: 1.591, type: 'mullion', nameTr: 'Yardımcı Profil', nameEn: 'Auxiliary Profile' },
   { code: '07-124-00', weight: 0.129, type: 'mullion', nameTr: 'Mini Adaptör / Kapak', nameEn: 'Cover-Adapter Profile' }
+];
+
+export const KURTOGLU_KTR64T_CATALOG: CatalogProfileItem[] = [
+  // Frame Profiles (Kasa)
+  { code: '64T-101', weight: 1.420, type: 'frame', nameTr: 'Kasa Profili (Standart)', nameEn: 'Standard Frame Profile' },
+  { code: '64T-102', weight: 1.680, type: 'frame', nameTr: 'Geniş Kasa Profili', nameEn: 'Wide Frame Profile' },
+  { code: '64T-103', weight: 1.560, type: 'frame', nameTr: 'Hemyüz Kasa Profili', nameEn: 'Flush Frame Profile' },
+  { code: '64T-112', weight: 1.540, type: 'frame', nameTr: 'Dışa Açılır Kasa Profili', nameEn: 'Outward Opening Frame Profile' },
+  { code: '64T-121', weight: 1.720, type: 'frame', nameTr: 'Sıva Üstü Pervazlı Kasa', nameEn: 'Flanged / Joint Frame Profile' },
+
+  // Sash Profiles (Kanat)
+  { code: '64T-201', weight: 1.680, type: 'sash', nameTr: 'Pencere Kanat Profili', nameEn: 'Window Sash Profile' },
+  { code: '64T-202', weight: 1.740, type: 'sash', nameTr: 'Dışa Açılır Kanat Profili', nameEn: 'Outward Opening Sash Profile' },
+  { code: '64T-211', weight: 1.650, type: 'sash', nameTr: 'İçeri Açılır Düz Kanat', nameEn: 'Inward Opening Flat Sash' },
+  { code: '64T-216', weight: 2.150, type: 'sash', nameTr: 'Kapı Kanat Profili', nameEn: 'Door Sash Profile' },
+  { code: '64T-217', weight: 2.220, type: 'sash', nameTr: 'Dışa Açılır Kapı Kanat', nameEn: 'Outward Opening Door Sash' },
+
+  // Mullion Profiles (Orta Kayıt)
+  { code: '64T-301', weight: 1.520, type: 'mullion', nameTr: 'Orta Kayıt Profili', nameEn: 'Mullion Profile' },
+  { code: '64T-302', weight: 1.890, type: 'mullion', nameTr: 'Geniş / Ağır Orta Kayıt', nameEn: 'Heavy Mullion Profile' },
+  { code: '64T-303', weight: 2.450, type: 'mullion', nameTr: 'Statik Takviyeli Orta Kayıt', nameEn: 'Reinforced Static Mullion' }
 ];

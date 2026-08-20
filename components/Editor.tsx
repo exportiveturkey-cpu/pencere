@@ -4,7 +4,7 @@ import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, U
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
-import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
+import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG, KURTOGLU_KTR64T_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { t } from '../translations';
@@ -929,9 +929,13 @@ const getNormalizedSystemId = (sysIdOrName: string, systems: ProfileSystem[], fr
     if (found) return found.id;
   }
 
-  // 3. Infer from frame profile code (e.g., "70T-102-18", "51LS-101", etc.)
+  // 3. Infer from frame profile code (e.g., "70T-102-18", "51LS-101", "64T-101", etc.)
   if (frameProfileCode) {
     const code = frameProfileCode.toUpperCase();
+    if (code.startsWith('64T') || code.startsWith('KTR64') || code.startsWith('64TH')) {
+      const found64T = systems.find(s => s.id === 'kurt-ktr-64t' || s.id.includes('64t') || s.name.toUpperCase().includes('64T'));
+      if (found64T) return found64T.id;
+    }
     if (code.startsWith('70T')) {
       const found70T = systems.find(s => s.id === 'kurt-70t-th' || s.id.includes('70t') || s.name.toUpperCase().includes('70T'));
       if (found70T) return found70T.id;
@@ -967,19 +971,29 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [crossSectionUrl, setCrossSectionUrl] = useState<string>(initialUnit?.crossSectionUrl || '');
   const [planSectionProfileCode, setPlanSectionProfileCode] = useState<string>(initialUnit?.planSectionProfileCode || '');
   const [crossSectionProfileCode, setCrossSectionProfileCode] = useState<string>(initialUnit?.crossSectionProfileCode || '');
+  
   const [selectedFrameProfile, setSelectedFrameProfile] = useState<string>(() => {
     if (initialUnit?.selectedFrameProfile) return initialUnit.selectedFrameProfile;
     const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
+    const sys = systems.find(s => s.id === initialSysId);
+    if (sys?.profileCodes?.frame) return sys.profileCodes.frame;
+    if (initialSysId === 'kurt-ktr-64t' || initialSysId.includes('64t')) return '64T-101';
     return initialSysId === 'kurt-51ls' ? '51LS-101-00' : '70T-102-18';
   });
   const [selectedSashProfile, setSelectedSashProfile] = useState<string>(() => {
     if (initialUnit?.selectedSashProfile) return initialUnit.selectedSashProfile;
     const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
+    const sys = systems.find(s => s.id === initialSysId);
+    if (sys?.profileCodes?.sash) return sys.profileCodes.sash;
+    if (initialSysId === 'kurt-ktr-64t' || initialSysId.includes('64t')) return '64T-201';
     return initialSysId === 'kurt-51ls' ? '51LS-201-00' : '70T-201-18';
   });
   const [selectedMullionProfile, setSelectedMullionProfile] = useState<string>(() => {
     if (initialUnit?.selectedMullionProfile) return initialUnit.selectedMullionProfile;
     const initialSysId = getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile);
+    const sys = systems.find(s => s.id === initialSysId);
+    if (sys?.profileCodes?.mullion) return sys.profileCodes.mullion;
+    if (initialSysId === 'kurt-ktr-64t' || initialSysId.includes('64t')) return '64T-301';
     return initialSysId === 'kurt-51ls' ? '51LS-301-00' : '70T-301-18';
   });
 
@@ -995,7 +1009,8 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   useEffect(() => {
     // If we switched systems, auto-switch to valid default profile codes
-    if (systemId === 'kurt-51ls') {
+    const sys = systems.find(s => s.id === systemId);
+    if (systemId === 'kurt-51ls' || systemId.includes('51ls')) {
       if (!selectedFrameProfile.startsWith('51LS') && !selectedFrameProfile.startsWith('51LM') && !selectedFrameProfile.startsWith('58T')) {
         setSelectedFrameProfile('51LS-101-00');
       }
@@ -1005,7 +1020,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       if (!selectedMullionProfile.startsWith('51LS') && !selectedMullionProfile.startsWith('51LM') && !selectedMullionProfile.startsWith('07-')) {
         setSelectedMullionProfile('51LS-301-00');
       }
-    } else if (systemId === 'kurt-70t-th') {
+    } else if (systemId === 'kurt-70t-th' || systemId.includes('70t')) {
       if (!selectedFrameProfile.startsWith('70T')) {
         setSelectedFrameProfile('70T-102-18');
       }
@@ -1015,8 +1030,28 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       if (!selectedMullionProfile.startsWith('70T')) {
         setSelectedMullionProfile('70T-301-18');
       }
+    } else if (systemId === 'kurt-ktr-64t' || systemId.includes('64t')) {
+      if (!selectedFrameProfile.startsWith('64T')) {
+        setSelectedFrameProfile('64T-101');
+      }
+      if (!selectedSashProfile.startsWith('64T')) {
+        setSelectedSashProfile('64T-201');
+      }
+      if (!selectedMullionProfile.startsWith('64T')) {
+        setSelectedMullionProfile('64T-301');
+      }
+    } else if (sys?.profileCodes) {
+      if (sys.profileCodes.frame && selectedFrameProfile !== sys.profileCodes.frame) {
+        setSelectedFrameProfile(sys.profileCodes.frame);
+      }
+      if (sys.profileCodes.sash && selectedSashProfile !== sys.profileCodes.sash) {
+        setSelectedSashProfile(sys.profileCodes.sash);
+      }
+      if (sys.profileCodes.mullion && selectedMullionProfile !== sys.profileCodes.mullion) {
+        setSelectedMullionProfile(sys.profileCodes.mullion);
+      }
     }
-  }, [systemId]);
+  }, [systemId, systems]);
 
   // Custom uploaded drawings mapping keyed by profile code to allow different drawings per style
   const [customProfileImages, setCustomProfileImages] = useState<Record<string, string>>(() => {
@@ -1181,17 +1216,24 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     setSystemId(newSystemId);
     
     // Auto-update profile defaults for this system to avoid stale/wrong profile selections
-    if (newSystemId === 'kurt-51ls') {
+    const targetSystem = systems.find(s => s.id === newSystemId);
+    if (newSystemId === 'kurt-51ls' || newSystemId.includes('51ls')) {
       setSelectedFrameProfile('51LS-101-00');
       setSelectedSashProfile('51LS-201-00');
       setSelectedMullionProfile('51LS-301-00');
-    } else if (newSystemId === 'kurt-70t-th') {
+    } else if (newSystemId === 'kurt-70t-th' || newSystemId.includes('70t')) {
       setSelectedFrameProfile('70T-102-18');
       setSelectedSashProfile('70T-201-18');
       setSelectedMullionProfile('70T-301-18');
+    } else if (newSystemId === 'kurt-ktr-64t' || newSystemId.includes('64t')) {
+      setSelectedFrameProfile('64T-101');
+      setSelectedSashProfile('64T-201');
+      setSelectedMullionProfile('64T-301');
+    } else if (targetSystem?.profileCodes) {
+      if (targetSystem.profileCodes.frame) setSelectedFrameProfile(targetSystem.profileCodes.frame);
+      if (targetSystem.profileCodes.sash) setSelectedSashProfile(targetSystem.profileCodes.sash);
+      if (targetSystem.profileCodes.mullion) setSelectedMullionProfile(targetSystem.profileCodes.mullion);
     }
-
-    const targetSystem = systems.find(s => s.id === newSystemId);
     if (targetSystem) {
       // Check if current typology is compatible with the selected system
       let isCompatible = false;
@@ -1249,14 +1291,22 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       const firstComp = systems.find(isCompatible);
       if (firstComp) {
         setSystemId(firstComp.id);
-        if (firstComp.id === 'kurt-51ls') {
+        if (firstComp.id === 'kurt-51ls' || firstComp.id.includes('51ls')) {
           setSelectedFrameProfile('51LS-101-00');
           setSelectedSashProfile('51LS-201-00');
           setSelectedMullionProfile('51LS-301-00');
-        } else if (firstComp.id === 'kurt-70t-th') {
+        } else if (firstComp.id === 'kurt-70t-th' || firstComp.id.includes('70t')) {
           setSelectedFrameProfile('70T-102-18');
           setSelectedSashProfile('70T-201-18');
           setSelectedMullionProfile('70T-301-18');
+        } else if (firstComp.id === 'kurt-ktr-64t' || firstComp.id.includes('64t')) {
+          setSelectedFrameProfile('64T-101');
+          setSelectedSashProfile('64T-201');
+          setSelectedMullionProfile('64T-301');
+        } else if (firstComp.profileCodes) {
+          if (firstComp.profileCodes.frame) setSelectedFrameProfile(firstComp.profileCodes.frame);
+          if (firstComp.profileCodes.sash) setSelectedSashProfile(firstComp.profileCodes.sash);
+          if (firstComp.profileCodes.mullion) setSelectedMullionProfile(firstComp.profileCodes.mullion);
         }
       }
     }
@@ -1714,10 +1764,22 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   }, [systemId, systems, accessories]);
 
   const currentCatalog = useMemo(() => {
-    if (systemId === 'kurt-51ls') return KURTOGLU_51LS_CATALOG;
-    if (systemId === 'kurt-70t-th') return KURTOGLU_70T_CATALOG;
+    if (systemId === 'kurt-51ls' || systemId.includes('51ls')) return KURTOGLU_51LS_CATALOG;
+    if (systemId === 'kurt-70t-th' || systemId.includes('70t')) return KURTOGLU_70T_CATALOG;
+    if (systemId === 'kurt-ktr-64t' || systemId.includes('64t')) return KURTOGLU_KTR64T_CATALOG;
+
+    // If the system has custom profile drawings defined in Settings, auto-generate catalog list
+    if (selectedSystem?.profileDrawings && selectedSystem.profileDrawings.length > 0) {
+      return selectedSystem.profileDrawings.map(d => ({
+        code: d.code,
+        weight: d.weight || 1.5,
+        type: (d.type as 'frame' | 'sash' | 'mullion') || 'frame',
+        nameTr: d.nameTr || d.code,
+        nameEn: d.nameEn || d.code
+      }));
+    }
     return null;
-  }, [systemId]);
+  }, [systemId, selectedSystem]);
 
   // Dynamically calculate unit glass weight!
   const currentUnitDummy: Unit = useMemo(() => ({
@@ -2569,9 +2631,13 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             <Sparkles className="text-amber-500 w-4 h-4 animate-pulse" />
                             <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
                               {currentCatalog 
-                                ? (systemId === 'kurt-51ls' 
+                                ? (systemId === 'kurt-51ls' || systemId.includes('51ls')
                                   ? (lang === 'tr' ? '51LS Detaylı Profil Kataloğu' : '51LS Detailed Profile Selection')
-                                  : (lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection'))
+                                  : (systemId === 'kurt-ktr-64t' || systemId.includes('64t'))
+                                    ? (lang === 'tr' ? 'KTR 64T Detaylı Profil Kataloğu' : 'KTR 64T Detailed Profile Selection')
+                                    : (systemId === 'kurt-70t-th' || systemId.includes('70t'))
+                                      ? (lang === 'tr' ? '70T-TH Detaylı Profil Kataloğu' : '70T-TH Detailed Profile Selection')
+                                      : (lang === 'tr' ? `${selectedSystem?.name || ''} Profil Kataloğu` : `${selectedSystem?.name || ''} Profile Catalog`))
                                 : (lang === 'tr' ? 'Detaylı Profil Kod ve Kesit Çizimleri' : 'Detailed Profile Codes & Section Drawings')}
                             </h4>
                           </div>

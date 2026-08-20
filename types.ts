@@ -138,6 +138,10 @@ export interface ProfileSystem {
   profileWeights?: ProfileWeights;
   laborPricePerKg?: number;
   laborPricePerKgUsd?: number;
+  tiltTurnLaborPrice?: number;        // ALÜMİNYUM ÇİFT AÇILIM PENCERE KANAT AKSESUAR MONTAJ BEDELİ (TL / Adet)
+  tiltTurnLaborPriceUsd?: number;     // ALÜMİNYUM ÇİFT AÇILIM PENCERE KANAT AKSESUAR MONTAJ BEDELİ (USD / Adet)
+  hbsbLaborPrice?: number;            // ALÜMİNYUM HBSB SÜRME AKSESUAR MONTAJ BEDELİ (HER KANAT İÇİN) (TL / Adet)
+  hbsbLaborPriceUsd?: number;         // ALÜMİNYUM HBSB SÜRME AKSESUAR MONTAJ BEDELİ (HER KANAT İÇİN) (USD / Adet)
   supportedTypologies?: string[];
   planSectionUrl?: string;
   crossSectionUrl?: string;
