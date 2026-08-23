@@ -6,7 +6,7 @@ import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG, KURTOGLU_KTR64T_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon, ArrowLeftRight } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -2049,6 +2049,48 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     })));
   };
 
+  const handleSwapSashes = () => {
+    let targetNodeId: string | null = null;
+    if (selectedNode?.type === 'container' && selectedNode.children?.length === 2) {
+      targetNodeId = selectedNode.id;
+    } else if (parentId) {
+      const parentNode = findNode(rootNode, parentId);
+      if (parentNode && parentNode.children?.length === 2) {
+        targetNodeId = parentId;
+      }
+    } else if (rootNode.type === 'container' && rootNode.children?.length === 2) {
+      targetNodeId = rootNode.id;
+    }
+
+    if (targetNodeId) {
+      handleUpdateRootNode(findAndUpdateNode(rootNode, targetNodeId, (node) => {
+        if (node.children && node.children.length === 2) {
+          return {
+            ...node,
+            children: [node.children[1], node.children[0]],
+            splitRatio: node.splitRatio ? [node.splitRatio[1], node.splitRatio[0]] : [0.5, 0.5]
+          };
+        }
+        return node;
+      }));
+    } else {
+      const swapRecursive = (node: WindowNode): WindowNode => {
+        if (node.type === 'container' && node.children && node.children.length === 2) {
+          return {
+            ...node,
+            children: [node.children[1], node.children[0]],
+            splitRatio: node.splitRatio ? [node.splitRatio[1], node.splitRatio[0]] : [0.5, 0.5]
+          };
+        }
+        if (node.children) {
+          return { ...node, children: node.children.map(swapRecursive) };
+        }
+        return node;
+      };
+      handleUpdateRootNode(swapRecursive(rootNode));
+    }
+  };
+
   const findNode = (node: WindowNode, id: string): WindowNode | null => {
     if (node.id === id) return node;
     if (node.children) {
@@ -3146,6 +3188,17 @@ max="0.95"
                         )}
                       </div>
                     )}
+                    {(rootNode.type === 'container' || selectedNode?.type === 'container' || parentId) && (
+                      <button 
+                        type="button" 
+                        onClick={handleSwapSashes} 
+                        className="w-full flex items-center justify-center gap-2 p-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 rounded-xl transition-all border border-blue-500/25 font-bold"
+                        title={lang === 'tr' ? 'Sağ ve sol kanatların yerini ve açılımlarını tersine çevirir' : 'Swap left and right sashes'}
+                      >
+                        <ArrowLeftRight size={14} />
+                        <span className="text-[10px] uppercase tracking-wider">{lang === 'tr' ? 'Kanatları Yer Değiştir (Sağ ⇄ Sol)' : 'Swap Sashes (Left ⇄ Right)'}</span>
+                      </button>
+                    )}
                     <button onClick={() => { setRootNode({ ...INITIAL_ROOT_NODE, id: uuidv4() }); setSelectedNodeId(null); }} className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20">
                       <Trash2 size={14} /><span className="text-[10px] font-bold uppercase tracking-wider">{t(lang, 'resetUnit')}</span>
                     </button>
@@ -3362,6 +3415,17 @@ max="0.95"
                       <Sparkles size={12} className="text-amber-300" />
                       {lang === 'tr' ? 'Gerçekçi Tuval' : 'Realistic Canvas'}
                     </button>
+                    {(rootNode.type === 'container' || selectedNode?.type === 'container' || parentId) && (
+                      <button 
+                        type="button"
+                        onClick={handleSwapSashes}
+                        className="px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 bg-slate-700/70 hover:bg-blue-600 text-slate-200 hover:text-white border border-white/5 shadow-md"
+                        title={lang === 'tr' ? 'Sağ ve sol kanatların yerini ve açılım yönünü tersine çevirir (Aynalar)' : 'Swap left and right sashes (Mirror)'}
+                      >
+                        <ArrowLeftRight size={12} className="text-blue-400" />
+                        {lang === 'tr' ? 'Kanatları Değiştir (Sağ ⇄ Sol)' : 'Swap Sashes'}
+                      </button>
+                    )}
                   </div>
 
                   {previewType === 'svg' ? (
