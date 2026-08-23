@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing, NodeType } from '../types';
-import Visualizer from './Visualizer';
+import Visualizer, { getYCuts, getXCuts, getSegmentsFromCuts } from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG, KURTOGLU_KTR64T_CATALOG } from '../constants';
@@ -1725,7 +1725,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'center';
 
-    // Width line (Top)
+    // 1. Overall Width line (Top)
     const dimY = startY - 20;
     ctx.beginPath();
     ctx.moveTo(startX, dimY);
@@ -1746,7 +1746,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     ctx.fillStyle = isDark ? '#38bdf8' : '#2563eb';
     ctx.fillText(wText, startX + drawW / 2, dimY + 3);
 
-    // Height line (Left)
+    // 2. Overall Height line (Left)
     const dimX = startX - 25;
     ctx.beginPath();
     ctx.moveTo(dimX, startY);
@@ -1770,6 +1770,88 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     ctx.fillStyle = isDark ? '#38bdf8' : '#2563eb';
     ctx.fillText(hText, 0, 3);
     ctx.restore();
+
+    // 3. Right Vertical Sub-Division Segments (Dikey Bölmelerin Uzunlukları)
+    const yCuts = getYCuts(rootNode, 0, height, frameWidthScaled / scale);
+    const vSegments = getSegmentsFromCuts(yCuts, height);
+    if (vSegments.length > 1) {
+      const segDimX = startX + drawW + 25;
+      vSegments.forEach(seg => {
+        const segStartY = startY + seg.start * scale;
+        const segEndY = startY + seg.end * scale;
+        const segMidY = (segStartY + segEndY) / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(startX + drawW + 4, segStartY);
+        ctx.lineTo(segDimX + 4, segStartY);
+        ctx.moveTo(startX + drawW + 4, segEndY);
+        ctx.lineTo(segDimX + 4, segEndY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(segDimX, segStartY);
+        ctx.lineTo(segDimX, segEndY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(segDimX - 4, segStartY);
+        ctx.lineTo(segDimX + 4, segStartY);
+        ctx.moveTo(segDimX - 4, segEndY);
+        ctx.lineTo(segDimX + 4, segEndY);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(segDimX, segMidY);
+        ctx.rotate(-Math.PI / 2);
+        const segText = `${seg.length} mm`;
+        const stWidth = ctx.measureText(segText).width;
+        ctx.fillStyle = isDark ? '#020617' : '#ffffff';
+        ctx.fillRect(-stWidth / 2 - 3, -5, stWidth + 6, 10);
+        ctx.fillStyle = isDark ? '#38bdf8' : '#0284c7';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(segText, 0, 3);
+        ctx.restore();
+      });
+    }
+
+    // 4. Bottom Horizontal Sub-Division Segments (Yatay Bölmelerin Genişlikleri)
+    const xCuts = getXCuts(rootNode, 0, width, frameWidthScaled / scale);
+    const hSegments = getSegmentsFromCuts(xCuts, width);
+    if (hSegments.length > 1) {
+      const segDimY = startY + drawH + 20;
+      hSegments.forEach(seg => {
+        const segStartX = startX + seg.start * scale;
+        const segEndX = startX + seg.end * scale;
+        const segMidX = (segStartX + segEndX) / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(segStartX, startY + drawH + 4);
+        ctx.lineTo(segStartX, segDimY + 4);
+        ctx.moveTo(segEndX, startY + drawH + 4);
+        ctx.lineTo(segEndX, segDimY + 4);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(segStartX, segDimY);
+        ctx.lineTo(segEndX, segDimY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(segStartX, segDimY - 4);
+        ctx.lineTo(segStartX, segDimY + 4);
+        ctx.moveTo(segEndX, segDimY - 4);
+        ctx.lineTo(segEndX, segDimY + 4);
+        ctx.stroke();
+
+        const segText = `${seg.length} mm`;
+        ctx.font = 'bold 9px monospace';
+        const stWidth = ctx.measureText(segText).width;
+        ctx.fillStyle = isDark ? '#020617' : '#ffffff';
+        ctx.fillRect(segMidX - stWidth / 2 - 3, segDimY - 5, stWidth + 6, 10);
+        ctx.fillStyle = isDark ? '#38bdf8' : '#0284c7';
+        ctx.fillText(segText, segMidX, segDimY + 3);
+      });
+    }
 
   }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems, viewPerspective]);
 

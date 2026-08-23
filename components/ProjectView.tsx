@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem } from '../types';
 import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw } from 'lucide-react';
 import { t } from '../translations';
-import Visualizer from './Visualizer';
+import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
 import OptimizationReport from './OptimizationReport';
 import CuttingList from './CuttingList';
 import { ShadingBOMAndOpt, calculateShadingItemPrice, DEFAULT_CONFIG } from './ShadingBOMAndOpt';
@@ -3029,8 +3029,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center p-6 border-b border-slate-200 overflow-hidden print:bg-white">
                                             <div className="w-full h-full flex items-center justify-center">
                                               <svg 
-                                                viewBox={`0 0 ${unit.width} ${unit.height}`} 
-                                                className="w-full h-full max-h-full max-w-full p-2"
+                                                viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
+                                                className="w-full h-full max-h-full max-w-full p-1"
                                                 preserveAspectRatio="xMidYMid meet"
                                               >
                                                 <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={getSystemForUnit(unit, systems)} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
@@ -3465,7 +3465,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                              {/* Elevation Front View */}
                                                              <div className="w-36 h-36 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shrink-0">
                                                                 <svg 
-                                                                  viewBox={`0 0 ${unit.width} ${unit.height}`} 
+                                                                  viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
                                                                   className="w-full h-full max-h-full max-w-full"
                                                                   preserveAspectRatio="xMidYMid meet"
                                                                 >

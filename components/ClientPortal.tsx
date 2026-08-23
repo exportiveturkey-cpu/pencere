@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Project, ProfileSystem, Accessory, Language, WindowNode } from '../types';
 import { t } from '../translations';
-import Visualizer from './Visualizer';
+import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
 import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
 import { 
   Sparkles, CheckCircle2, AlertOctagon, HelpCircle, PenTool,
@@ -447,7 +447,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                               <div className="flex items-center gap-3">
                                 {/* Elevation Front View */}
                                 <div className="w-36 h-36 bg-slate-900/60 rounded-xl border border-white/5 print:bg-slate-50 print:border-slate-200 p-2 flex items-center justify-center shrink-0">
-                                  <div className="w-full h-full">
+                                  <svg 
+                                    viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
+                                    className="w-full h-full max-h-full max-w-full"
+                                    preserveAspectRatio="xMidYMid meet"
+                                  >
                                     <Visualizer 
                                       node={unit.rootNode} 
                                       width={unit.width} 
@@ -462,7 +466,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                                       lang={lang} 
                                       viewPerspective={unit.viewPerspective}
                                     />
-                                  </div>
+                                  </svg>
                                 </div>
 
                                 {/* Boy Kesit (Y-Y dikey kesit) */}

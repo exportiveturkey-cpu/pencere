@@ -17,10 +17,84 @@ interface VisualizerProps {
   hasThreshold?: boolean;
   lang?: string;
   viewPerspective?: 'interior' | 'exterior';
+  showDimensions?: boolean;
 }
 
+// Helper: Calculate Y cuts for horizontal transoms (dividing height)
+export function getYCuts(node: WindowNode, y0: number, h: number, frameW: number): number[] {
+  if (!node || node.type !== 'container' || !node.children || node.children.length !== 2 || !node.splitRatio) {
+    return [];
+  }
+  if (node.direction === 'horizontal') {
+    const available = h - frameW;
+    const s1 = available * node.splitRatio[0];
+    const cutY = y0 + s1 + frameW / 2;
+    const cutsTop = getYCuts(node.children[0], y0, s1, frameW);
+    const cutsBottom = getYCuts(node.children[1], y0 + s1 + frameW, available * node.splitRatio[1], frameW);
+    return [...cutsTop, cutY, ...cutsBottom];
+  } else {
+    const cutsLeft = getYCuts(node.children[0], y0, h, frameW);
+    const cutsRight = getYCuts(node.children[1], y0, h, frameW);
+    return [...cutsLeft, ...cutsRight];
+  }
+}
+
+// Helper: Calculate X cuts for vertical mullions (dividing width)
+export function getXCuts(node: WindowNode, x0: number, w: number, frameW: number): number[] {
+  if (!node || node.type !== 'container' || !node.children || node.children.length !== 2 || !node.splitRatio) {
+    return [];
+  }
+  if (node.direction === 'vertical') {
+    const available = w - frameW;
+    const s1 = available * node.splitRatio[0];
+    const cutX = x0 + s1 + frameW / 2;
+    const cutsLeft = getXCuts(node.children[0], x0, s1, frameW);
+    const cutsRight = getXCuts(node.children[1], x0 + s1 + frameW, available * node.splitRatio[1], frameW);
+    return [...cutsLeft, cutX, ...cutsRight];
+  } else {
+    const cutsTop = getXCuts(node.children[0], x0, w, frameW);
+    const cutsBottom = getXCuts(node.children[1], x0, w, frameW);
+    return [...cutsTop, ...cutsBottom];
+  }
+}
+
+export interface SegmentInterval {
+  start: number;
+  end: number;
+  length: number;
+}
+
+export function getSegmentsFromCuts(cuts: number[], totalLength: number): SegmentInterval[] {
+  const rounded = Array.from(new Set(cuts.map(c => Math.round(c))))
+    .filter(c => c > 15 && c < totalLength - 15)
+    .sort((a, b) => a - b);
+  
+  if (rounded.length === 0) {
+    return [{ start: 0, end: totalLength, length: totalLength }];
+  }
+
+  const points = [0, ...rounded, totalLength];
+  const segments: SegmentInterval[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i];
+    const end = points[i + 1];
+    segments.push({ start, end, length: Math.round(end - start) });
+  }
+  return segments;
+}
+
+export const getViewBoxWithDimensions = (w: number, h: number) => {
+  const padX = Math.max(75, Math.round(w * 0.14));
+  const padY = Math.max(75, Math.round(h * 0.12));
+  const minX = -padX;
+  const minY = -padY;
+  const totalW = w + padX * 2.3;
+  const totalH = h + padY * 2.3;
+  return `${minX} ${minY} ${totalW} ${totalH}`;
+};
+
 const Visualizer: React.FC<VisualizerProps> = ({ 
-  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr', viewPerspective = 'interior'
+  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr', viewPerspective = 'interior', showDimensions = true
 }) => {
   const isSelected = node.id === selectedNodeId;
   const isRoot = x === 0 && y === 0;
@@ -485,29 +559,41 @@ const Visualizer: React.FC<VisualizerProps> = ({
           {isOpening && renderHandle(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
 
           {/* Segment Dimension Badge inside Pane (LogiKal Style) */}
-          {glassW >= 80 && glassH >= 60 && (
-            <g className="select-none pointer-events-none opacity-85 hover:opacity-100 transition-opacity">
-              <rect 
-                x={glassX + glassW/2 - 42} 
-                y={glassY + glassH - (isOpening ? 28 : 22)} 
-                width={84} 
-                height={16} 
-                rx={3} 
-                fill={theme === 'dark' ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.85)'} 
-                stroke={theme === 'dark' ? '#334155' : '#cbd5e1'} 
-                strokeWidth={0.6} 
-              />
-              <text 
-                x={glassX + glassW/2} 
-                y={glassY + glassH - (isOpening ? 16 : 10)} 
-                textAnchor="middle" 
-                fill={theme === 'dark' ? '#94a3b8' : '#334155'} 
-                fontSize={9} 
-                fontWeight="700" 
-                fontFamily="monospace"
-              >
-                {Math.round(width)} × {Math.round(height)}
-              </text>
+          {glassW >= 40 && glassH >= 40 && (
+            <g className="select-none pointer-events-none opacity-90 hover:opacity-100 transition-opacity">
+              {(() => {
+                const baseScale = Math.max(width, height);
+                const bFont = Math.max(11, Math.min(Math.round(baseScale * 0.02), Math.round(glassH * 0.25)));
+                const bW = Math.max(60, Math.min(glassW * 0.85, bFont * 7));
+                const bH = Math.max(18, Math.round(bFont * 1.5));
+                const bY = glassY + glassH / 2 - bH / 2;
+                const bX = glassX + glassW / 2 - bW / 2;
+                return (
+                  <>
+                    <rect 
+                      x={bX} 
+                      y={bY} 
+                      width={bW} 
+                      height={bH} 
+                      rx={3} 
+                      fill={theme === 'dark' ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.92)'} 
+                      stroke={theme === 'dark' ? '#334155' : '#cbd5e1'} 
+                      strokeWidth={0.8} 
+                    />
+                    <text 
+                      x={glassX + glassW / 2} 
+                      y={bY + bH * 0.68} 
+                      textAnchor="middle" 
+                      fill={theme === 'dark' ? '#e2e8f0' : '#1e293b'} 
+                      fontSize={bFont} 
+                      fontWeight="800" 
+                      fontFamily="monospace"
+                    >
+                      {Math.round(width)} × {Math.round(height)}
+                    </text>
+                  </>
+                );
+              })()}
             </g>
           )}
         </g>
@@ -515,14 +601,192 @@ const Visualizer: React.FC<VisualizerProps> = ({
     );
   };
 
-  const rendered = renderContent();
-  if (isRoot && viewPerspective === 'exterior') {
+  const renderDimensions = () => {
+    if (!isRoot || !showDimensions) return null;
+
+    const dimStroke = theme === 'dark' ? '#64748b' : '#475569';
+    const dimTextFill = theme === 'dark' ? '#38bdf8' : '#1e40af';
+    const dimBgFill = theme === 'dark' ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)';
+    const dimBorder = theme === 'dark' ? '#334155' : '#cbd5e1';
+
+    const baseScale = Math.max(width, height);
+    const fsOverall = Math.max(14, Math.round(baseScale * 0.022));
+    const fsSegment = Math.max(12, Math.round(baseScale * 0.018));
+    const tick = Math.max(4, Math.round(baseScale * 0.007));
+    const sw = Math.max(1, Math.round(baseScale * 0.0012));
+
+    const offTop = Math.max(35, Math.round(height * 0.065));
+    const offLeft = Math.max(35, Math.round(width * 0.065));
+    const offRight = Math.max(35, Math.round(width * 0.065));
+    const offBottom = Math.max(35, Math.round(height * 0.065));
+
+    const yCuts = getYCuts(node, 0, height, frameWidth);
+    const vSegments = getSegmentsFromCuts(yCuts, height);
+
+    const xCuts = getXCuts(node, 0, width, frameWidth);
+    const hSegments = getSegmentsFromCuts(xCuts, width);
+
     return (
-      <g transform={`translate(${width}, 0) scale(-1, 1)`}>
-        {rendered}
+      <g className="cad-dimension-lines select-none pointer-events-none" style={{ fontFamily: 'monospace' }}>
+        {/* 1. TOP OVERALL WIDTH */}
+        <g>
+          <line x1={0} y1={0} x2={0} y2={-offTop - tick * 1.5} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+          <line x1={width} y1={0} x2={width} y2={-offTop - tick * 1.5} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+          <line x1={0} y1={-offTop} x2={width} y2={-offTop} stroke={dimStroke} strokeWidth={sw} />
+          <line x1={-tick} y1={-offTop + tick} x2={tick} y2={-offTop - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+          <line x1={width - tick} y1={-offTop + tick} x2={width + tick} y2={-offTop - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+          <rect 
+            x={width / 2 - (fsOverall * 2.8)} 
+            y={-offTop - (fsOverall * 0.85)} 
+            width={fsOverall * 5.6} 
+            height={fsOverall * 1.4} 
+            rx={3} 
+            fill={dimBgFill} 
+            stroke={dimBorder} 
+            strokeWidth={0.8} 
+          />
+          <text 
+            x={width / 2} 
+            y={-offTop + (fsOverall * 0.22)} 
+            textAnchor="middle" 
+            fill={dimTextFill} 
+            fontSize={fsOverall} 
+            fontWeight="900" 
+          >
+            {Math.round(width)} mm
+          </text>
+        </g>
+
+        {/* 2. LEFT OVERALL HEIGHT */}
+        <g>
+          <line x1={0} y1={0} x2={-offLeft - tick * 1.5} y2={0} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+          <line x1={0} y1={height} x2={-offLeft - tick * 1.5} y2={height} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+          <line x1={-offLeft} y1={0} x2={-offLeft} y2={height} stroke={dimStroke} strokeWidth={sw} />
+          <line x1={-offLeft - tick} y1={tick} x2={-offLeft + tick} y2={-tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+          <line x1={-offLeft - tick} y1={height + tick} x2={-offLeft + tick} y2={height - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+          <g transform={`translate(${-offLeft}, ${height / 2}) rotate(-90)`}>
+            <rect 
+              x={-(fsOverall * 2.8)} 
+              y={-(fsOverall * 0.7)} 
+              width={fsOverall * 5.6} 
+              height={fsOverall * 1.4} 
+              rx={3} 
+              fill={dimBgFill} 
+              stroke={dimBorder} 
+              strokeWidth={0.8} 
+            />
+            <text 
+              x={0} 
+              y={fsOverall * 0.35} 
+              textAnchor="middle" 
+              fill={dimTextFill} 
+              fontSize={fsOverall} 
+              fontWeight="900" 
+            >
+              {Math.round(height)} mm
+            </text>
+          </g>
+        </g>
+
+        {/* 3. RIGHT VERTICAL SUB-DIVISION SEGMENTS (Dikey Bölmelerin Uzunlukları) */}
+        {vSegments.length > 1 && (
+          <g>
+            {vSegments.map((seg, idx) => {
+              const segMidY = (seg.start + seg.end) / 2;
+              return (
+                <g key={`vseg-${idx}`}>
+                  <line x1={width} y1={seg.start} x2={width + offRight + tick * 1.5} y2={seg.start} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+                  <line x1={width} y1={seg.end} x2={width + offRight + tick * 1.5} y2={seg.end} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+                  <line x1={width + offRight} y1={seg.start} x2={width + offRight} y2={seg.end} stroke={dimStroke} strokeWidth={sw} />
+                  <line x1={width + offRight - tick} y1={seg.start + tick} x2={width + offRight + tick} y2={seg.start - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+                  <line x1={width + offRight - tick} y1={seg.end + tick} x2={width + offRight + tick} y2={seg.end - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+                  <g transform={`translate(${width + offRight}, ${segMidY}) rotate(-90)`}>
+                    <rect 
+                      x={-(fsSegment * 2.5)} 
+                      y={-(fsSegment * 0.65)} 
+                      width={fsSegment * 5.0} 
+                      height={fsSegment * 1.3} 
+                      rx={2.5} 
+                      fill={dimBgFill} 
+                      stroke={dimBorder} 
+                      strokeWidth={0.7} 
+                    />
+                    <text 
+                      x={0} 
+                      y={fsSegment * 0.32} 
+                      textAnchor="middle" 
+                      fill={theme === 'dark' ? '#38bdf8' : '#0284c7'} 
+                      fontSize={fsSegment} 
+                      fontWeight="800" 
+                    >
+                      {seg.length} mm
+                    </text>
+                  </g>
+                </g>
+              );
+            })}
+          </g>
+        )}
+
+        {/* 4. BOTTOM HORIZONTAL SUB-DIVISION SEGMENTS (Yatay Bölmelerin Genişlikleri) */}
+        {hSegments.length > 1 && (
+          <g>
+            {hSegments.map((seg, idx) => {
+              const segMidX = (seg.start + seg.end) / 2;
+              return (
+                <g key={`hseg-${idx}`}>
+                  <line x1={seg.start} y1={height} x2={seg.start} y2={height + offBottom + tick * 1.5} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+                  <line x1={seg.end} y1={height} x2={seg.end} y2={height + offBottom + tick * 1.5} stroke={dimStroke} strokeWidth={sw * 0.8} strokeDasharray="3,3" opacity="0.6" />
+                  <line x1={seg.start} y1={height + offBottom} x2={seg.end} y2={height + offBottom} stroke={dimStroke} strokeWidth={sw} />
+                  <line x1={seg.start - tick} y1={height + offBottom + tick} x2={seg.start + tick} y2={height + offBottom - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+                  <line x1={seg.end - tick} y1={height + offBottom + tick} x2={seg.end + tick} y2={height + offBottom - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
+                  <rect 
+                    x={segMidX - (fsSegment * 2.5)} 
+                    y={height + offBottom - (fsSegment * 0.65)} 
+                    width={fsSegment * 5.0} 
+                    height={fsSegment * 1.3} 
+                    rx={2.5} 
+                    fill={dimBgFill} 
+                    stroke={dimBorder} 
+                    strokeWidth={0.7} 
+                  />
+                  <text 
+                    x={segMidX} 
+                    y={height + offBottom + (fsSegment * 0.32)} 
+                    textAnchor="middle" 
+                    fill={theme === 'dark' ? '#38bdf8' : '#0284c7'} 
+                    fontSize={fsSegment} 
+                    fontWeight="800" 
+                  >
+                    {seg.length} mm
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
+      </g>
+    );
+  };
+
+  const rendered = renderContent();
+  const dimensions = isRoot && showDimensions ? renderDimensions() : null;
+
+  if (isRoot) {
+    return (
+      <g>
+        {viewPerspective === 'exterior' ? (
+          <g transform={`translate(${width}, 0) scale(-1, 1)`}>
+            {rendered}
+          </g>
+        ) : (
+          rendered
+        )}
+        {dimensions}
       </g>
     );
   }
+
   return rendered;
 };
 
