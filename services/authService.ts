@@ -86,25 +86,38 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
 
   // 1. Immediately save to LocalStorage cache (both per-license and global fallback)
   try {
-    const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
-    let projects: Project[] = cachedStr ? JSON.parse(cachedStr) : [];
-    const index = projects.findIndex(p => p.id === projectToSave.id);
-    if (index >= 0) {
-      projects[index] = projectToSave;
-    } else {
-      projects.push(projectToSave);
+    if (licenseKey) {
+      const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
+      let projects: Project[] = cachedStr ? JSON.parse(cachedStr) : [];
+      const index = projects.findIndex(p => p.id === projectToSave.id);
+      if (index >= 0) {
+        projects[index] = projectToSave;
+      } else {
+        projects.push(projectToSave);
+      }
+      localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
     }
-    localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
-    localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(projects));
+
+    const globalCachedStr = localStorage.getItem('alumetric_local_projects_backup');
+    let globalProjects: Project[] = globalCachedStr ? JSON.parse(globalCachedStr) : [];
+    const gIndex = globalProjects.findIndex(p => p.id === projectToSave.id);
+    if (gIndex >= 0) {
+      globalProjects[gIndex] = projectToSave;
+    } else {
+      globalProjects.push(projectToSave);
+    }
+    localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(globalProjects));
   } catch (err) {
     console.error("Local storage project cache write error:", err);
   }
 
   // 2. Sanitize and write to Cloud Firestore
   try {
-    const cleanDoc = JSON.parse(JSON.stringify(projectToSave));
-    const docRef = doc(db, "licenses", licenseKey, "projects", projectToSave.id);
-    await setDoc(docRef, cleanDoc);
+    if (licenseKey) {
+      const cleanDoc = JSON.parse(JSON.stringify(projectToSave));
+      const docRef = doc(db, "licenses", licenseKey, "projects", projectToSave.id);
+      await setDoc(docRef, cleanDoc);
+    }
   } catch (error) {
     console.warn("Could not save to Cloud Firestore (offline/timeout). Project safely saved locally.", error);
   }
@@ -112,20 +125,29 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
 
 export const cloud_deleteProject = async (licenseKey: string, projectId: string) => {
   try {
-    const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
-    if (cachedStr) {
-      let projects: Project[] = JSON.parse(cachedStr);
-      projects = projects.filter(p => p.id !== projectId);
-      localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
-      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(projects));
+    if (licenseKey) {
+      const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
+      if (cachedStr) {
+        let projects: Project[] = JSON.parse(cachedStr);
+        projects = projects.filter(p => p.id !== projectId);
+        localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
+      }
+    }
+    const globalCachedStr = localStorage.getItem('alumetric_local_projects_backup');
+    if (globalCachedStr) {
+      let globalProjects: Project[] = JSON.parse(globalCachedStr);
+      globalProjects = globalProjects.filter(p => p.id !== projectId);
+      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(globalProjects));
     }
   } catch (err) {
     console.error("Local storage project cache delete error:", err);
   }
 
   try {
-    const docRef = doc(db, "licenses", licenseKey, "projects", projectId);
-    await deleteDoc(docRef);
+    if (licenseKey) {
+      const docRef = doc(db, "licenses", licenseKey, "projects", projectId);
+      await deleteDoc(docRef);
+    }
   } catch (error) {
     console.warn("Could not delete from Cloud Firestore (offline/timeout). Deleted locally.", error);
   }
@@ -135,7 +157,7 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
   // 1. Load local cache first
   let localProjects: Project[] = [];
   try {
-    const cachedStr = localStorage.getItem('cached_projects_' + licenseKey) || localStorage.getItem('alumetric_local_projects_backup');
+    const cachedStr = (licenseKey && localStorage.getItem('cached_projects_' + licenseKey)) || localStorage.getItem('alumetric_local_projects_backup');
     if (cachedStr) {
       localProjects = JSON.parse(cachedStr);
     }
@@ -144,6 +166,7 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
   }
 
   try {
+    if (!licenseKey) return localProjects;
     const colRef = collection(db, "licenses", licenseKey, "projects");
     const snap = await getDocs(colRef);
     const cloudProjects = snap.docs.map((d: any) => d.data() as Project);
@@ -157,17 +180,21 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
         mergedMap.set(cp.id, cp);
       });
 
-      // Check local projects: if local is newer than cloud or doesn't exist in cloud, preserve local!
+      // Check local projects: if local is newer or equal to cloud or doesn't exist in cloud, preserve local!
       localProjects.forEach(lp => {
         const cloudVersion = mergedMap.get(lp.id);
         if (!cloudVersion) {
           // Exists locally but not in cloud -> keep local and sync to cloud
           mergedMap.set(lp.id, lp);
           cloud_saveProject(licenseKey, lp).catch(() => {});
-        } else if ((lp.updatedAt || 0) > (cloudVersion.updatedAt || 0)) {
-          // Local version has newer edits -> keep local and update cloud!
-          mergedMap.set(lp.id, lp);
-          cloud_saveProject(licenseKey, lp).catch(() => {});
+        } else {
+          const localTime = lp.updatedAt || 0;
+          const cloudTime = cloudVersion.updatedAt || 0;
+          if (localTime >= cloudTime) {
+            // Local version is newer or equal -> keep local and update cloud!
+            mergedMap.set(lp.id, lp);
+            cloud_saveProject(licenseKey, lp).catch(() => {});
+          }
         }
       });
 

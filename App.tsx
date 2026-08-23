@@ -139,7 +139,11 @@ const App: React.FC = () => {
         finalSystems = PROFILE_SYSTEMS;
       }
 
-      setProjects(cloudProjects.length > 0 ? cloudProjects : (projects.length > 0 ? projects : MOCK_PROJECTS));
+      setProjects(prev => {
+        if (cloudProjects.length > 0) return cloudProjects;
+        if (prev.length > 0) return prev;
+        return MOCK_PROJECTS;
+      });
       setSystems(finalSystems);
       setAccessories(cloudAccessories || MOCK_ACCESSORIES);
       setMachines(cloudMachines || []);
@@ -158,7 +162,11 @@ const App: React.FC = () => {
         }
       } catch (err) {}
 
-      setProjects(fallbackProjects.length > 0 ? fallbackProjects : (projects.length > 0 ? projects : MOCK_PROJECTS));
+      setProjects(prev => {
+        if (fallbackProjects.length > 0) return fallbackProjects;
+        if (prev.length > 0) return prev;
+        return MOCK_PROJECTS;
+      });
       setSystems(PROFILE_SYSTEMS);
       setAccessories(MOCK_ACCESSORIES);
       setMachines([]);
@@ -167,7 +175,7 @@ const App: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
-  }, [isAuthenticated, session.key, projects.length]);
+  }, [isAuthenticated, session.key]);
 
   useEffect(() => {
     if (isAuthenticated) loadCloudData();
@@ -270,18 +278,25 @@ const App: React.FC = () => {
 
   const handleSaveUnit = async (unit: Unit) => {
     if (!activeProjectId) return;
-    const targetProject = projects.find(p => p.id === activeProjectId);
-    if (!targetProject) return;
+    let targetProjectToSave: Project | null = null;
 
-    const unitExists = targetProject.units.some(u => u.id === unit.id);
-    const updatedUnits = unitExists ? targetProject.units.map(u => u.id === unit.id ? unit : u) : [...targetProject.units, unit];
-    const updatedProject: Project = { ...targetProject, units: updatedUnits, updatedAt: Date.now() };
+    setProjects(prevProjects => {
+      const targetProject = prevProjects.find(p => p.id === activeProjectId);
+      if (!targetProject) return prevProjects;
 
-    setProjects(prevProjects => prevProjects.map(p => p.id === activeProjectId ? updatedProject : p));
+      const unitExists = targetProject.units.some(u => u.id === unit.id);
+      const updatedUnits = unitExists ? targetProject.units.map(u => u.id === unit.id ? unit : u) : [...targetProject.units, unit];
+      const updatedProject: Project = { ...targetProject, units: updatedUnits, updatedAt: Date.now() };
+      targetProjectToSave = updatedProject;
+      return prevProjects.map(p => p.id === activeProjectId ? updatedProject : p);
+    });
+
     setView('PROJECT_VIEW');
-    setIsSyncing(true);
-    try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
-    setIsSyncing(false);
+    if (targetProjectToSave) {
+      setIsSyncing(true);
+      try { await cloud_saveProject(session.key, targetProjectToSave); } catch (e) {}
+      setIsSyncing(false);
+    }
   };
 
   const handleDeleteUnit = (unitId: string) => {
@@ -290,14 +305,21 @@ const App: React.FC = () => {
       title: lang === 'tr' ? 'Pozu Sil' : 'Delete Position',
       message: lang === 'tr' ? 'Bu pozisyonu silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this position?',
       onConfirm: async () => {
-        const targetProject = projects.find(p => p.id === activeProjectId);
-        if (!targetProject) return;
+        let targetProjectToSave: Project | null = null;
+        setProjects(prevProjects => {
+          const targetProject = prevProjects.find(p => p.id === activeProjectId);
+          if (!targetProject) return prevProjects;
 
-        const updatedProject: Project = { ...targetProject, units: targetProject.units.filter(u => u.id !== unitId), updatedAt: Date.now() };
-        setProjects(prevProjects => prevProjects.map(p => p.id === activeProjectId ? updatedProject : p));
-        setIsSyncing(true);
-        try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
-        setIsSyncing(false);
+          const updatedProject: Project = { ...targetProject, units: targetProject.units.filter(u => u.id !== unitId), updatedAt: Date.now() };
+          targetProjectToSave = updatedProject;
+          return prevProjects.map(p => p.id === activeProjectId ? updatedProject : p);
+        });
+
+        if (targetProjectToSave) {
+          setIsSyncing(true);
+          try { await cloud_saveProject(session.key, targetProjectToSave); } catch (e) {}
+          setIsSyncing(false);
+        }
         setConfirmModal(null);
       }
     });
