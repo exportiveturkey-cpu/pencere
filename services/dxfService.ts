@@ -83,6 +83,13 @@ export const generateDXF = (unit: Unit, system: ProfileSystem): string => {
 
     } else {
        // Leaf Node
+       if (node.type === 'void') {
+         // Draw diagonal crossing lines on OPENING layer to indicate void / wall opening
+         dxf += `0\nLINE\n8\nOPENING\n10\n${x}\n20\n${-y}\n11\n${x+w}\n21\n${-(y+h)}\n`;
+         dxf += `0\nLINE\n8\nOPENING\n10\n${x+w}\n20\n${-y}\n11\n${x}\n21\n${-(y+h)}\n`;
+         dxf += drawText(x + w/2, y + h/2, 'BOSLUK (VOID)', 25, 'OPENING');
+         return;
+       }
        const isOpening = node.openingType && node.openingType !== 'fixed';
        const sashProfileW = 55;
        

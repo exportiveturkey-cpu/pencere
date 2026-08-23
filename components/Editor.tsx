@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing } from '../types';
+import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing, NodeType } from '../types';
 import Visualizer from './Visualizer';
 import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
@@ -1542,6 +1542,52 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         const sy = isVertical ? y : y + size1 + frameWidthScaled;
         drawNode(node.children[1], sx, sy, isVertical ? size2 : w, isVertical ? h : size2);
       } else {
+        if (node.type === 'void') {
+          // Draw Void Opening (Dashed Box + Diagonal CAD Cross X + Label)
+          ctx.fillStyle = isSelected ? (isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(219, 234, 254, 0.6)') : (isDark ? '#0f172a' : '#f8fafc');
+          ctx.fillRect(x, y, w, h);
+
+          ctx.save();
+          ctx.strokeStyle = isSelected ? selectedStrokeColor : (isDark ? '#64748b' : '#94a3b8');
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([5, 4]);
+          ctx.strokeRect(x, y, w, h);
+
+          // Diagonal cross X
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + w, y + h);
+          ctx.moveTo(x + w, y);
+          ctx.lineTo(x, y + h);
+          ctx.stroke();
+          ctx.restore();
+
+          // Void label badge
+          const voidText = lang === 'tr' ? 'BOŞLUK / VOID' : 'VOID OPENING';
+          const sizeText = `${Math.round(w / scale)} × ${Math.round(h / scale)} mm`;
+          ctx.font = 'bold 9px monospace';
+          const textWidth = Math.max(ctx.measureText(voidText).width, ctx.measureText(sizeText).width);
+          const badgeW = Math.min(w * 0.9, textWidth + 16);
+          const badgeH = 26;
+          const badgeX = x + w / 2 - badgeW / 2;
+          const badgeY = y + h / 2 - badgeH / 2;
+
+          ctx.fillStyle = isDark ? '#1e293b' : '#ffffff';
+          ctx.strokeStyle = isSelected ? selectedStrokeColor : (isDark ? '#475569' : '#cbd5e1');
+          ctx.lineWidth = 1;
+          ctx.fillRect(badgeX, badgeY, badgeW, badgeH);
+          ctx.strokeRect(badgeX, badgeY, badgeW, badgeH);
+
+          ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
+          ctx.font = 'bold 8px monospace';
+          ctx.fillText(voidText, x + w / 2, badgeY + 10);
+
+          ctx.fillStyle = isDark ? '#38bdf8' : '#2563eb';
+          ctx.font = 'bold 8px monospace';
+          ctx.fillText(sizeText, x + w / 2, badgeY + 21);
+          return;
+        }
+
         const isOpening = node.openingType && node.openingType !== 'fixed';
         let glassX = x;
         let glassY = y;
@@ -1573,6 +1619,20 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         ctx.moveTo(glassX + 22, glassY + 12);
         ctx.lineTo(glassX + Math.min(32, glassW - 10), glassY + Math.min(22, glassH - 10));
         ctx.stroke();
+
+        // Draw segment size badge inside pane (LogiKal style)
+        if (glassW >= 50 && glassH >= 35) {
+          const paneText = `${Math.round(w / scale)} × ${Math.round(h / scale)}`;
+          ctx.font = 'bold 8px monospace';
+          const pWidth = ctx.measureText(paneText).width;
+          ctx.fillStyle = isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.85)';
+          ctx.fillRect(glassX + glassW / 2 - pWidth / 2 - 3, glassY + glassH - (isOpening ? 18 : 14), pWidth + 6, 11);
+          ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(glassX + glassW / 2 - pWidth / 2 - 3, glassY + glassH - (isOpening ? 18 : 14), pWidth + 6, 11);
+          ctx.fillStyle = isDark ? '#94a3b8' : '#334155';
+          ctx.fillText(paneText, glassX + glassW / 2, glassY + glassH - (isOpening ? 9 : 5));
+        }
 
         // Draw Opening Arrows/Symbols
         const type = node.openingType || 'fixed';
@@ -1772,10 +1832,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     if (selectedSystem?.profileDrawings && selectedSystem.profileDrawings.length > 0) {
       return selectedSystem.profileDrawings.map(d => ({
         code: d.code,
-        weight: d.weight || 1.5,
+        weight: (d as any).weight || 1.5,
         type: (d.type as 'frame' | 'sash' | 'mullion') || 'frame',
-        nameTr: d.nameTr || d.code,
-        nameEn: d.nameEn || d.code
+        nameTr: (d as any).nameTr || d.description || d.code,
+        nameEn: (d as any).nameEn || d.description || d.code
       }));
     }
     return null;
@@ -1886,6 +1946,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       ...node,
       type: 'glass',
       openingType: type as any
+    })));
+  };
+
+  const handleSetNodeType = (type: NodeType) => {
+    if (!selectedNodeId) return;
+    handleUpdateRootNode(findAndUpdateNode(rootNode, selectedNodeId, (node) => ({
+      ...node,
+      type,
+      openingType: type === 'void' ? 'fixed' : (node.openingType || 'fixed')
     })));
   };
 
@@ -2923,17 +2992,76 @@ max="0.95"
                       </div>
                     )}
                     {selectedNode?.type !== 'container' && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t(lang, 'openingType')}</label>
-                        <select value={selectedNode?.openingType || 'fixed'} onChange={e => handleSetOpening(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
-                          <option value="fixed">{t(lang, 'fixed')}</option>
-                          <option value="turn-left">{t(lang, 'turnLeft')}</option>
-                          <option value="turn-right">{t(lang, 'turnRight')}</option>
-                          <option value="tilt">{t(lang, 'tilt')}</option>
-                          <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
-                          <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
-                          <option value="sliding">{t(lang, 'sliding')}</option>
-                        </select>
+                      <div className="space-y-3 pt-2 border-t border-white/5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">
+                            {lang === 'tr' ? 'Bölme Tipi / Dolgusu' : 'Pane / Infill Type'}
+                          </label>
+                          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => handleSetNodeType('glass')}
+                              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                                selectedNode.type === 'glass' || (!selectedNode.type && selectedNode.openingType)
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {lang === 'tr' ? '🪟 Cam' : '🪟 Glass'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetNodeType('void')}
+                              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                                selectedNode.type === 'void'
+                                  ? 'bg-amber-600 text-white shadow-md'
+                                  : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {lang === 'tr' ? '🔲 Boşluk' : '🔲 Void'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetNodeType('panel')}
+                              className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                                selectedNode.type === 'panel'
+                                  ? 'bg-slate-700 text-white shadow-md'
+                                  : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {lang === 'tr' ? '🪵 Panel' : '🪵 Panel'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedNode.type === 'void' ? (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
+                            <div className="flex items-center gap-2 text-amber-400">
+                              <Sparkles size={14} />
+                              <span className="text-[10px] font-bold uppercase tracking-wider">
+                                {lang === 'tr' ? 'LogiKal Uyumlu Duvar/Kiriş Boşluğu' : 'LogiKal Wall Opening (Void)'}
+                              </span>
+                            </div>
+                            <p className="text-[9px] text-slate-400 leading-relaxed">
+                              {lang === 'tr'
+                                ? 'Bu bölme boş bırakılmıştır (örneğin merdiven veya duvar açıklığı). Cam ve kanat profili maliyete ve kesim listesine dahil edilmez.'
+                                : 'This section is marked as a void opening (e.g. stair/wall cutout). Glass and sashes are excluded from cut list and quotation.'}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{t(lang, 'openingType')}</label>
+                            <select value={selectedNode?.openingType || 'fixed'} onChange={e => handleSetOpening(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none appearance-none">
+                              <option value="fixed">{t(lang, 'fixed')}</option>
+                              <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                              <option value="turn-right">{t(lang, 'turnRight')}</option>
+                              <option value="tilt">{t(lang, 'tilt')}</option>
+                              <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                              <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                              <option value="sliding">{t(lang, 'sliding')}</option>
+                            </select>
+                          </div>
+                        )}
                       </div>
                     )}
                     <button onClick={() => { setRootNode({ ...INITIAL_ROOT_NODE, id: uuidv4() }); setSelectedNodeId(null); }} className="w-full flex items-center justify-center gap-2 p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all border border-red-500/20">

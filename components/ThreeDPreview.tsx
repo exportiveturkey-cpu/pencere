@@ -210,6 +210,7 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
         buildModel(node.children[0], xOffset, yOffset, isVert ? s1 : w, isVert ? h : s1);
         buildModel(node.children[1], isVert ? xOffset + s1 + frameW : xOffset, isVert ? yOffset : yOffset + s1 + frameW, isVert ? s2 : w, isVert ? h : s2);
       } else {
+        if (node.type === 'void') return; // Empty opening/void space in 3D
         const isOpening = node.openingType && node.openingType !== 'fixed';
         
         const leftFw = xOffset === 0 ? frameW : 0;

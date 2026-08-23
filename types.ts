@@ -75,7 +75,7 @@ export interface Unit {
   crossSectionProfileCode?: string;
 }
 
-export type NodeType = 'container' | 'glass' | 'sash' | 'panel';
+export type NodeType = 'container' | 'glass' | 'sash' | 'panel' | 'void';
 export type SplitDirection = 'vertical' | 'horizontal';
 
 export interface WindowNode {

@@ -132,6 +132,7 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
       traverse(node.children[0], isVert ? s1 : w, isVert ? h : s1);
       traverse(node.children[1], isVert ? s2 : w, isVert ? h : s2);
     } else {
+      if (node.type === 'void') return; // Exclude void openings from sash/bead cuts
       const isOpening = node.openingType && node.openingType !== 'fixed';
       const daylightW = w - (2 * frameWidth);
       const daylightH = h - (2 * frameWidth);
@@ -327,6 +328,7 @@ export const extractGlassPanes = (unit: Unit, system: ProfileSystem): GlassOrder
       traverse(node.children[0], isVert ? s1 : w, isVert ? h : s1);
       traverse(node.children[1], isVert ? s2 : w, isVert ? h : s2);
     } else {
+      if (node.type === 'void') return; // Exclude void openings from glass orders & weight
       let glassW, glassH;
       const isOpening = node.openingType && node.openingType !== 'fixed';
       

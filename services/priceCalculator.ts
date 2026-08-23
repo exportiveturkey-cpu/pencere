@@ -15,6 +15,7 @@ export const getUnitSashLaborCounts = (unit: Unit, system?: ProfileSystem): Unit
 
   const traverse = (node?: WindowNode) => {
     if (!node) return;
+    if (node.type === 'void') return;
     const isSash = node.type === 'sash' || (node.openingType && node.openingType !== 'fixed');
     if (isSash) {
       totalSashCount += 1;

@@ -312,6 +312,95 @@ const Visualizer: React.FC<VisualizerProps> = ({
     const glassW = isOpening ? Math.max(0, frameInnerW - sashWidth * 2) : frameInnerW;
     const glassH = isOpening ? Math.max(0, frameInnerH - sashWidth * 2) : frameInnerH;
 
+    if (node.type === 'void') {
+      const voidBg = theme === 'dark' ? '#0f172a' : '#f1f5f9';
+      const voidStroke = theme === 'dark' ? '#64748b' : '#94a3b8';
+      const isSelected = selectedNodeId === node.id;
+      
+      return (
+        <g onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }} className="cursor-pointer">
+          {isRoot ? (
+            <>
+              <defs><clipPath id={clipId}><path d={getShapePath(true)} /></clipPath></defs>
+              <path d={getShapePath(false)} fill={isSelected ? profileSelectedFill : profileFill} stroke={strokeColor} strokeWidth={strokeBase} fillRule="evenodd" />
+            </>
+          ) : (
+            renderProfileRect(x, y, width, height)
+          )}
+          <g clipPath={isRoot ? `url(#${clipId})` : undefined}>
+            {/* Void Background Box */}
+            <rect 
+              x={frameInnerX} 
+              y={frameInnerY} 
+              width={frameInnerW} 
+              height={frameInnerH} 
+              fill={isSelected ? (theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(219, 234, 254, 0.6)') : voidBg} 
+              stroke={isSelected ? strokeColor : voidStroke} 
+              strokeWidth={1.5} 
+              strokeDasharray="6,4" 
+            />
+            {/* CAD Diagonal Cross Lines (X) */}
+            <line 
+              x1={frameInnerX} 
+              y1={frameInnerY} 
+              x2={frameInnerX + frameInnerW} 
+              y2={frameInnerY + frameInnerH} 
+              stroke={voidStroke} 
+              strokeWidth={1} 
+              strokeDasharray="5,5" 
+              opacity="0.7" 
+            />
+            <line 
+              x1={frameInnerX + frameInnerW} 
+              y1={frameInnerY} 
+              x2={frameInnerX} 
+              y2={frameInnerY + frameInnerH} 
+              stroke={voidStroke} 
+              strokeWidth={1} 
+              strokeDasharray="5,5" 
+              opacity="0.7" 
+            />
+            {/* Void Label Badge */}
+            <g className="select-none pointer-events-none">
+              <rect 
+                x={frameInnerX + frameInnerW/2 - Math.max(45, Math.min(65, frameInnerW * 0.4))} 
+                y={frameInnerY + frameInnerH/2 - 16} 
+                width={Math.max(90, Math.min(130, frameInnerW * 0.8))} 
+                height={32} 
+                rx={4} 
+                fill={theme === 'dark' ? '#1e293b' : '#ffffff'} 
+                stroke={isSelected ? strokeColor : voidStroke} 
+                strokeWidth={1.2} 
+              />
+              <text 
+                x={frameInnerX + frameInnerW/2} 
+                y={frameInnerY + frameInnerH/2 - 3} 
+                textAnchor="middle" 
+                fill={theme === 'dark' ? '#cbd5e1' : '#475569'} 
+                fontSize={10} 
+                fontWeight="900" 
+                letterSpacing="0.8px"
+                fontFamily="monospace"
+              >
+                {lang === 'tr' ? 'BOŞLUK / VOID' : 'VOID OPENING'}
+              </text>
+              <text 
+                x={frameInnerX + frameInnerW/2} 
+                y={frameInnerY + frameInnerH/2 + 10} 
+                textAnchor="middle" 
+                fill={theme === 'dark' ? '#38bdf8' : '#2563eb'} 
+                fontSize={9} 
+                fontWeight="800" 
+                fontFamily="monospace"
+              >
+                {Math.round(width)} × {Math.round(height)} mm
+              </text>
+            </g>
+          </g>
+        </g>
+      );
+    }
+
     return (
       <g onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }} className="cursor-pointer">
         {isRoot ? (
@@ -394,6 +483,33 @@ const Visualizer: React.FC<VisualizerProps> = ({
           {renderOpeningSymbol(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
           {isOpening && renderHinges(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
           {isOpening && renderHandle(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
+
+          {/* Segment Dimension Badge inside Pane (LogiKal Style) */}
+          {glassW >= 80 && glassH >= 60 && (
+            <g className="select-none pointer-events-none opacity-85 hover:opacity-100 transition-opacity">
+              <rect 
+                x={glassX + glassW/2 - 42} 
+                y={glassY + glassH - (isOpening ? 28 : 22)} 
+                width={84} 
+                height={16} 
+                rx={3} 
+                fill={theme === 'dark' ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.85)'} 
+                stroke={theme === 'dark' ? '#334155' : '#cbd5e1'} 
+                strokeWidth={0.6} 
+              />
+              <text 
+                x={glassX + glassW/2} 
+                y={glassY + glassH - (isOpening ? 16 : 10)} 
+                textAnchor="middle" 
+                fill={theme === 'dark' ? '#94a3b8' : '#334155'} 
+                fontSize={9} 
+                fontWeight="700" 
+                fontFamily="monospace"
+              >
+                {Math.round(width)} × {Math.round(height)}
+              </text>
+            </g>
+          )}
         </g>
       </g>
     );
