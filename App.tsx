@@ -26,6 +26,7 @@ import {
   cloud_getCustomers,
   cloud_saveCustomers
 } from './services/authService';
+import { idb_getProjects } from './services/idbStorage';
 import { Cloud, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS' | 'GLASS_ANALYSIS';
@@ -156,9 +157,14 @@ const App: React.FC = () => {
       }
       let fallbackProjects: Project[] = [];
       try {
-        const cachedStr = localStorage.getItem('cached_projects_' + session.key) || localStorage.getItem('alumetric_local_projects_backup');
-        if (cachedStr) {
-          fallbackProjects = JSON.parse(cachedStr);
+        const idbList = await idb_getProjects();
+        if (idbList && idbList.length > 0) {
+          fallbackProjects = idbList;
+        } else {
+          const cachedStr = localStorage.getItem('cached_projects_' + session.key) || localStorage.getItem('alumetric_local_projects_backup');
+          if (cachedStr) {
+            fallbackProjects = JSON.parse(cachedStr);
+          }
         }
       } catch (err) {}
 

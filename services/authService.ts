@@ -3,6 +3,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { Project, ProfileSystem, Accessory, MachineConfig, Customer } from "../types";
+import { idb_saveProject, idb_saveProjects, idb_getProjects, idb_deleteProject, idb_set, idb_get } from "./idbStorage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAVmEk9hhNxdFm8CV3Zj7yJraH6KDVISLs",
@@ -15,10 +16,50 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// ignoreUndefinedProperties: true -> Firestore, "undefined" alanlar yüzünden
-// tüm yazma işlemini reddetmez (ör. customGlassPrice gibi boş bırakılabilen alanlar).
-// Bu olmadan setDoc() sessizce hata veriyor ve proje Cloud'a hiç kaydedilmiyordu.
 const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+
+// Helper for safe localStorage write that prevents QuotaExceededError
+export const safeLocalStorageSet = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    // If quota exceeded, clean up redundant backup keys
+    try {
+      localStorage.removeItem('alumetric_local_projects_backup');
+      localStorage.setItem(key, value);
+      return;
+    } catch (retryErr) {
+      // If still exceeding quota, try stripping large base64 image data for localStorage copy only
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          const lightweight = parsed.map((item: any) => {
+            if (item && typeof item === 'object') {
+              const copy = { ...item };
+              if (copy.clientSignatureData && copy.clientSignatureData.length > 500) {
+                copy.clientSignatureData = "[SAVED_IN_DB]";
+              }
+              if (copy.shadingBgImage && copy.shadingBgImage.length > 500) {
+                copy.shadingBgImage = "";
+              }
+              if (Array.isArray(copy.shadingItems)) {
+                copy.shadingItems = copy.shadingItems.map((si: any) => ({
+                  ...si,
+                  visualizedImage: si.visualizedImage && si.visualizedImage.length > 500 ? "" : si.visualizedImage
+                }));
+              }
+              return copy;
+            }
+            return item;
+          });
+          localStorage.setItem(key, JSON.stringify(lightweight));
+        }
+      } catch (stripErr) {
+        console.warn("Storage quota full; relying on IndexedDB & Cloud Firestore.", stripErr);
+      }
+    }
+  }
+};
 
 export interface LicenseInfo {
   key: string;
@@ -84,7 +125,14 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
     updatedAt: Date.now()
   };
 
-  // 1. Immediately save to LocalStorage cache (both per-license and global fallback)
+  // 1. Save to high-capacity IndexedDB (unlimited quota)
+  try {
+    await idb_saveProject(projectToSave);
+  } catch (idbErr) {
+    console.warn("IndexedDB save failed:", idbErr);
+  }
+
+  // 2. Save to local storage cache with quota protection
   try {
     if (licenseKey) {
       const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
@@ -95,23 +143,13 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
       } else {
         projects.push(projectToSave);
       }
-      localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
+      safeLocalStorageSet('cached_projects_' + licenseKey, JSON.stringify(projects));
     }
-
-    const globalCachedStr = localStorage.getItem('alumetric_local_projects_backup');
-    let globalProjects: Project[] = globalCachedStr ? JSON.parse(globalCachedStr) : [];
-    const gIndex = globalProjects.findIndex(p => p.id === projectToSave.id);
-    if (gIndex >= 0) {
-      globalProjects[gIndex] = projectToSave;
-    } else {
-      globalProjects.push(projectToSave);
-    }
-    localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(globalProjects));
   } catch (err) {
-    console.error("Local storage project cache write error:", err);
+    console.warn("Local storage cache warning:", err);
   }
 
-  // 2. Sanitize and write to Cloud Firestore
+  // 3. Sanitize and write to Cloud Firestore
   try {
     if (licenseKey) {
       const cleanDoc = JSON.parse(JSON.stringify(projectToSave));
@@ -119,30 +157,31 @@ export const cloud_saveProject = async (licenseKey: string, project: Project) =>
       await setDoc(docRef, cleanDoc);
     }
   } catch (error) {
-    console.warn("Could not save to Cloud Firestore (offline/timeout). Project safely saved locally.", error);
+    console.warn("Could not save to Cloud Firestore (offline/timeout). Project safely saved locally in IndexedDB.", error);
   }
 };
 
 export const cloud_deleteProject = async (licenseKey: string, projectId: string) => {
+  // 1. Delete from IndexedDB
+  try {
+    await idb_deleteProject(projectId);
+  } catch (e) {}
+
+  // 2. Delete from localStorage
   try {
     if (licenseKey) {
       const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
       if (cachedStr) {
         let projects: Project[] = JSON.parse(cachedStr);
         projects = projects.filter(p => p.id !== projectId);
-        localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
+        safeLocalStorageSet('cached_projects_' + licenseKey, JSON.stringify(projects));
       }
     }
-    const globalCachedStr = localStorage.getItem('alumetric_local_projects_backup');
-    if (globalCachedStr) {
-      let globalProjects: Project[] = JSON.parse(globalCachedStr);
-      globalProjects = globalProjects.filter(p => p.id !== projectId);
-      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(globalProjects));
-    }
   } catch (err) {
-    console.error("Local storage project cache delete error:", err);
+    console.warn("Local storage project cache delete error:", err);
   }
 
+  // 3. Delete from Firestore
   try {
     if (licenseKey) {
       const docRef = doc(db, "licenses", licenseKey, "projects", projectId);
@@ -154,12 +193,21 @@ export const cloud_deleteProject = async (licenseKey: string, projectId: string)
 };
 
 export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> => {
-  // 1. Load local cache first
+  // 1. Load from IndexedDB and local cache first
   let localProjects: Project[] = [];
   try {
-    const cachedStr = (licenseKey && localStorage.getItem('cached_projects_' + licenseKey)) || localStorage.getItem('alumetric_local_projects_backup');
-    if (cachedStr) {
-      localProjects = JSON.parse(cachedStr);
+    const idbProjects = await idb_getProjects();
+    if (idbProjects && idbProjects.length > 0) {
+      localProjects = idbProjects;
+    } else {
+      const cachedStr = (licenseKey && localStorage.getItem('cached_projects_' + licenseKey)) || localStorage.getItem('alumetric_local_projects_backup');
+      if (cachedStr) {
+        localProjects = JSON.parse(cachedStr);
+        // Migrate to IndexedDB
+        if (localProjects.length > 0) {
+          idb_saveProjects(localProjects).catch(() => {});
+        }
+      }
     }
   } catch (e) {
     console.warn("Could not read local cached projects", e);
@@ -199,8 +247,8 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
       });
 
       const finalProjects = Array.from(mergedMap.values());
-      localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(finalProjects));
-      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(finalProjects));
+      idb_saveProjects(finalProjects).catch(() => {});
+      safeLocalStorageSet('cached_projects_' + licenseKey, JSON.stringify(finalProjects));
       return finalProjects;
     } else if (localProjects.length > 0) {
       // Cloud returned 0 projects, but local cache has user's projects!
@@ -219,7 +267,7 @@ export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> 
 };
 
 export const cloud_saveSystems = async (licenseKey: string, systems: ProfileSystem[]) => {
-  localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
+  safeLocalStorageSet('cached_systems_' + licenseKey, JSON.stringify(systems));
   try {
     const colRef = collection(db, "licenses", licenseKey, "settings");
     const snap = await getDocs(colRef);
@@ -265,7 +313,7 @@ export const cloud_getSystems = async (licenseKey: string): Promise<ProfileSyste
     });
     
     if (systems.length > 0) {
-      localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
+      safeLocalStorageSet('cached_systems_' + licenseKey, JSON.stringify(systems));
       return systems;
     }
     
@@ -283,7 +331,7 @@ export const cloud_getSystems = async (licenseKey: string): Promise<ProfileSyste
         console.warn("Could not delete old systems doc:", e);
       }
       
-      localStorage.setItem('cached_systems_' + licenseKey, JSON.stringify(systems));
+      safeLocalStorageSet('cached_systems_' + licenseKey, JSON.stringify(systems));
       return systems;
     }
     
@@ -296,7 +344,7 @@ export const cloud_getSystems = async (licenseKey: string): Promise<ProfileSyste
 };
 
 export const cloud_saveAccessories = async (licenseKey: string, accessories: Accessory[]) => {
-  localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
+  safeLocalStorageSet('cached_accessories_' + licenseKey, JSON.stringify(accessories));
   try {
     const colRef = collection(db, "licenses", licenseKey, "settings");
     const snap = await getDocs(colRef);
@@ -342,7 +390,7 @@ export const cloud_getAccessories = async (licenseKey: string): Promise<Accessor
     });
     
     if (accessories.length > 0) {
-      localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
+      safeLocalStorageSet('cached_accessories_' + licenseKey, JSON.stringify(accessories));
       return accessories;
     }
     
@@ -360,7 +408,7 @@ export const cloud_getAccessories = async (licenseKey: string): Promise<Accessor
         console.warn("Could not delete old accessories doc:", e);
       }
       
-      localStorage.setItem('cached_accessories_' + licenseKey, JSON.stringify(accessories));
+      safeLocalStorageSet('cached_accessories_' + licenseKey, JSON.stringify(accessories));
       return accessories;
     }
     
@@ -373,7 +421,7 @@ export const cloud_getAccessories = async (licenseKey: string): Promise<Accessor
 };
 
 export const cloud_saveMachines = async (licenseKey: string, machines: MachineConfig[]) => {
-  localStorage.setItem('cached_machines_' + licenseKey, JSON.stringify(machines));
+  safeLocalStorageSet('cached_machines_' + licenseKey, JSON.stringify(machines));
   try {
     const docRef = doc(db, "licenses", licenseKey, "settings", "machines");
     await setDoc(docRef, { data: machines });
@@ -388,7 +436,7 @@ export const cloud_getMachines = async (licenseKey: string): Promise<MachineConf
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const machines = snap.data().data;
-      localStorage.setItem('cached_machines_' + licenseKey, JSON.stringify(machines));
+      safeLocalStorageSet('cached_machines_' + licenseKey, JSON.stringify(machines));
       return machines;
     }
     return null;
@@ -400,7 +448,7 @@ export const cloud_getMachines = async (licenseKey: string): Promise<MachineConf
 };
 
 export const cloud_saveCustomers = async (licenseKey: string, customers: Customer[]) => {
-  localStorage.setItem('cached_customers_' + licenseKey, JSON.stringify(customers));
+  safeLocalStorageSet('cached_customers_' + licenseKey, JSON.stringify(customers));
   try {
     const docRef = doc(db, "licenses", licenseKey, "settings", "customers");
     await setDoc(docRef, { data: customers });
@@ -415,7 +463,7 @@ export const cloud_getCustomers = async (licenseKey: string): Promise<Customer[]
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const customers = snap.data().data;
-      localStorage.setItem('cached_customers_' + licenseKey, JSON.stringify(customers));
+      safeLocalStorageSet('cached_customers_' + licenseKey, JSON.stringify(customers));
       return customers;
     }
     return null;
