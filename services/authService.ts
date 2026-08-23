@@ -78,22 +78,35 @@ export const validateLicense = async (inputKey: string): Promise<LicenseInfo | n
 };
 
 export const cloud_saveProject = async (licenseKey: string, project: Project) => {
-  // Save to local cache first
+  if (!project || !project.id) return;
+  const projectToSave: Project = {
+    ...project,
+    updatedAt: Date.now()
+  };
+
+  // 1. Immediately save to LocalStorage cache (both per-license and global fallback)
   try {
     const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
     let projects: Project[] = cachedStr ? JSON.parse(cachedStr) : [];
-    projects = projects.filter(p => p.id !== project.id);
-    projects.push(project);
+    const index = projects.findIndex(p => p.id === projectToSave.id);
+    if (index >= 0) {
+      projects[index] = projectToSave;
+    } else {
+      projects.push(projectToSave);
+    }
     localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
+    localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(projects));
   } catch (err) {
     console.error("Local storage project cache write error:", err);
   }
 
+  // 2. Sanitize and write to Cloud Firestore
   try {
-    const docRef = doc(db, "licenses", licenseKey, "projects", project.id);
-    await setDoc(docRef, project);
+    const cleanDoc = JSON.parse(JSON.stringify(projectToSave));
+    const docRef = doc(db, "licenses", licenseKey, "projects", projectToSave.id);
+    await setDoc(docRef, cleanDoc);
   } catch (error) {
-    console.warn("Could not save to Cloud Firestore (offline/timeout). Project saved locally.", error);
+    console.warn("Could not save to Cloud Firestore (offline/timeout). Project safely saved locally.", error);
   }
 };
 
@@ -104,6 +117,7 @@ export const cloud_deleteProject = async (licenseKey: string, projectId: string)
       let projects: Project[] = JSON.parse(cachedStr);
       projects = projects.filter(p => p.id !== projectId);
       localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
+      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(projects));
     }
   } catch (err) {
     console.error("Local storage project cache delete error:", err);
@@ -118,16 +132,62 @@ export const cloud_deleteProject = async (licenseKey: string, projectId: string)
 };
 
 export const cloud_getProjects = async (licenseKey: string): Promise<Project[]> => {
+  // 1. Load local cache first
+  let localProjects: Project[] = [];
+  try {
+    const cachedStr = localStorage.getItem('cached_projects_' + licenseKey) || localStorage.getItem('alumetric_local_projects_backup');
+    if (cachedStr) {
+      localProjects = JSON.parse(cachedStr);
+    }
+  } catch (e) {
+    console.warn("Could not read local cached projects", e);
+  }
+
   try {
     const colRef = collection(db, "licenses", licenseKey, "projects");
     const snap = await getDocs(colRef);
-    const projects = snap.docs.map((d: any) => d.data() as Project);
-    localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(projects));
-    return projects;
+    const cloudProjects = snap.docs.map((d: any) => d.data() as Project);
+
+    // If Firestore has projects, reconcile with local cache (keep newer versions)
+    if (cloudProjects.length > 0) {
+      const mergedMap = new Map<string, Project>();
+      
+      // Add all cloud projects
+      cloudProjects.forEach(cp => {
+        mergedMap.set(cp.id, cp);
+      });
+
+      // Check local projects: if local is newer than cloud or doesn't exist in cloud, preserve local!
+      localProjects.forEach(lp => {
+        const cloudVersion = mergedMap.get(lp.id);
+        if (!cloudVersion) {
+          // Exists locally but not in cloud -> keep local and sync to cloud
+          mergedMap.set(lp.id, lp);
+          cloud_saveProject(licenseKey, lp).catch(() => {});
+        } else if ((lp.updatedAt || 0) > (cloudVersion.updatedAt || 0)) {
+          // Local version has newer edits -> keep local and update cloud!
+          mergedMap.set(lp.id, lp);
+          cloud_saveProject(licenseKey, lp).catch(() => {});
+        }
+      });
+
+      const finalProjects = Array.from(mergedMap.values());
+      localStorage.setItem('cached_projects_' + licenseKey, JSON.stringify(finalProjects));
+      localStorage.setItem('alumetric_local_projects_backup', JSON.stringify(finalProjects));
+      return finalProjects;
+    } else if (localProjects.length > 0) {
+      // Cloud returned 0 projects, but local cache has user's projects!
+      // NEVER wipe out local projects! Sync them up to Firestore!
+      localProjects.forEach(lp => {
+        cloud_saveProject(licenseKey, lp).catch(() => {});
+      });
+      return localProjects;
+    }
+    
+    return [];
   } catch (error) {
     console.warn("Could not load from Cloud Firestore (offline), falling back to local storage cache.", error);
-    const cachedStr = localStorage.getItem('cached_projects_' + licenseKey);
-    return cachedStr ? JSON.parse(cachedStr) : [];
+    return localProjects;
   }
 };
 

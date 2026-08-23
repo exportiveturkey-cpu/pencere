@@ -76,7 +76,17 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const key = sessionStorage.getItem('alumetric_key');
+      const cachedStr = (key && localStorage.getItem('cached_projects_' + key)) || localStorage.getItem('alumetric_local_projects_backup');
+      if (cachedStr) {
+        const parsed = JSON.parse(cachedStr);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
   const [systems, setSystems] = useState<ProfileSystem[]>([]);
   const [accessories, setAccessories] = useState<Accessory[]>([]);
   const [machines, setMachines] = useState<MachineConfig[]>([]);
@@ -129,7 +139,7 @@ const App: React.FC = () => {
         finalSystems = PROFILE_SYSTEMS;
       }
 
-      setProjects(cloudProjects.length > 0 ? cloudProjects : MOCK_PROJECTS);
+      setProjects(cloudProjects.length > 0 ? cloudProjects : (projects.length > 0 ? projects : MOCK_PROJECTS));
       setSystems(finalSystems);
       setAccessories(cloudAccessories || MOCK_ACCESSORIES);
       setMachines(cloudMachines || []);
@@ -140,7 +150,15 @@ const App: React.FC = () => {
       if (e.code === 'permission-denied') {
           setPermissionError(true);
       }
-      setProjects(MOCK_PROJECTS);
+      let fallbackProjects: Project[] = [];
+      try {
+        const cachedStr = localStorage.getItem('cached_projects_' + session.key) || localStorage.getItem('alumetric_local_projects_backup');
+        if (cachedStr) {
+          fallbackProjects = JSON.parse(cachedStr);
+        }
+      } catch (err) {}
+
+      setProjects(fallbackProjects.length > 0 ? fallbackProjects : (projects.length > 0 ? projects : MOCK_PROJECTS));
       setSystems(PROFILE_SYSTEMS);
       setAccessories(MOCK_ACCESSORIES);
       setMachines([]);
@@ -149,7 +167,7 @@ const App: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
-  }, [isAuthenticated, session.key]);
+  }, [isAuthenticated, session.key, projects.length]);
 
   useEffect(() => {
     if (isAuthenticated) loadCloudData();
@@ -216,7 +234,8 @@ const App: React.FC = () => {
       status: 'Draft',
       units: [],
       isExport: false,
-      projectNumber: `ALU-${year}-${randomSuffix}`
+      projectNumber: `ALU-${year}-${randomSuffix}`,
+      updatedAt: Date.now()
     };
     const updated = [newProject, ...projects];
     setProjects(updated);
@@ -228,9 +247,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdateProject = async (updatedProject: Project) => {
-    setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    const projWithTime: Project = { ...updatedProject, updatedAt: Date.now() };
+    setProjects(prev => prev.map(p => p.id === projWithTime.id ? projWithTime : p));
     setIsSyncing(true);
-    try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
+    try { await cloud_saveProject(session.key, projWithTime); } catch (e) {}
     setIsSyncing(false);
   };
 
@@ -250,22 +270,18 @@ const App: React.FC = () => {
 
   const handleSaveUnit = async (unit: Unit) => {
     if (!activeProjectId) return;
-    let targetProject: Project | undefined;
-    setProjects(prevProjects => prevProjects.map(p => {
-      if (p.id === activeProjectId) {
-        const unitExists = p.units.some(u => u.id === unit.id);
-        const updatedUnits = unitExists ? p.units.map(u => u.id === unit.id ? unit : u) : [...p.units, unit];
-        targetProject = { ...p, units: updatedUnits };
-        return targetProject;
-      }
-      return p;
-    }));
+    const targetProject = projects.find(p => p.id === activeProjectId);
+    if (!targetProject) return;
+
+    const unitExists = targetProject.units.some(u => u.id === unit.id);
+    const updatedUnits = unitExists ? targetProject.units.map(u => u.id === unit.id ? unit : u) : [...targetProject.units, unit];
+    const updatedProject: Project = { ...targetProject, units: updatedUnits, updatedAt: Date.now() };
+
+    setProjects(prevProjects => prevProjects.map(p => p.id === activeProjectId ? updatedProject : p));
     setView('PROJECT_VIEW');
-    if (targetProject) {
-      setIsSyncing(true);
-      try { await cloud_saveProject(session.key, targetProject); } catch (e) {}
-      setIsSyncing(false);
-    }
+    setIsSyncing(true);
+    try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
+    setIsSyncing(false);
   };
 
   const handleDeleteUnit = (unitId: string) => {
@@ -274,19 +290,14 @@ const App: React.FC = () => {
       title: lang === 'tr' ? 'Pozu Sil' : 'Delete Position',
       message: lang === 'tr' ? 'Bu pozisyonu silmek istediğinize emin misiniz?' : 'Are you sure you want to delete this position?',
       onConfirm: async () => {
-        let targetProject: Project | undefined;
-        setProjects(prevProjects => prevProjects.map(p => {
-          if (p.id === activeProjectId) {
-            targetProject = { ...p, units: p.units.filter(u => u.id !== unitId) };
-            return targetProject;
-          }
-          return p;
-        }));
-        if (targetProject) {
-          setIsSyncing(true);
-          try { await cloud_saveProject(session.key, targetProject); } catch (e) {}
-          setIsSyncing(false);
-        }
+        const targetProject = projects.find(p => p.id === activeProjectId);
+        if (!targetProject) return;
+
+        const updatedProject: Project = { ...targetProject, units: targetProject.units.filter(u => u.id !== unitId), updatedAt: Date.now() };
+        setProjects(prevProjects => prevProjects.map(p => p.id === activeProjectId ? updatedProject : p));
+        setIsSyncing(true);
+        try { await cloud_saveProject(session.key, updatedProject); } catch (e) {}
+        setIsSyncing(false);
         setConfirmModal(null);
       }
     });

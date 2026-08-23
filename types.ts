@@ -18,6 +18,7 @@ export interface Project {
   clientSignatureDate?: string;
   clientSignatureData?: string;
   shadingItems?: ShadingItem[];
+  updatedAt?: number;
 }
 
 export interface Accessory {
