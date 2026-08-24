@@ -958,6 +958,48 @@ const getNormalizedSystemId = (sysIdOrName: string, systems: ProfileSystem[], fr
   return systems[0]?.id || 'kurt-51ls';
 };
 
+export interface NodeBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export function getNodeBounds(
+  root: WindowNode,
+  targetId: string,
+  rootW: number,
+  rootH: number,
+  frameW: number = 55
+): NodeBounds | null {
+  function traverse(node: WindowNode, x: number, y: number, w: number, h: number): NodeBounds | null {
+    if (node.id === targetId) {
+      return { x, y, w, h };
+    }
+    if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
+      const isVert = node.direction === 'vertical';
+      const available = isVert ? w - frameW : h - frameW;
+      const s1 = Math.max(0, available * node.splitRatio[0]);
+      const s2 = Math.max(0, available * node.splitRatio[1]);
+
+      if (isVert) {
+        const left = traverse(node.children[0], x, y, s1, h);
+        if (left) return left;
+        const right = traverse(node.children[1], x + s1 + frameW, y, s2, h);
+        if (right) return right;
+      } else {
+        const top = traverse(node.children[0], x, y, w, s1);
+        if (top) return top;
+        const bottom = traverse(node.children[1], x, y + s1 + frameW, w, s2);
+        if (bottom) return bottom;
+      }
+    }
+    return null;
+  }
+
+  return traverse(root, 0, 0, rootW, rootH);
+}
+
 const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories = [], lang, onSave, onCancel, theme = 'dark', onToggleTheme }) => {
   const [name, setName] = useState(initialUnit?.name || t(lang, 'newPosition'));
   const [width, setWidth] = useState(initialUnit?.width || 1200);
@@ -2325,8 +2367,12 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     );
   };
 
+  const currentFrameWidth = selectedSystem?.frameWidth || 55;
+  const selectedBounds = selectedNodeId ? getNodeBounds(rootNode, selectedNodeId, width, height, currentFrameWidth) : null;
   const isVerticalSplit = selectedNode?.direction === 'vertical';
-  const totalDim = isVerticalSplit ? width : height;
+  const containerW = selectedBounds ? selectedBounds.w : width;
+  const containerH = selectedBounds ? selectedBounds.h : height;
+  const totalDim = isVerticalSplit ? containerW : containerH;
   const size1 = selectedNode ? (selectedNode.splitRatio?.[0] || 0.5) * totalDim : 0;
   const size2 = selectedNode ? (selectedNode.splitRatio?.[1] || 0.5) * totalDim : 0;
 
@@ -2357,8 +2403,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
 
   const handleUpdateSplitSize = (index: number, val: number) => {
     if (!selectedNodeId || !selectedNode) return;
+    const bounds = getNodeBounds(rootNode, selectedNode.id, width, height, currentFrameWidth);
     const isVertical = selectedNode.direction === 'vertical';
-    const totalDimVal = isVertical ? width : height;
+    const totalDimVal = isVertical ? (bounds ? bounds.w : width) : (bounds ? bounds.h : height);
     if (totalDimVal <= 0) return;
 
     const clampedVal = Math.max(10, Math.min(totalDimVal - 10, val));
@@ -2396,7 +2443,18 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{t(lang, 'unitEditor')}</span>
             </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+            {/* Hızlı Kanat Yönü Değiştirme Butonu */}
+            <button 
+              type="button" 
+              onClick={handleSwapSashes}
+              className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-blue-900/30 border border-blue-400/30"
+              title={lang === 'tr' ? 'Sağ ve sol kanatların yerini ve açılım yönünü tersine çevirir (Sağ ⇄ Sol)' : 'Swap left and right sashes (Left ⇄ Right)'}
+            >
+              <ArrowLeftRight size={16} className="text-white" />
+              <span>{lang === 'tr' ? 'Kanatları Değiştir (Sağ ⇄ Sol)' : 'Swap Sashes (Left ⇄ Right)'}</span>
+            </button>
+
             {onToggleTheme && (
               <button 
                 onClick={onToggleTheme} 
@@ -3031,9 +3089,14 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                             <Layout size={12} className="text-blue-400" />
                             <span className="text-[10px] font-bold uppercase text-slate-400">{t(lang, 'splitSizes')}</span>
                           </div>
-                          <span className="text-[9px] text-slate-500 font-extrabold font-mono uppercase bg-slate-950 px-2 py-0.5 rounded border border-white/5">
-                            {selectedNode.direction === 'vertical' ? (lang === 'tr' ? 'Dikey Bölme' : 'Vertical Split') : (lang === 'tr' ? 'Yatay Bölme' : 'Horizontal Split')}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-blue-400 font-bold font-mono bg-blue-950/80 px-2 py-0.5 rounded border border-blue-500/20">
+                              {Math.round(containerW)} × {Math.round(containerH)} mm
+                            </span>
+                            <span className="text-[9px] text-slate-500 font-extrabold font-mono uppercase bg-slate-950 px-2 py-0.5 rounded border border-white/5">
+                              {selectedNode.direction === 'vertical' ? (lang === 'tr' ? 'Dikey Bölme' : 'Vertical Split') : (lang === 'tr' ? 'Yatay Bölme' : 'Horizontal Split')}
+                            </span>
+                          </div>
                         </div>
                         
                         {/* Manual Input Fields side by side */}
@@ -3117,6 +3180,26 @@ max="0.95"
                     )}
                     {selectedNode?.type !== 'container' && (
                       <div className="space-y-3 pt-2 border-t border-white/5">
+                        {selectedBounds && (
+                          <div className="flex items-center justify-between p-2 bg-slate-950/80 rounded-xl border border-white/5 text-xs">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                              {lang === 'tr' ? 'Seçili Panel Boyutu' : 'Pane Size'}
+                            </span>
+                            <span className="font-mono font-bold text-blue-400">
+                              {Math.round(selectedBounds.w)} × {Math.round(selectedBounds.h)} mm
+                            </span>
+                          </div>
+                        )}
+                        {parentId && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedNodeId(parentId)}
+                            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 rounded-xl transition-all border border-blue-500/20 text-xs font-bold"
+                          >
+                            <Layout size={13} />
+                            <span>{lang === 'tr' ? 'Bölme Ölçülerini Değiştir (Üst Bölme)' : 'Adjust Split Dimensions'}</span>
+                          </button>
+                        )}
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">
                             {lang === 'tr' ? 'Bölme Tipi / Dolgusu' : 'Pane / Infill Type'}
