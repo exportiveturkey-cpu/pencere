@@ -3383,12 +3383,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             <table className="w-full border-collapse mb-10 table-fixed">
                                 <thead>
                                     <tr className="border-b-2 border-slate-900 bg-slate-50">
-                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[5%] print:w-[6%]">POS</th>
-                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[32%] print:w-[32%]">{t(lang, 'technicalDrawing')}</th>
-                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[33%] print:w-[32%]">{t(lang, 'details')}</th>
-                                        <th className="py-4 px-2 print:py-2 text-center text-xs font-black uppercase tracking-widest text-slate-500 w-[8%] print:w-[8%]">{t(lang, 'quantity')}</th>
-                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[11%]">{t(lang, 'unitPrice')}</th>
-                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[11%]">{t(lang, 'totalPrice')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[5%] print:w-[5%]">POS</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[36%] print:w-[38%]">{t(lang, 'technicalDrawing')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-left text-xs font-black uppercase tracking-widest text-slate-500 w-[31%] print:w-[31%]">{t(lang, 'details')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-center text-xs font-black uppercase tracking-widest text-slate-500 w-[6%] print:w-[6%]">{t(lang, 'quantity')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[10%]">{t(lang, 'unitPrice')}</th>
+                                        <th className="py-4 px-2 print:py-2 text-right text-xs font-black uppercase tracking-widest text-slate-500 w-[11%] print:w-[10%]">{t(lang, 'totalPrice')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3494,13 +3494,13 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                                         return (
                                             <tr key={unit.id} className="border-b border-slate-100 group print:break-inside-avoid">
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{(idx + 1).toString().padStart(2, '0')}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[32%] print:w-[32%]">
-                                                    <div className="flex flex-col gap-2 max-w-[210px] print:max-w-[165px]">
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[5%]">#{(idx + 1).toString().padStart(2, '0')}</td>
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top w-[36%] print:w-[38%]">
+                                                    <div className="flex flex-col gap-1.5 max-w-[270px] print:max-w-[230px]">
                                                         {/* Elevation drawing & side cross section */}
                                                         <div className="flex items-center gap-2">
                                                              {/* Elevation Front View */}
-                                                             <div className="w-36 h-36 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shrink-0">
+                                                             <div className="w-48 h-48 print:w-40 print:h-40 bg-white rounded-xl border border-slate-200 p-1.5 print:p-1 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
                                                                 <svg 
                                                                   viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
                                                                   className="w-full h-full max-h-full max-w-full"
@@ -3511,26 +3511,31 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                              </div>
 
                                                              {/* Boy Kesit (Y-Y dikey kesit) */}
-                                                             <div className="w-11 h-36 print:w-8 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                                             <div className="w-12 h-48 print:w-10 print:h-40 bg-white rounded-xl border border-slate-200 p-1 flex flex-col items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
                                                                  {verticalSectionUrl ? (
-                                                                     <img src={verticalSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                     <img src={verticalSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain m-auto" referrerPolicy="no-referrer" />
                                                                  ) : (
                                                                      <BoyKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
+                                                                 )}
+                                                                 {verticalSectionCode && (
+                                                                     <div className="text-[7px] text-slate-400 font-mono text-center truncate w-full px-0.5 mt-0.5 print:text-[6px]">
+                                                                         {verticalSectionCode}
+                                                                     </div>
                                                                  )}
                                                              </div>
                                                         </div>
 
                                                         {/* Plan Kesit (X-X yatay kesit) */}
-                                                        <div className="w-[192px] print:w-[148px] h-12 print:h-[38px] bg-slate-50 rounded-xl border border-slate-200 p-0.5 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                                        <div className="w-full max-w-[252px] print:max-w-[210px] h-10 print:h-8 bg-white rounded-xl border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
                                                             {planSectionUrl ? (
-                                                                <img src={planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                <img src={planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain m-auto" referrerPolicy="no-referrer" />
                                                             ) : (
                                                                 <PlanKesitSVG width={unit.width} height={unit.height} system={sys} isOpenable={hasOpenablePanes(unit.rootNode)} lang={lang} />
                                                             )}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[33%] print:w-[32%]">
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top w-[31%] print:w-[31%]">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{unit.name}</div>
                                                     <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">
                                                         {sys?.name} {sys?.materialType === 'pvc' && <span className="ml-1.5 px-1 bg-amber-500/10 text-amber-600 border border-amber-500/15 rounded text-[8px] font-extrabold tracking-normal">PVC</span>}
@@ -3668,13 +3673,13 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                                         return (
                                             <tr key={item.id} className="border-b border-slate-100 group print:break-inside-avoid">
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[6%]">#{posIdx.toString().padStart(2, '0')}</td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[32%] print:w-[32%]">
-                                                    <div className="flex flex-col gap-2 max-w-[210px] print:max-w-[165px]">
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top font-black text-slate-400 w-[5%] print:w-[5%]">#{posIdx.toString().padStart(2, '0')}</td>
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top w-[36%] print:w-[38%]">
+                                                    <div className="flex flex-col gap-1.5 max-w-[270px] print:max-w-[230px]">
                                                         {/* Main image & side cross section */}
                                                         <div className="flex items-center gap-2">
                                                              {/* Main Image View */}
-                                                             <div className="w-36 h-36 print:w-28 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-2 print:p-1 flex items-center justify-center shrink-0 relative overflow-hidden shadow-sm">
+                                                             <div className="w-48 h-48 print:w-40 print:h-40 bg-white rounded-xl border border-slate-200 p-1.5 print:p-1 flex items-center justify-center shrink-0 relative overflow-hidden shadow-sm">
                                                                  {item.imageUrl ? (
                                                                      <img src={item.imageUrl} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                                                                  ) : (
@@ -3689,12 +3694,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                              </div>
 
                                                              {/* Boy Kesiti (Vertical Cross Section) on the right */}
-                                                             <div className="w-14 h-36 print:w-11 print:h-28 bg-slate-50 rounded-xl border border-slate-200 p-1 flex flex-col items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
+                                                             <div className="w-12 h-48 print:w-10 print:h-40 bg-white rounded-xl border border-slate-200 p-1 flex flex-col items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
                                                                  {item.crossSectionUrl ? (
                                                                      <>
-                                                                         <img src={item.crossSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                         <img src={item.crossSectionUrl} alt="Boy Kesit" className="max-w-full max-h-full object-contain m-auto" referrerPolicy="no-referrer" />
                                                                          {item.crossSectionProfileCode && (
-                                                                             <div className="absolute bottom-0 inset-x-0 bg-indigo-600 text-[8px] font-black text-white py-0.5 text-center truncate uppercase tracking-wider leading-none">
+                                                                             <div className="absolute bottom-0 inset-x-0 bg-indigo-600 text-[7px] font-black text-white py-0.5 text-center truncate uppercase tracking-wider leading-none">
                                                                                  {item.crossSectionProfileCode}
                                                                              </div>
                                                                          )}
@@ -3708,9 +3713,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         </div>
 
                                                         {/* Plan Kesit (Plan Section) under the main image */}
-                                                        <div className="w-[210px] print:w-[165px] h-14 print:h-[42px] bg-slate-50 rounded-xl border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
+                                                        <div className="w-full max-w-[252px] print:max-w-[210px] h-10 print:h-8 bg-white rounded-xl border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden relative shadow-sm">
                                                              {item.planSectionUrl ? (
-                                                                 <img src={item.planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                                                 <img src={item.planSectionUrl} alt="Plan Kesit" className="max-w-full max-h-full object-contain m-auto" referrerPolicy="no-referrer" />
                                                              ) : (
                                                                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider text-center">
                                                                      {lang === 'tr' ? 'PLAN KESİTİ' : 'PLAN SECTION'}
@@ -3719,7 +3724,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-8 px-2 print:py-3 print:px-1 align-top w-[33%] print:w-[32%]">
+                                                <td className="py-6 px-2 print:py-2.5 print:px-1 align-top w-[31%] print:w-[31%]">
                                                     <div className="font-black text-slate-900 text-lg mb-1">{item.name}</div>
                                                     <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-4">
                                                         {item.productType === 'bioclimatic-pergola' && (lang === 'tr' ? 'Bioklimatik Pergole Entegrasyonu' : 'Bioclimatic Pergola Shading')}
