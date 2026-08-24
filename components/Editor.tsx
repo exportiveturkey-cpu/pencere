@@ -978,19 +978,20 @@ export function getNodeBounds(
     }
     if (node.type === 'container' && node.children && node.children.length === 2 && node.splitRatio) {
       const isVert = node.direction === 'vertical';
-      const available = isVert ? w - frameW : h - frameW;
-      const s1 = Math.max(0, available * node.splitRatio[0]);
-      const s2 = Math.max(0, available * node.splitRatio[1]);
+      const available = isVert ? Math.max(1, w - frameW) : Math.max(1, h - frameW);
+      const s1 = available * node.splitRatio[0];
+      const span1 = s1 + frameW / 2;
+      const span2 = (isVert ? w : h) - span1;
 
       if (isVert) {
-        const left = traverse(node.children[0], x, y, s1, h);
+        const left = traverse(node.children[0], x, y, span1, h);
         if (left) return left;
-        const right = traverse(node.children[1], x + s1 + frameW, y, s2, h);
+        const right = traverse(node.children[1], x + span1, y, span2, h);
         if (right) return right;
       } else {
-        const top = traverse(node.children[0], x, y, w, s1);
+        const top = traverse(node.children[0], x, y, w, span1);
         if (top) return top;
-        const bottom = traverse(node.children[1], x, y + s1 + frameW, w, s2);
+        const bottom = traverse(node.children[1], x, y + span1, w, span2);
         if (bottom) return bottom;
       }
     }
@@ -2373,11 +2374,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const containerW = selectedBounds ? selectedBounds.w : width;
   const containerH = selectedBounds ? selectedBounds.h : height;
   const totalDim = isVerticalSplit ? containerW : containerH;
-  const size1 = selectedNode ? (selectedNode.splitRatio?.[0] || 0.5) * totalDim : 0;
-  const size2 = selectedNode ? (selectedNode.splitRatio?.[1] || 0.5) * totalDim : 0;
+  
+  // Exact axis-to-axis dimension of each segment matching CAD drawing
+  const r0 = selectedNode?.splitRatio?.[0] ?? 0.5;
+  const availDim = Math.max(1, totalDim - currentFrameWidth);
+  const size1 = selectedNode ? (availDim * r0 + currentFrameWidth / 2) : 0;
+  const size2 = selectedNode ? (totalDim - size1) : 0;
 
   const formatSize = (num: number) => {
-    const rounded = Number(num.toFixed(2));
+    const rounded = Number(num.toFixed(1));
     if (lang === 'tr') {
       return rounded.toString().replace('.', ',');
     }
@@ -2392,10 +2397,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       const diff1 = Math.abs((isNaN(parsed1) ? 0 : parsed1) - size1);
       const diff2 = Math.abs((isNaN(parsed2) ? 0 : parsed2) - size2);
       
-      if (isNaN(parsed1) || diff1 > 0.02) {
+      if (isNaN(parsed1) || diff1 > 0.05) {
         setInputVal1(formatSize(size1));
       }
-      if (isNaN(parsed2) || diff2 > 0.02) {
+      if (isNaN(parsed2) || diff2 > 0.05) {
         setInputVal2(formatSize(size2));
       }
     }
@@ -2406,16 +2411,76 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     const bounds = getNodeBounds(rootNode, selectedNode.id, width, height, currentFrameWidth);
     const isVertical = selectedNode.direction === 'vertical';
     const totalDimVal = isVertical ? (bounds ? bounds.w : width) : (bounds ? bounds.h : height);
-    if (totalDimVal <= 0) return;
+    if (totalDimVal <= currentFrameWidth + 10) return;
 
-    const clampedVal = Math.max(10, Math.min(totalDimVal - 10, val));
-    let ratio0 = 0.5;
+    const availDim = totalDimVal - currentFrameWidth;
+    let targetSpan1 = val;
     if (index === 0) {
-      ratio0 = clampedVal / totalDimVal;
+      targetSpan1 = val;
     } else {
-      ratio0 = 1 - (clampedVal / totalDimVal);
+      targetSpan1 = totalDimVal - val;
     }
+
+    // Solve for ratio0: targetSpan1 = availDim * ratio0 + currentFrameWidth / 2
+    let ratio0 = (targetSpan1 - currentFrameWidth / 2) / availDim;
+    ratio0 = Math.max(0.01, Math.min(0.99, ratio0));
     handleUpdateSplitRatio(ratio0);
+  };
+
+  const handleApplyPoz5Template = () => {
+    setName('P5');
+    setWidth(1100);
+    setHeight(4120);
+    const fw = currentFrameWidth;
+
+    // Split 1: Top 943.3mm, Bottom 3176.7mm
+    const r1 = (943.3 - fw / 2) / (4120 - fw);
+    // Split 2: Top 943.3mm, Bottom 2233.4mm
+    const r2 = (943.3 - fw / 2) / (3176.7 - fw);
+    // Split 3: Top 943.3mm, Bottom 1290mm
+    const r3 = (943.3 - fw / 2) / (2233.4 - fw);
+    // Split 4 (bottom L-form): Left 530mm (Void), Right 570mm (Glass)
+    const r4 = (530 - fw / 2) / (1100 - fw);
+
+    const newRoot: WindowNode = {
+      id: uuidv4(),
+      type: 'container',
+      direction: 'horizontal',
+      splitRatio: [r1, 1 - r1],
+      children: [
+        { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+        {
+          id: uuidv4(),
+          type: 'container',
+          direction: 'horizontal',
+          splitRatio: [r2, 1 - r2],
+          children: [
+            { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+            {
+              id: uuidv4(),
+              type: 'container',
+              direction: 'horizontal',
+              splitRatio: [r3, 1 - r3],
+              children: [
+                { id: uuidv4(), type: 'glass', openingType: 'fixed' },
+                {
+                  id: uuidv4(),
+                  type: 'container',
+                  direction: 'vertical',
+                  splitRatio: [r4, 1 - r4],
+                  children: [
+                    { id: uuidv4(), type: 'void', openingType: 'fixed' },
+                    { id: uuidv4(), type: 'glass', openingType: 'fixed' }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    handleUpdateRootNode(newRoot);
+    setSelectedNodeId(null);
   };
   const currentUnitFor3D: Unit = {
     id: 'temp',
@@ -3091,7 +3156,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[9px] text-blue-400 font-bold font-mono bg-blue-950/80 px-2 py-0.5 rounded border border-blue-500/20">
-                              {Math.round(containerW)} × {Math.round(containerH)} mm
+                              {formatSize(containerW)} × {formatSize(containerH)} mm
                             </span>
                             <span className="text-[9px] text-slate-500 font-extrabold font-mono uppercase bg-slate-950 px-2 py-0.5 rounded border border-white/5">
                               {selectedNode.direction === 'vertical' ? (lang === 'tr' ? 'Dikey Bölme' : 'Vertical Split') : (lang === 'tr' ? 'Yatay Bölme' : 'Horizontal Split')}
@@ -3509,6 +3574,15 @@ max="0.95"
                         {lang === 'tr' ? 'Kanatları Değiştir (Sağ ⇄ Sol)' : 'Swap Sashes'}
                       </button>
                     )}
+                    <button 
+                      type="button"
+                      onClick={handleApplyPoz5Template}
+                      className="px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/30 shadow-md shadow-emerald-950/40"
+                      title={lang === 'tr' ? '1100×4120 mm: 3 adet 943,3 mm üst sabit cam + 1290 mm alt merdiven boşluğu (530 mm boşluk + 570 mm cam)' : 'Load Poz 5 Structure'}
+                    >
+                      <Sparkles size={12} className="text-amber-300" />
+                      {lang === 'tr' ? '🏛️ LogiKal Poz 5 Şablonu (1100×4120)' : '🏛️ Poz 5 Template'}
+                    </button>
                   </div>
 
                   {previewType === 'svg' ? (

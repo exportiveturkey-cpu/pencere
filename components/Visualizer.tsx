@@ -26,11 +26,12 @@ export function getYCuts(node: WindowNode, y0: number, h: number, frameW: number
     return [];
   }
   if (node.direction === 'horizontal') {
-    const available = h - frameW;
+    const available = Math.max(1, h - frameW);
     const s1 = available * node.splitRatio[0];
-    const cutY = y0 + s1 + frameW / 2;
-    const cutsTop = getYCuts(node.children[0], y0, s1, frameW);
-    const cutsBottom = getYCuts(node.children[1], y0 + s1 + frameW, available * node.splitRatio[1], frameW);
+    const span1 = s1 + frameW / 2;
+    const cutY = y0 + span1;
+    const cutsTop = getYCuts(node.children[0], y0, span1, frameW);
+    const cutsBottom = getYCuts(node.children[1], y0 + span1, h - span1, frameW);
     return [...cutsTop, cutY, ...cutsBottom];
   } else {
     const cutsLeft = getYCuts(node.children[0], y0, h, frameW);
@@ -45,11 +46,12 @@ export function getXCuts(node: WindowNode, x0: number, w: number, frameW: number
     return [];
   }
   if (node.direction === 'vertical') {
-    const available = w - frameW;
+    const available = Math.max(1, w - frameW);
     const s1 = available * node.splitRatio[0];
-    const cutX = x0 + s1 + frameW / 2;
-    const cutsLeft = getXCuts(node.children[0], x0, s1, frameW);
-    const cutsRight = getXCuts(node.children[1], x0 + s1 + frameW, available * node.splitRatio[1], frameW);
+    const span1 = s1 + frameW / 2;
+    const cutX = x0 + span1;
+    const cutsLeft = getXCuts(node.children[0], x0, span1, frameW);
+    const cutsRight = getXCuts(node.children[1], x0 + span1, w - span1, frameW);
     return [...cutsLeft, cutX, ...cutsRight];
   } else {
     const cutsTop = getXCuts(node.children[0], x0, w, frameW);
@@ -64,21 +66,33 @@ export interface SegmentInterval {
   length: number;
 }
 
+export function formatDim(val: number, lang: string = 'tr'): string {
+  const rounded = Math.round(val * 10) / 10;
+  if (Number.isInteger(rounded)) {
+    return rounded.toString();
+  }
+  const formatted = rounded.toFixed(1);
+  return lang === 'tr' ? formatted.replace('.', ',') : formatted;
+}
+
 export function getSegmentsFromCuts(cuts: number[], totalLength: number): SegmentInterval[] {
-  const rounded = Array.from(new Set(cuts.map(c => Math.round(c))))
-    .filter(c => c > 15 && c < totalLength - 15)
+  const roundedCuts = cuts
+    .filter(c => c > 5 && c < totalLength - 5)
+    .map(c => Math.round(c * 10) / 10)
+    .filter((c, idx, arr) => arr.indexOf(c) === idx)
     .sort((a, b) => a - b);
   
-  if (rounded.length === 0) {
+  if (roundedCuts.length === 0) {
     return [{ start: 0, end: totalLength, length: totalLength }];
   }
 
-  const points = [0, ...rounded, totalLength];
+  const points = [0, ...roundedCuts, totalLength];
   const segments: SegmentInterval[] = [];
   for (let i = 0; i < points.length - 1; i++) {
     const start = points[i];
     const end = points[i + 1];
-    segments.push({ start, end, length: Math.round(end - start) });
+    const length = Math.round((end - start) * 10) / 10;
+    segments.push({ start, end, length });
   }
   return segments;
 }
@@ -467,7 +481,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
                 fontWeight="800" 
                 fontFamily="monospace"
               >
-                {Math.round(width)} × {Math.round(height)} mm
+                {formatDim(width, lang)} × {formatDim(height, lang)} mm
               </text>
             </g>
           </g>
@@ -589,7 +603,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
                       fontWeight="800" 
                       fontFamily="monospace"
                     >
-                      {Math.round(width)} × {Math.round(height)}
+                      {formatDim(width, lang)} × {formatDim(height, lang)}
                     </text>
                   </>
                 );
@@ -636,9 +650,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
           <line x1={-tick} y1={-offTop + tick} x2={tick} y2={-offTop - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
           <line x1={width - tick} y1={-offTop + tick} x2={width + tick} y2={-offTop - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
           <rect 
-            x={width / 2 - (fsOverall * 2.8)} 
+            x={width / 2 - (fsOverall * 3.2)} 
             y={-offTop - (fsOverall * 0.85)} 
-            width={fsOverall * 5.6} 
+            width={fsOverall * 6.4} 
             height={fsOverall * 1.4} 
             rx={3} 
             fill={dimBgFill} 
@@ -653,7 +667,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
             fontSize={fsOverall} 
             fontWeight="900" 
           >
-            {Math.round(width)} mm
+            {formatDim(width, lang)} mm
           </text>
         </g>
 
@@ -666,9 +680,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
           <line x1={-offLeft - tick} y1={height + tick} x2={-offLeft + tick} y2={height - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
           <g transform={`translate(${-offLeft}, ${height / 2}) rotate(-90)`}>
             <rect 
-              x={-(fsOverall * 2.8)} 
+              x={-(fsOverall * 3.2)} 
               y={-(fsOverall * 0.7)} 
-              width={fsOverall * 5.6} 
+              width={fsOverall * 6.4} 
               height={fsOverall * 1.4} 
               rx={3} 
               fill={dimBgFill} 
@@ -683,7 +697,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
               fontSize={fsOverall} 
               fontWeight="900" 
             >
-              {Math.round(height)} mm
+              {formatDim(height, lang)} mm
             </text>
           </g>
         </g>
@@ -702,9 +716,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
                   <line x1={width + offRight - tick} y1={seg.end + tick} x2={width + offRight + tick} y2={seg.end - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
                   <g transform={`translate(${width + offRight}, ${segMidY}) rotate(-90)`}>
                     <rect 
-                      x={-(fsSegment * 2.5)} 
+                      x={-(fsSegment * 3.0)} 
                       y={-(fsSegment * 0.65)} 
-                      width={fsSegment * 5.0} 
+                      width={fsSegment * 6.0} 
                       height={fsSegment * 1.3} 
                       rx={2.5} 
                       fill={dimBgFill} 
@@ -719,7 +733,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
                       fontSize={fsSegment} 
                       fontWeight="800" 
                     >
-                      {seg.length} mm
+                      {formatDim(seg.length, lang)} mm
                     </text>
                   </g>
                 </g>
@@ -741,9 +755,9 @@ const Visualizer: React.FC<VisualizerProps> = ({
                   <line x1={seg.start - tick} y1={height + offBottom + tick} x2={seg.start + tick} y2={height + offBottom - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
                   <line x1={seg.end - tick} y1={height + offBottom + tick} x2={seg.end + tick} y2={height + offBottom - tick} stroke={dimStroke} strokeWidth={sw * 1.5} />
                   <rect 
-                    x={segMidX - (fsSegment * 2.5)} 
+                    x={segMidX - (fsSegment * 3.0)} 
                     y={height + offBottom - (fsSegment * 0.65)} 
-                    width={fsSegment * 5.0} 
+                    width={fsSegment * 6.0} 
                     height={fsSegment * 1.3} 
                     rx={2.5} 
                     fill={dimBgFill} 
@@ -758,7 +772,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
                     fontSize={fsSegment} 
                     fontWeight="800" 
                   >
-                    {seg.length} mm
+                    {formatDim(seg.length, lang)} mm
                   </text>
                 </g>
               );
