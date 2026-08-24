@@ -6,7 +6,7 @@ import ThreeDPreview from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG, KURTOGLU_KTR64T_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon, ArrowLeftRight, Copy } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -2190,6 +2190,51 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     });
   };
 
+  const handleSaveAsNew = () => {
+    const glassObj = GLASS_TYPES.find(g => g.id === glassTypeId) || GLASS_TYPES[0];
+    const customPriceNum = customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined;
+    
+    // Auto-increment name if the name is unchanged from the original
+    let newUnitName = name;
+    if (initialUnit && name === initialUnit.name) {
+      const match = name.match(/^(.*?)(\d+)$/);
+      if (match) {
+        newUnitName = `${match[1]}${parseInt(match[2], 10) + 1}`;
+      } else {
+        newUnitName = `${name} (${lang === 'tr' ? 'Kopya' : 'Copy'})`;
+      }
+    }
+
+    onSave({
+      id: uuidv4(), // New ID creates a brand new unit
+      name: newUnitName,
+      width, height, system: systemId,
+      color,
+      specificColor,
+      glassType: glassTypeId, glassThickness: glassObj.thickness,
+      rootNode, quantity: Math.max(1, quantity), shape, archHeight,
+      hasThreshold,
+      includeGlass,
+      customGlassPrice: customPriceNum,
+      selectedHandle, selectedHinge, selectedGasket, selectedLock, 
+      selectedCorner, selectedAutomation, selectedKickplate, 
+      selectedDoorCloser, selectedLockStriker, selectedOther,
+      typology: selectedTypology,
+      selectedFrameProfile,
+      selectedSashProfile,
+      selectedMullionProfile,
+      selectedFrameProfileImage,
+      selectedSashProfileImage,
+      selectedMullionProfileImage,
+      customProfileImages,
+      viewPerspective,
+      planSectionUrl,
+      crossSectionUrl,
+      planSectionProfileCode,
+      crossSectionProfileCode
+    });
+  };
+
   const applyPresetPackage = (packType: 'standard' | 'premium' | 'heavyduty') => {
     setActivePack(packType);
     const systemType = selectedSystem.type;
@@ -2427,61 +2472,6 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     handleUpdateSplitRatio(ratio0);
   };
 
-  const handleApplyPoz5Template = () => {
-    setName('P5');
-    setWidth(1100);
-    setHeight(4120);
-    const fw = currentFrameWidth;
-
-    // Split 1: Top 943.3mm, Bottom 3176.7mm
-    const r1 = (943.3 - fw / 2) / (4120 - fw);
-    // Split 2: Top 943.3mm, Bottom 2233.4mm
-    const r2 = (943.3 - fw / 2) / (3176.7 - fw);
-    // Split 3: Top 943.3mm, Bottom 1290mm
-    const r3 = (943.3 - fw / 2) / (2233.4 - fw);
-    // Split 4 (bottom L-form): Left 530mm (Void), Right 570mm (Glass)
-    const r4 = (530 - fw / 2) / (1100 - fw);
-
-    const newRoot: WindowNode = {
-      id: uuidv4(),
-      type: 'container',
-      direction: 'horizontal',
-      splitRatio: [r1, 1 - r1],
-      children: [
-        { id: uuidv4(), type: 'glass', openingType: 'fixed' },
-        {
-          id: uuidv4(),
-          type: 'container',
-          direction: 'horizontal',
-          splitRatio: [r2, 1 - r2],
-          children: [
-            { id: uuidv4(), type: 'glass', openingType: 'fixed' },
-            {
-              id: uuidv4(),
-              type: 'container',
-              direction: 'horizontal',
-              splitRatio: [r3, 1 - r3],
-              children: [
-                { id: uuidv4(), type: 'glass', openingType: 'fixed' },
-                {
-                  id: uuidv4(),
-                  type: 'container',
-                  direction: 'vertical',
-                  splitRatio: [r4, 1 - r4],
-                  children: [
-                    { id: uuidv4(), type: 'void', openingType: 'fixed' },
-                    { id: uuidv4(), type: 'glass', openingType: 'fixed' }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    };
-    handleUpdateRootNode(newRoot);
-    setSelectedNodeId(null);
-  };
   const currentUnitFor3D: Unit = {
     id: 'temp',
     name, width, height, system: systemId,
@@ -2540,6 +2530,16 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
             <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
               <Undo2 size={18} /> {t(lang, 'undo')}
             </button>
+            {initialUnit && (
+              <button 
+                type="button"
+                onClick={handleSaveAsNew} 
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/30 border border-emerald-400/30"
+                title={lang === 'tr' ? 'Bu pozisyonun birebir kopyasını oluşturup yeni poz olarak kaydeder' : 'Duplicate as a new position'}
+              >
+                <Copy size={18} /> {lang === 'tr' ? 'Farklı Kaydet (Yeni Poz)' : 'Save as New'}
+              </button>
+            )}
             <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20">
               <Save size={18} /> {t(lang, 'saveUnit')}
             </button>
@@ -3574,15 +3574,6 @@ max="0.95"
                         {lang === 'tr' ? 'Kanatları Değiştir (Sağ ⇄ Sol)' : 'Swap Sashes'}
                       </button>
                     )}
-                    <button 
-                      type="button"
-                      onClick={handleApplyPoz5Template}
-                      className="px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/30 shadow-md shadow-emerald-950/40"
-                      title={lang === 'tr' ? '1100×4120 mm: 3 adet 943,3 mm üst sabit cam + 1290 mm alt merdiven boşluğu (530 mm boşluk + 570 mm cam)' : 'Load Poz 5 Structure'}
-                    >
-                      <Sparkles size={12} className="text-amber-300" />
-                      {lang === 'tr' ? '🏛️ LogiKal Poz 5 Şablonu (1100×4120)' : '🏛️ Poz 5 Template'}
-                    </button>
                   </div>
 
                   {previewType === 'svg' ? (

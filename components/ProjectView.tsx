@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw, Copy } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -2615,6 +2615,33 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     URL.revokeObjectURL(url);
   };
 
+  const handleDuplicateUnit = (unit: Unit) => {
+    // Generate next sequential name if it ends with digits (e.g. P5 -> P6, Poz 5 -> Poz 6)
+    let newName = unit.name;
+    const match = unit.name.match(/^(.*?)(\d+)$/);
+    if (match) {
+      const prefix = match[1];
+      const num = parseInt(match[2], 10);
+      newName = `${prefix}${num + 1}`;
+    } else {
+      newName = `${unit.name} (${lang === 'tr' ? 'Kopya' : 'Copy'})`;
+    }
+    
+    const duplicatedUnit: Unit = {
+      ...JSON.parse(JSON.stringify(unit)),
+      id: uuidv4(),
+      name: newName,
+    };
+    
+    const updatedProject: Project = {
+      ...project,
+      units: [...(project.units || []), duplicatedUnit],
+      updatedAt: Date.now()
+    };
+    
+    onUpdateProject(updatedProject);
+  };
+
   const getUnitStats = (unit: Unit) => {
     // Robust system lookup
     const system = getSystemForUnit(unit, systems);
@@ -3036,16 +3063,26 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={getSystemForUnit(unit, systems)} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
                                               </svg>
                                             </div>
-                                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[2px] print:hidden">
-                                                <button onClick={() => onEditUnit(unit)} className="p-3 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" title={t(lang, 'edit')}><Edit2 size={20}/></button>
-                                                <button onClick={() => handleExportDXF(unit)} className="p-3 bg-emerald-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-emerald-500/20" title={t(lang, 'downloadDxf')}><Download size={20}/></button>
-                                                <button onClick={() => onDeleteUnit(unit.id)} className="p-3 bg-rose-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-rose-500/20" title={t(lang, 'deleteUnit')}><Trash2 size={20}/></button>
+                                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2.5 backdrop-blur-[2px] print:hidden">
+                                                <button onClick={() => onEditUnit(unit)} className="p-2.5 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" title={t(lang, 'edit')}><Edit2 size={18}/></button>
+                                                <button onClick={() => handleDuplicateUnit(unit)} className="p-2.5 bg-indigo-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-indigo-500/20" title={lang === 'tr' ? 'Pozu Kopyala (Çoğalt)' : 'Duplicate Position'}><Copy size={18}/></button>
+                                                <button onClick={() => handleExportDXF(unit)} className="p-2.5 bg-emerald-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-emerald-500/20" title={t(lang, 'downloadDxf')}><Download size={18}/></button>
+                                                <button onClick={() => onDeleteUnit(unit.id)} className="p-2.5 bg-rose-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-rose-500/20" title={t(lang, 'deleteUnit')}><Trash2 size={18}/></button>
                                             </div>
                                         </div>
                                         <div className="p-5 print:p-3">
                                             <div className="flex justify-between items-start mb-3">
                                               <div className="flex flex-col min-w-0 flex-1">
-                                                <h3 className="font-bold text-white text-sm truncate pr-2 print:text-black">{unit.name}</h3>
+                                                <div className="flex items-center gap-2">
+                                                  <h3 className="font-bold text-white text-sm truncate pr-2 print:text-black">{unit.name}</h3>
+                                                  <button 
+                                                    onClick={() => handleDuplicateUnit(unit)}
+                                                    className="print:hidden text-[10px] font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/20 flex items-center gap-1 transition-colors"
+                                                    title={lang === 'tr' ? 'Pozu Çoğalt' : 'Duplicate'}
+                                                  >
+                                                    <Copy size={10} /> {lang === 'tr' ? 'Kopyala' : 'Copy'}
+                                                  </button>
+                                                </div>
                                                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                                   <span className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 font-bold uppercase tracking-tight print:text-slate-500 print:bg-slate-50 print:border-slate-200">
                                                       {GLASS_TYPES.find(g => g.id === unit.glassType)?.name || unit.glassType}
