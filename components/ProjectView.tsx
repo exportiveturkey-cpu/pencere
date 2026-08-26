@@ -2388,6 +2388,10 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     type: 'fixed' | 'turn-left' | 'turn-right' | 'tilt' | 'tilt-turn-left' | 'tilt-turn-right' | 'sliding';
     system: string;
     selected: boolean;
+    isSplit?: boolean;
+    splitDirection?: 'horizontal' | 'vertical';
+    panes?: { name?: string; openingType: string; dimension?: number }[];
+    rootNode?: WindowNode;
   }[] | null>(null);
   const [selectedMachineId, setSelectedMachineId] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2528,19 +2532,70 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       const detectedUnits = await analyzeDrawing(base64, type, lang);
       
       if (detectedUnits.length > 0) {
-        const reviewItems = detectedUnits.map((d, index) => ({
-          id: uuidv4(),
-          name: d.name || `Poz-${index + 1}`,
-          width: Number(d.width) || 1200,
-          height: Number(d.height) || 1400,
-          type: (d.type && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(d.type)) 
+        const reviewItems = detectedUnits.map((d, index) => {
+          const w = Number(d.width) || 1200;
+          const h = Number(d.height) || 1400;
+          const opType = (d.type && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(d.type)) 
             ? (d.type as any) 
-            : 'fixed',
-          system: (d.type === 'sliding')
+            : 'fixed';
+
+          let rootNode: WindowNode;
+          const isSplit = Boolean(d.isSplit && d.panes && Array.isArray(d.panes) && d.panes.length >= 2);
+          const splitDirection: 'horizontal' | 'vertical' = (d.splitDirection === 'vertical') ? 'vertical' : 'horizontal';
+
+          if (isSplit && d.panes && d.panes.length >= 2) {
+            const p1 = d.panes[0];
+            const p2 = d.panes[1];
+            const dim1 = Number(p1.dimension) || (splitDirection === 'vertical' ? w / 2 : h / 2);
+            const dim2 = Number(p2.dimension) || (splitDirection === 'vertical' ? w / 2 : h / 2);
+            const totalDim = Math.max(1, dim1 + dim2);
+            const r0 = Math.max(0.05, Math.min(0.95, Math.round((dim1 / totalDim) * 1000) / 1000));
+            const r1 = Math.round((1 - r0) * 1000) / 1000;
+
+            const p1Op = (p1.openingType && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(p1.openingType))
+              ? p1.openingType
+              : 'fixed';
+            const p2Op = (p2.openingType && ['fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'].includes(p2.openingType))
+              ? p2.openingType
+              : 'turn-left';
+
+            rootNode = {
+              id: uuidv4(),
+              type: 'container',
+              direction: splitDirection,
+              splitRatio: [r0, r1],
+              children: [
+                { id: uuidv4(), type: 'glass', openingType: p1Op },
+                { id: uuidv4(), type: 'glass', openingType: p2Op }
+              ]
+            };
+          } else {
+            rootNode = {
+              id: uuidv4(),
+              type: 'glass',
+              openingType: opType
+            };
+          }
+
+          const hasSliding = opType === 'sliding' || (d.panes && d.panes.some((p: any) => p.openingType === 'sliding'));
+          const defaultSys = hasSliding
             ? (systems.find(s => s.type === 'sliding')?.id || systems[0]?.id || 'kurt-51ls')
-            : (systems.find(s => s.id === 'kurt-70t-th' || s.type === 'hinged')?.id || systems[0]?.id || 'kurt-70t-th'),
-          selected: true
-        }));
+            : (systems.find(s => s.id === 'kurt-70t-th' || s.type === 'hinged')?.id || systems[0]?.id || 'kurt-70t-th');
+
+          return {
+            id: uuidv4(),
+            name: d.name || `Poz-${index + 1}`,
+            width: w,
+            height: h,
+            type: opType,
+            system: defaultSys,
+            selected: true,
+            isSplit,
+            splitDirection,
+            panes: d.panes || [],
+            rootNode
+          };
+        });
         setScannedReviewUnits(reviewItems);
       } else {
         alert(lang === 'tr'
@@ -2573,7 +2628,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
       glassType: 'double24',
       glassThickness: 24,
       quantity: 1,
-      rootNode: {
+      rootNode: u.rootNode || {
         id: uuidv4(),
         type: 'glass',
         openingType: u.type
@@ -6411,8 +6466,26 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     <label htmlFor={`chk-${u.id}`} className="text-xs font-mono text-slate-500 select-none cursor-pointer">#{idx + 1}</label>
                   </div>
 
+                  {/* Mini Visualizer Preview */}
+                  {u.rootNode && (
+                    <div className="w-14 h-14 bg-slate-950 rounded-xl border border-slate-800 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      <svg viewBox={getViewBoxWithDimensions(u.width, u.height)} className="w-full h-full max-h-full max-w-full">
+                        <Visualizer
+                          node={u.rootNode}
+                          width={u.width}
+                          height={u.height}
+                          system={systems.find(s => s.id === u.system) || systems[0]}
+                          selectedNodeId={null}
+                          onSelectNode={() => {}}
+                          theme="dark"
+                          lang={lang}
+                        />
+                      </svg>
+                    </div>
+                  )}
+
                   {/* Poz Name */}
-                  <div className="flex-1 min-w-[120px]">
+                  <div className="flex-1 min-w-[110px]">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                       {lang === 'tr' ? 'Poz Adı' : 'Unit Label'}
                     </span>
@@ -6428,10 +6501,15 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 disabled:opacity-50"
                       placeholder="e.g. W-01"
                     />
+                    {u.isSplit && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[9px] font-bold">
+                        ⚡ {u.splitDirection === 'vertical' ? (lang === 'tr' ? 'Düşey Kayıt' : 'Mullion') : (lang === 'tr' ? 'Yatay Kayıt / Transom' : 'Transom')}
+                      </span>
+                    )}
                   </div>
 
                   {/* Width (mm) */}
-                  <div className="w-full lg:w-28">
+                  <div className="w-full lg:w-24">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                       {lang === 'tr' ? 'Genişlik (mm)' : 'Width (mm)'}
                     </span>
@@ -6449,7 +6527,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   </div>
 
                   {/* Height (mm) */}
-                  <div className="w-full lg:w-28">
+                  <div className="w-full lg:w-24">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                       {lang === 'tr' ? 'Yükseklik (mm)' : 'Height (mm)'}
                     </span>
@@ -6467,7 +6545,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   </div>
 
                   {/* System Profile */}
-                  <div className="flex-1 min-w-[150px]">
+                  <div className="flex-1 min-w-[130px]">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                       {lang === 'tr' ? 'Sistem Profili' : 'System Profile'}
                     </span>
@@ -6487,29 +6565,90 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     </select>
                   </div>
 
-                  {/* Opening Type */}
-                  <div className="flex-1 min-w-[180px]">
+                  {/* Opening Type / Panes */}
+                  <div className="flex-1 min-w-[200px]">
                     <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
-                      ⚡ {lang === 'tr' ? 'Açılım Tipi (Değiştir)' : 'Opening Type (Calibrate)'}
+                      ⚡ {u.isSplit ? (lang === 'tr' ? 'Bölme Açılımları' : 'Pane Openings') : (lang === 'tr' ? 'Açılım Tipi' : 'Opening Type')}
                     </span>
-                    <select 
-                      value={u.type} 
-                      onChange={e => {
-                        const updated = [...scannedReviewUnits];
-                        updated[idx].type = e.target.value as any;
-                        setScannedReviewUnits(updated);
-                      }}
-                      disabled={!u.selected}
-                      className="w-full bg-slate-950 border border-indigo-500/30 font-bold rounded-xl px-3 py-1.5 text-xs text-indigo-300 outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
-                    >
-                      <option value="fixed">{t(lang, 'fixed')}</option>
-                      <option value="turn-left">{t(lang, 'turnLeft')}</option>
-                      <option value="turn-right">{t(lang, 'turnRight')}</option>
-                      <option value="tilt">{t(lang, 'tilt')}</option>
-                      <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
-                      <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
-                      <option value="sliding">{t(lang, 'sliding')}</option>
-                    </select>
+                    {u.isSplit && u.rootNode && u.rootNode.children && u.rootNode.children.length >= 2 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {u.rootNode.children.map((child, childIdx) => {
+                          const paneLabel = childIdx === 0 
+                            ? (u.splitDirection === 'vertical' ? (lang === 'tr' ? 'Sol Göz' : 'Left') : (lang === 'tr' ? 'Üst Göz' : 'Top'))
+                            : (u.splitDirection === 'vertical' ? (lang === 'tr' ? 'Sağ Göz' : 'Right') : (lang === 'tr' ? 'Alt Göz' : 'Bottom'));
+                          const paneDim = u.panes && u.panes[childIdx]?.dimension ? ` (${u.panes[childIdx].dimension}mm)` : '';
+
+                          return (
+                            <div key={child.id || childIdx} className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-slate-400 w-16 truncate shrink-0">{paneLabel}{paneDim}:</span>
+                              <select
+                                value={child.openingType || 'fixed'}
+                                onChange={e => {
+                                  const updated = [...scannedReviewUnits];
+                                  const target = { ...updated[idx] };
+                                  if (target.rootNode && target.rootNode.children) {
+                                    const newChildren = [...target.rootNode.children];
+                                    newChildren[childIdx] = {
+                                      ...newChildren[childIdx],
+                                      openingType: e.target.value as any
+                                    };
+                                    target.rootNode = {
+                                      ...target.rootNode,
+                                      children: newChildren
+                                    };
+                                  }
+                                  if (target.panes && target.panes[childIdx]) {
+                                    const newPanes = [...target.panes];
+                                    newPanes[childIdx] = {
+                                      ...newPanes[childIdx],
+                                      openingType: e.target.value
+                                    };
+                                    target.panes = newPanes;
+                                  }
+                                  updated[idx] = target;
+                                  setScannedReviewUnits(updated);
+                                }}
+                                disabled={!u.selected}
+                                className="w-full bg-slate-950 border border-indigo-500/30 font-medium rounded-lg px-2 py-1 text-[11px] text-indigo-300 outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
+                              >
+                                <option value="fixed">{t(lang, 'fixed')}</option>
+                                <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                                <option value="turn-right">{t(lang, 'turnRight')}</option>
+                                <option value="tilt">{t(lang, 'tilt')}</option>
+                                <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                                <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                                <option value="sliding">{t(lang, 'sliding')}</option>
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <select 
+                        value={u.type} 
+                        onChange={e => {
+                          const updated = [...scannedReviewUnits];
+                          const newType = e.target.value as any;
+                          updated[idx].type = newType;
+                          updated[idx].rootNode = {
+                            id: updated[idx].rootNode?.id || uuidv4(),
+                            type: 'glass',
+                            openingType: newType
+                          };
+                          setScannedReviewUnits(updated);
+                        }}
+                        disabled={!u.selected}
+                        className="w-full bg-slate-950 border border-indigo-500/30 font-bold rounded-xl px-3 py-1.5 text-xs text-indigo-300 outline-none focus:border-indigo-500 disabled:opacity-50 cursor-pointer"
+                      >
+                        <option value="fixed">{t(lang, 'fixed')}</option>
+                        <option value="turn-left">{t(lang, 'turnLeft')}</option>
+                        <option value="turn-right">{t(lang, 'turnRight')}</option>
+                        <option value="tilt">{t(lang, 'tilt')}</option>
+                        <option value="tilt-turn-left">{t(lang, 'tiltTurnLeft')}</option>
+                        <option value="tilt-turn-right">{t(lang, 'tiltTurnRight')}</option>
+                        <option value="sliding">{t(lang, 'sliding')}</option>
+                      </select>
+                    )}
                   </div>
                 </div>
               ))}

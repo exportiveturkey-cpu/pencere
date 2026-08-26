@@ -58,17 +58,37 @@ export const analyzeStructure = async (unit: Unit, system: ProfileSystem, lang: 
 export const analyzeDrawing = async (base64Data: string, mimeType: string, lang: Language): Promise<any[]> => {
   try {
     const prompt = `
-      Perform an expert engineering extraction on this technical plan, joinery list, elevation or schedule.
-      Detect all window (pencere) and door (kapı) units. Follow these rules for maximum accuracy:
-      1. LOCATE NAME/LABEL: Scan for round/square tags or text labels nearby such as W-01, Poz-1, Poz-2, D-01, Door-2, K-1, P-1.
-      2. DETECT DIMENSIONS (WIDTH & HEIGHT):
-         - Find dimension markers or numbers (e.g. "90/220", "150 x 150", "1500x1600").
-         - Format is always Width x Height. Horizontal is width, vertical is height.
-         - CONVERT TO MILLIMETERS (mm): If numbers are in centimeters (like 90, 150, 220) or meters (like 1.5, 2.2), scale them to millimeters (e.g., convert 150 to 1500, 220 to 2200).
-      3. DETERMINE OPENING TYPE:
-         - Triangle drawing corner vertices/hinges -> 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', or 'tilt-turn-right'.
-         - Horizontal arrows -> 'sliding'.
-         - Empty/no icons inside panel -> 'fixed'.
+      Perform an expert engineering extraction on this technical plan, joinery list, elevation or hand sketch.
+      Detect all window (pencere) and door (kapı) units. Follow these critical engineering rules for maximum precision:
+
+      1. UNIT IDENTIFICATION & COMPOSITE WINDOW RECOGNITION (CRITICAL):
+         - A continuous outer rectangular frame is ONE SINGLE UNIT / POZ (e.g. W-01, Poz-1, P-01).
+         - IF A FRAME IS DIVIDED INTERNALLY by horizontal transoms (yatay kayıt) or vertical mullions (düşey kayıt):
+           * DO NOT break it into multiple separate units/poz! It is ONE UNIT with the overall total outer width and overall total outer height.
+           * Set "isSplit": true.
+           * For top/bottom divisions (transom, vasistas + main sash): set "splitDirection": "horizontal". List each pane in "panes" from top to bottom with its dimension (height) and opening type.
+             Example: An outer frame of 2000mm width and 1500mm height with a 500mm top fixed pane (+) and 1000mm bottom turn-left opening pane:
+             { "name": "W-01", "width": 2000, "height": 1500, "type": "turn-left", "isSplit": true, "splitDirection": "horizontal", "panes": [{ "name": "Üst Sabit", "openingType": "fixed", "dimension": 500 }, { "name": "Alt Açılır", "openingType": "turn-left", "dimension": 1000 }] }
+           * For left/right divisions (double sash, side fixed + opening sash): set "splitDirection": "vertical". List each pane in "panes" from left to right with its dimension (width) and opening type.
+             Example: An outer frame of 2000mm width and 1400mm height with two 1000mm sashes:
+             { "name": "W-01", "width": 2000, "height": 1400, "type": "turn-left", "isSplit": true, "splitDirection": "vertical", "panes": [{ "name": "Sol Kanat", "openingType": "turn-left", "dimension": 1000 }, { "name": "Sağ Kanat", "openingType": "tilt-turn-right", "dimension": 1000 }] }
+
+      2. LOCATE LABELS / NAMES:
+         - Scan for round/square tags or text labels nearby such as W-01, Poz-1, Poz-2, D-01, Door-2, K-1, P-1. If not labeled, generate Poz-01, Poz-02, etc.
+
+      3. PRECISE DIMENSIONS (WIDTH & HEIGHT IN MM):
+         - Find outer dimension lines and numbers.
+         - Format is Width x Height (Genişlik x Yükseklik).
+         - If segment dimensions are given (e.g. 500mm and 1000mm on the side), sum them to compute total outer height (1500mm).
+         - CONVERT ALL NUMBERS TO MILLIMETERS (mm): If numbers are in centimeters (like 90, 150, 200) or meters (like 1.5, 2.0), scale to millimeters (1500, 2000).
+
+      4. ARCHITECTURAL OPENING SYMBOLS:
+         - "+" or cross or blank/empty pane -> 'fixed' (Sabit Cam).
+         - Triangle with vertex on left edge / arrow pointing left -> 'turn-left'.
+         - Triangle with vertex on right edge / arrow pointing right -> 'turn-right'.
+         - Triangle with base at bottom and apex at top (tilt/bottom-hung transom) -> 'tilt'.
+         - Combined double triangle (turn + tilt lines) -> 'tilt-turn-left' or 'tilt-turn-right'.
+         - Horizontal arrows -> 'sliding' (Sürme).
 
       Return a clean list of extracted items matching the required JSON schema.
     `;

@@ -286,7 +286,7 @@ async function startServer() {
       const response = await generateWithRetryAndFallback({
         contents: { parts: [imagePart, { text: prompt }] },
         config: {
-          systemInstruction: "You are an expert façade engineering assistant specialized in extracting high-accuracy window and door schedule data from technical drawings, joinery schedules, and architectural plan images or PDFs. Your goal is to deliver clean, precise dimensions in millimeters and identify correct opening types based on standardized drafting symbols.",
+          systemInstruction: "You are a master façade engineer and window/door manufacturing software specialist. Your job is to extract high-precision window/door schedules from architectural drawings and hand sketches. Crucially, recognize composite units with mullions/transoms (e.g. top fixed transom + bottom sash) as ONE single unit with outer bounding dimensions, rather than breaking them into multiple separate items.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -295,19 +295,49 @@ async function startServer() {
               properties: {
                 name: {
                   type: Type.STRING,
-                  description: "Unique label of the item, e.g., 'W-01', 'Poz-1', 'Kapı K-2', 'Poz-3'",
+                  description: "Unique label of the unit, e.g. 'W-01', 'P-01', 'Poz-1', 'Kapı K-2', 'Poz-3'",
                 },
                 width: {
                   type: Type.INTEGER,
-                  description: "Exact width of the unit in millimeters (mm). If the drawing uses centimeters (e.g., 150) or meters (e.g., 1.5), multiply/convert to millimeters (e.g., 1500).",
+                  description: "Total outer width of the window/door frame in millimeters (mm). Convert from cm/m if needed.",
                 },
                 height: {
                   type: Type.INTEGER,
-                  description: "Exact height of the unit in millimeters (mm). If the drawing uses centimeters (e.g., 220) or meters (e.g., 2.2), multiply/convert to millimeters (e.g., 2200).",
+                  description: "Total outer height of the window/door frame in millimeters (mm). If subdivided (e.g. 500mm top and 1000mm bottom), total outer height is 1500mm. Convert from cm/m if needed.",
                 },
                 type: {
                   type: Type.STRING,
-                  description: "The opening type classification. Must strictly match one of: 'fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'. Detect from architectural symbols.",
+                  description: "The primary or single opening type: 'fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'.",
+                },
+                isSplit: {
+                  type: Type.BOOLEAN,
+                  description: "True if the window/door has internal divisions (mullions/transoms) dividing it into 2 or more sashes/panes within one continuous outer frame.",
+                },
+                splitDirection: {
+                  type: Type.STRING,
+                  description: "Direction of division: 'horizontal' (for top-bottom division, transom, vasistas) or 'vertical' (for left-right division, mullion, multi-sash).",
+                },
+                panes: {
+                  type: Type.ARRAY,
+                  description: "List of sub-panes in order (top-to-bottom for horizontal split, left-to-right for vertical split).",
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: {
+                        type: Type.STRING,
+                        description: "Description of the pane, e.g. 'Top Transom / Üst Sabit', 'Bottom Sash / Alt Açılır'",
+                      },
+                      openingType: {
+                        type: Type.STRING,
+                        description: "Opening type for this pane: 'fixed', 'turn-left', 'turn-right', 'tilt', 'tilt-turn-left', 'tilt-turn-right', 'sliding'.",
+                      },
+                      dimension: {
+                        type: Type.INTEGER,
+                        description: "Height in mm for horizontal split, or width in mm for vertical split.",
+                      }
+                    },
+                    required: ["openingType"]
+                  }
                 }
               },
               required: ["name", "width", "height", "type"]
