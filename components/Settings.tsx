@@ -153,6 +153,7 @@ const Settings: React.FC<SettingsProps> = ({
   const [usdRate, setUsdRate] = useState(localStorage.getItem('alucraft_usd_rate') || '33.0');
   const [eurRate, setEurRate] = useState(localStorage.getItem('alucraft_eur_rate') || '35.5');
   const [gbpRate, setGbpRate] = useState(localStorage.getItem('alucraft_gbp_rate') || '42.5');
+  const [sarRate, setSarRate] = useState(localStorage.getItem('alucraft_sar_rate') || '8.80');
 
   // System Form State
   // Added missing ProfileSystem properties: frameDepth, wallThickness, sashDepth, thermalBreakWidth
@@ -442,6 +443,9 @@ const Settings: React.FC<SettingsProps> = ({
         setUsdRate(data.rates.USD.toString());
         setEurRate(data.rates.EUR.toString());
         setGbpRate(data.rates.GBP.toString());
+        if (data.rates.SAR) {
+          setSarRate(data.rates.SAR.toString());
+        }
         setRateSource(data.source || 'tcmb');
         setRateSuccess(true);
         setTimeout(() => setRateSuccess(false), 8000);
@@ -639,6 +643,7 @@ const Settings: React.FC<SettingsProps> = ({
     localStorage.setItem('alucraft_usd_rate', usdRate);
     localStorage.setItem('alucraft_eur_rate', eurRate);
     localStorage.setItem('alucraft_gbp_rate', gbpRate);
+    localStorage.setItem('alucraft_sar_rate', sarRate);
     localStorage.setItem('alucraft_admin_pin', customAdminPin);
     alert(t(lang, 'systemUpdated'));
     // Trigger window custom event or force state reload
@@ -2742,8 +2747,11 @@ const Settings: React.FC<SettingsProps> = ({
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">{t(lang, 'currency')}</label>
                         <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white outline-none">
-                            <option value="USD">USD ($)</option>
-                            <option value="TRY">TRY (₺)</option>
+                            <option value="USD">USD ($ - US Dollar)</option>
+                            <option value="SAR">SAR (﷼ / SAR - Suudi Arabistan Riyali)</option>
+                            <option value="TRY">TRY (₺ - Türk Lirası)</option>
+                            <option value="EUR">EUR (€ - Euro)</option>
+                            <option value="GBP">GBP (£ - İngiliz Sterlini)</option>
                         </select>
                     </div>
                     <div>
@@ -2770,8 +2778,8 @@ const Settings: React.FC<SettingsProps> = ({
                         </div>
                         <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
                             {lang === 'tr'
-                              ? 'Renk kg fiyatları, cam m² fiyatları ve profil metre fiyatları TL olarak tanımlandığında, teklif para birimi USD/EUR/GBP seçildiğinde fiyatlar bu kurlar üzerinden otomatik olarak dövize çevrilir.'
-                              : 'When color prices, glass prices, and profile meter prices are defined in TRY, they will be automatically converted using these rates if the proposal currency is USD/EUR/GBP.'}
+                              ? 'Renk kg fiyatları, cam m² fiyatları ve profil metre fiyatları TL olarak tanımlandığında, teklif para birimi SAR/USD/EUR/GBP seçildiğinde fiyatlar bu kurlar üzerinden otomatik olarak dövize çevrilir.'
+                              : 'When color prices, glass prices, and profile meter prices are defined in TRY, they will be automatically converted using these rates if the proposal currency is SAR/USD/EUR/GBP.'}
                         </p>
 
                         {rateSuccess && (
@@ -2787,11 +2795,18 @@ const Settings: React.FC<SettingsProps> = ({
                             </p>
                         )}
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block">1 USD ($)</label>
                                 <div className="relative">
                                     <input type="number" step="0.0001" value={usdRate} onChange={e => setUsdRate(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-emerald-400 outline-none" placeholder="33.0" />
+                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1.5 block">1 SAR (﷼)</label>
+                                <div className="relative">
+                                    <input type="number" step="0.0001" value={sarRate} onChange={e => setSarRate(e.target.value)} className="w-full bg-slate-950 border border-amber-500/30 rounded-xl pl-3 pr-8 py-2 text-xs font-mono text-amber-300 outline-none" placeholder="8.80" />
                                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">TL</span>
                                 </div>
                             </div>

@@ -144,11 +144,17 @@ async function startServer() {
         const usd = getRate("USD");
         const eur = getRate("EUR");
         const gbp = getRate("GBP");
+        const sar = getRate("SAR");
 
         if (usd && eur && gbp) {
           return res.json({
             source: "tcmb",
-            rates: { USD: usd, EUR: eur, GBP: gbp }
+            rates: { 
+              USD: usd, 
+              EUR: eur, 
+              GBP: gbp, 
+              SAR: sar || parseFloat((usd / 3.75).toFixed(4)) 
+            }
           });
         }
       }
@@ -168,12 +174,14 @@ async function startServer() {
           const usdRate = tryRate;
           const eurRate = tryRate / (data.rates.EUR || 0.92);
           const gbpRate = tryRate / (data.rates.GBP || 0.79);
+          const sarRate = tryRate / (data.rates.SAR || 3.75);
           return res.json({
             source: "exchangerate-api",
             rates: {
               USD: parseFloat(usdRate.toFixed(4)),
               EUR: parseFloat(eurRate.toFixed(4)),
-              GBP: parseFloat(gbpRate.toFixed(4))
+              GBP: parseFloat(gbpRate.toFixed(4)),
+              SAR: parseFloat(sarRate.toFixed(4))
             }
           });
         }
@@ -193,12 +201,14 @@ async function startServer() {
           const usdRate = tryRate;
           const eurRate = tryRate / (data.usd.eur || 0.92);
           const gbpRate = tryRate / (data.usd.gbp || 0.79);
+          const sarRate = tryRate / (data.usd.sar || 3.75);
           return res.json({
             source: "currency-api-cdn",
             rates: {
               USD: parseFloat(usdRate.toFixed(4)),
               EUR: parseFloat(eurRate.toFixed(4)),
-              GBP: parseFloat(gbpRate.toFixed(4))
+              GBP: parseFloat(gbpRate.toFixed(4)),
+              SAR: parseFloat(sarRate.toFixed(4))
             }
           });
         }
@@ -218,12 +228,14 @@ async function startServer() {
           const usdRate = tryRate;
           const eurRate = tryRate / (data.usd.eur || 0.92);
           const gbpRate = tryRate / (data.usd.gbp || 0.79);
+          const sarRate = tryRate / (data.usd.sar || 3.75);
           return res.json({
             source: "currency-api-mirror",
             rates: {
               USD: parseFloat(usdRate.toFixed(4)),
               EUR: parseFloat(eurRate.toFixed(4)),
-              GBP: parseFloat(gbpRate.toFixed(4))
+              GBP: parseFloat(gbpRate.toFixed(4)),
+              SAR: parseFloat(sarRate.toFixed(4))
             }
           });
         }
@@ -243,12 +255,14 @@ async function startServer() {
           const usdRate = tryRate;
           const eurRate = tryRate / (data.rates.EUR || 0.92);
           const gbpRate = tryRate / (data.rates.GBP || 0.79);
+          const sarRate = tryRate / (data.rates.SAR || 3.75);
           return res.json({
             source: "global",
             rates: {
               USD: parseFloat(usdRate.toFixed(4)),
               EUR: parseFloat(eurRate.toFixed(4)),
-              GBP: parseFloat(gbpRate.toFixed(4))
+              GBP: parseFloat(gbpRate.toFixed(4)),
+              SAR: parseFloat(sarRate.toFixed(4))
             }
           });
         }

@@ -2731,11 +2731,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     
     const laborPerKgTry = system.laborPricePerKg || 0;
     const laborPerKgUsd = system.laborPricePerKgUsd || 0;
+    const usdRate = typeof window !== 'undefined' ? (parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0) : 33.0;
     let systemLaborRate = 0;
     if (currency === 'TRY') {
-      systemLaborRate = laborPerKgTry || (laborPerKgUsd * exchangeRate);
+      systemLaborRate = laborPerKgTry || (laborPerKgUsd * usdRate);
+    } else if (currency === 'USD') {
+      systemLaborRate = laborPerKgUsd || (laborPerKgTry / usdRate);
     } else {
-      systemLaborRate = laborPerKgUsd || (laborPerKgTry / exchangeRate);
+      systemLaborRate = laborPerKgTry ? (laborPerKgTry / exchangeRate) : (laborPerKgUsd * (usdRate / exchangeRate));
     }
 
     const profileCost = (profileWeight * 1.10) * (colorPrice + systemLaborRate); // 10% wastage increase for costing included with labor per kg
@@ -2783,9 +2786,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const tiltTurnUsd = system.tiltTurnLaborPriceUsd !== undefined ? system.tiltTurnLaborPriceUsd : 0;
     let tiltTurnRate = 0;
     if (currency === 'TRY') {
-      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * exchangeRate);
+      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * usdRate);
+    } else if (currency === 'USD') {
+      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / usdRate);
     } else {
-      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / exchangeRate);
+      tiltTurnRate = tiltTurnTry ? (tiltTurnTry / exchangeRate) : (tiltTurnUsd * (usdRate / exchangeRate));
     }
     const tiltTurnLaborCost = sashCounts.tiltTurnCount * tiltTurnRate;
 
@@ -2794,9 +2799,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     const hbsbUsd = system.hbsbLaborPriceUsd !== undefined ? system.hbsbLaborPriceUsd : 0;
     let hbsbRate = 0;
     if (currency === 'TRY') {
-      hbsbRate = hbsbTry || (hbsbUsd * exchangeRate);
+      hbsbRate = hbsbTry || (hbsbUsd * usdRate);
+    } else if (currency === 'USD') {
+      hbsbRate = hbsbUsd || (hbsbTry / usdRate);
     } else {
-      hbsbRate = hbsbUsd || (hbsbTry / exchangeRate);
+      hbsbRate = hbsbTry ? (hbsbTry / exchangeRate) : (hbsbUsd * (usdRate / exchangeRate));
     }
     const hbsbLaborCost = sashCounts.slidingCount * hbsbRate;
 
@@ -2916,6 +2923,24 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${currency === 'USD' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                   >
                     USD ($)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem('alucraft_currency', 'SAR');
+                      window.dispatchEvent(new Event('alucraft_settings_changed'));
+                    }} 
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${currency === 'SAR' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    SAR (﷼)
+                  </button>
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem('alucraft_currency', 'EUR');
+                      window.dispatchEvent(new Event('alucraft_settings_changed'));
+                    }} 
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-200 ${currency === 'EUR' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    EUR (€)
                   </button>
                 </div>
 

@@ -60,6 +60,9 @@ export const getCurrencySymbol = (paramCurrency?: string): string => {
   const currency = paramCurrency || getActiveCurrency();
   switch (currency) {
     case 'TRY': return '₺';
+    case 'SAR': return 'SAR ';
+    case 'EUR': return '€';
+    case 'GBP': return '£';
     case 'USD':
     default:
       return '$';
@@ -70,47 +73,74 @@ export const getExchangeRate = (currency?: string): number => {
   const curr = currency || getActiveCurrency();
   if (curr === 'TRY') return 1.0;
   
-  if (typeof window === 'undefined') return 1.0;
+  if (typeof window === 'undefined') {
+    if (curr === 'SAR') return 8.80;
+    if (curr === 'EUR') return 35.5;
+    if (curr === 'GBP') return 42.5;
+    return 33.0;
+  }
+
+  if (curr === 'SAR') {
+    return parseFloat(localStorage.getItem('alucraft_sar_rate') || '8.80') || 8.80;
+  }
+  if (curr === 'EUR') {
+    return parseFloat(localStorage.getItem('alucraft_eur_rate') || '35.5') || 35.5;
+  }
+  if (curr === 'GBP') {
+    return parseFloat(localStorage.getItem('alucraft_gbp_rate') || '42.5') || 42.5;
+  }
+
   const usdRate = parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0;
   return usdRate;
 };
 
 export const getConvertedAccessoryPrice = (rawPrice: number, targetCurrency: string): number => {
   if (targetCurrency === 'USD') return rawPrice;
-  if (typeof window === 'undefined') return rawPrice;
-  const usdRate = parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0;
+  const usdRate = typeof window !== 'undefined' 
+    ? (parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0) 
+    : 33.0;
   
   if (targetCurrency === 'TRY') {
     return rawPrice * usdRate;
   }
-  return rawPrice;
+  const targetRate = getExchangeRate(targetCurrency);
+  return (rawPrice * usdRate) / targetRate;
 };
 
 export const getColorPricePerKg = (colorKey: string | undefined, currency?: string): number => {
   const activeCurr = currency || getActiveCurrency();
   const isUsd = activeCurr === 'USD';
   const storageKey = isUsd ? 'alucraft_color_prices_usd' : 'alucraft_color_prices';
+  const exchangeRate = getExchangeRate(activeCurr);
+  const usdRate = typeof window !== 'undefined'
+    ? (parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0)
+    : 33.0;
   
-  if (typeof window === 'undefined') {
-    const defaultTry = 185;
-    return isUsd ? parseFloat((defaultTry / 33.0).toFixed(2)) : defaultTry;
-  }
-  
-  const saved = localStorage.getItem(storageKey);
   let prices: Record<string, number> = {};
-  if (saved) {
-    try {
-      prices = JSON.parse(saved);
-    } catch (e) {
-      console.error("Could not parse color prices:", e);
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        prices = JSON.parse(saved);
+      } catch (e) {
+        console.error("Could not parse color prices:", e);
+      }
     }
   }
   
   const key = colorKey ? colorKey.toLowerCase().trim() : '';
   
   const getFallback = (keyType: string, defaultTry: number): number => {
-    if (prices[keyType] !== undefined) return prices[keyType];
-    return isUsd ? parseFloat((defaultTry / 33.0).toFixed(2)) : defaultTry;
+    if (activeCurr === 'TRY') {
+      if (prices[keyType] !== undefined) return prices[keyType];
+      return defaultTry;
+    }
+    if (activeCurr === 'USD') {
+      if (prices[keyType] !== undefined) return prices[keyType];
+      return parseFloat((defaultTry / usdRate).toFixed(2));
+    }
+    // SAR, EUR, GBP
+    return parseFloat((defaultTry / exchangeRate).toFixed(2));
   };
 
   if (key === 'pres') return getFallback('pres', 160);
@@ -138,6 +168,9 @@ export const calculateProjectCost = (
   const taxRate = Number(localStorage.getItem('alucraft_tax')) || 20;
   const currency = getActiveCurrency();
   const exchangeRate = getExchangeRate(currency);
+  const usdRate = typeof window !== 'undefined'
+    ? (parseFloat(localStorage.getItem('alucraft_usd_rate') || '33.0') || 33.0)
+    : 33.0;
   let subTotal = 0;
 
   project.units.forEach((unit) => {
@@ -179,9 +212,11 @@ export const calculateProjectCost = (
     const laborPerKgUsd = system?.laborPricePerKgUsd || 0;
     let systemLaborRate = 0;
     if (currency === 'TRY') {
-      systemLaborRate = laborPerKgTry || (laborPerKgUsd * exchangeRate);
+      systemLaborRate = laborPerKgTry || (laborPerKgUsd * usdRate);
+    } else if (currency === 'USD') {
+      systemLaborRate = laborPerKgUsd || (laborPerKgTry / usdRate);
     } else {
-      systemLaborRate = laborPerKgUsd || (laborPerKgTry / exchangeRate);
+      systemLaborRate = laborPerKgTry ? (laborPerKgTry / exchangeRate) : (laborPerKgUsd * (usdRate / exchangeRate));
     }
 
     let profileCost = 0;
@@ -233,9 +268,11 @@ export const calculateProjectCost = (
     const tiltTurnUsd = system?.tiltTurnLaborPriceUsd || 0;
     let tiltTurnRate = 0;
     if (currency === 'TRY') {
-      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * exchangeRate);
+      tiltTurnRate = tiltTurnTry || (tiltTurnUsd * usdRate);
+    } else if (currency === 'USD') {
+      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / usdRate);
     } else {
-      tiltTurnRate = tiltTurnUsd || (tiltTurnTry / exchangeRate);
+      tiltTurnRate = tiltTurnTry ? (tiltTurnTry / exchangeRate) : (tiltTurnUsd * (usdRate / exchangeRate));
     }
     const tiltTurnLaborCost = sashCounts.tiltTurnCount * tiltTurnRate;
 
@@ -244,9 +281,11 @@ export const calculateProjectCost = (
     const hbsbUsd = system?.hbsbLaborPriceUsd || 0;
     let hbsbRate = 0;
     if (currency === 'TRY') {
-      hbsbRate = hbsbTry || (hbsbUsd * exchangeRate);
+      hbsbRate = hbsbTry || (hbsbUsd * usdRate);
+    } else if (currency === 'USD') {
+      hbsbRate = hbsbUsd || (hbsbTry / usdRate);
     } else {
-      hbsbRate = hbsbUsd || (hbsbTry / exchangeRate);
+      hbsbRate = hbsbTry ? (hbsbTry / exchangeRate) : (hbsbUsd * (usdRate / exchangeRate));
     }
     const hbsbLaborCost = sashCounts.slidingCount * hbsbRate;
 

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cloud_saveProject } from '../services/authService';
 import { getSystemForUnit } from './ProjectView';
+import { getCurrencySymbol } from '../services/priceCalculator';
 
 const hasOpenablePanes = (node: WindowNode | undefined): boolean => {
   if (!node) return false;
@@ -39,7 +40,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   lang,
   onBackToApp
 }) => {
-  const [currencySymbol] = useState('$');
+  const [currencySymbol] = useState(() => getCurrencySymbol());
   const [notes, setNotes] = useState('');
   const [signatoryName, setSignatoryName] = useState('');
   const [submitting, setSubmitting] = useState(false);
