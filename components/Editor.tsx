@@ -2,11 +2,11 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing, NodeType } from '../types';
 import Visualizer, { getYCuts, getXCuts, getSegmentsFromCuts } from './Visualizer';
-import ThreeDPreview from './ThreeDPreview';
+import ThreeDPreview, { ThreeDPreviewHandle } from './ThreeDPreview';
 import CrossSection from './CrossSection';
 import { INITIAL_ROOT_NODE, GLASS_TYPES, COLOR_GROUPS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG, KURTOGLU_KTR64T_CATALOG } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon, ArrowLeftRight, Copy } from 'lucide-react';
+import { ArrowLeft, Save, SplitSquareHorizontal, SplitSquareVertical, Trash2, Layout, Settings2, Ruler, MousePointer2, Undo2, ChevronUp, Wrench, Box, Square, Triangle, Circle, BoxSelect, Monitor, ZoomIn, ZoomOut, Maximize, Layers, Sparkles, Zap, Package, Check, Sun, Moon, Loader2, Camera, Upload, X, Image as ImageIcon, ArrowLeftRight, Copy, Printer, Download, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { t } from '../translations';
 import { extractGlassPanes } from '../services/optimizationService';
 
@@ -1378,7 +1378,60 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [customGlassPriceInput, setCustomGlassPriceInput] = useState<string>(
     initialUnit?.customGlassPrice !== undefined ? initialUnit.customGlassPrice.toString() : ''
   );
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>(initialUnit?.preferredView === '3d' ? '3d' : '2d');
+  const [custom3dImage, setCustom3dImage] = useState<string | undefined>(initialUnit?.custom3dImage);
+  const [show3DPrintModal, setShow3DPrintModal] = useState(false);
+  const [print3DImage, setPrint3DImage] = useState<string | null>(null);
+  const [saved3DSuccess, setSaved3DSuccess] = useState(false);
+  const threeDRef = React.useRef<ThreeDPreviewHandle | null>(null);
+
+  const handleCapture3D = useCallback((whiteBg = true): string | null => {
+    if (threeDRef.current) {
+      const snap = threeDRef.current.captureSnapshot(whiteBg);
+      if (snap) {
+        setCustom3dImage(snap);
+        return snap;
+      }
+    }
+    return custom3dImage || null;
+  }, [custom3dImage]);
+
+  const handleSave3DSnapshot = useCallback(() => {
+    const snap = handleCapture3D(true);
+    if (snap) {
+      setCustom3dImage(snap);
+      setSaved3DSuccess(true);
+      setTimeout(() => setSaved3DSuccess(false), 3500);
+    }
+  }, [handleCapture3D]);
+
+  const handleOpen3DPrint = useCallback(() => {
+    let snap = handleCapture3D(true);
+    if (snap) {
+      setPrint3DImage(snap);
+      setShow3DPrintModal(true);
+    } else {
+      setTimeout(() => {
+        const retrySnap = handleCapture3D(true);
+        if (retrySnap) {
+          setPrint3DImage(retrySnap);
+          setShow3DPrintModal(true);
+        }
+      }, 200);
+    }
+  }, [handleCapture3D]);
+
+  const handleDownload3DPng = useCallback(() => {
+    const snap = handleCapture3D(true);
+    if (snap) {
+      const a = document.createElement('a');
+      a.href = snap;
+      a.download = `${name.replace(/\s+/g, '_')}_3D_Cizim.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }, [handleCapture3D, name]);
   const [showSection, setShowSection] = useState(false);
   
   const [visualScale, setVisualScale] = useState(0.20);
@@ -2161,6 +2214,16 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const handleSave = () => {
     const glassObj = GLASS_TYPES.find(g => g.id === glassTypeId) || GLASS_TYPES[0];
     const customPriceNum = customGlassPriceInput.trim() !== '' ? Number(customGlassPriceInput) : undefined;
+
+    let snap3D = custom3dImage;
+    if (viewMode === '3d' && threeDRef.current) {
+      const captured = threeDRef.current.captureSnapshot(true);
+      if (captured) {
+        snap3D = captured;
+        setCustom3dImage(captured);
+      }
+    }
+
     onSave({
       id: initialUnit?.id || uuidv4(),
       name, width, height, system: systemId,
@@ -2186,7 +2249,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       planSectionUrl,
       crossSectionUrl,
       planSectionProfileCode,
-      crossSectionProfileCode
+      crossSectionProfileCode,
+      custom3dImage: snap3D,
+      preferredView: viewMode
     });
   };
 
@@ -2202,6 +2267,15 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         newUnitName = `${match[1]}${parseInt(match[2], 10) + 1}`;
       } else {
         newUnitName = `${name} (${lang === 'tr' ? 'Kopya' : 'Copy'})`;
+      }
+    }
+
+    let snap3D = custom3dImage;
+    if (viewMode === '3d' && threeDRef.current) {
+      const captured = threeDRef.current.captureSnapshot(true);
+      if (captured) {
+        snap3D = captured;
+        setCustom3dImage(captured);
       }
     }
 
@@ -2231,7 +2305,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       planSectionUrl,
       crossSectionUrl,
       planSectionProfileCode,
-      crossSectionProfileCode
+      crossSectionProfileCode,
+      custom3dImage: snap3D,
+      preferredView: viewMode
     });
   };
 
@@ -2489,8 +2565,9 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-200">
-      <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-slate-900/50 backdrop-blur-xl z-20">
+    <div className="relative flex flex-col h-full bg-slate-950 text-slate-200">
+      <div className={`flex flex-col h-full ${show3DPrintModal ? 'print:hidden' : ''}`}>
+        <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-slate-900/50 backdrop-blur-xl z-20">
         <div className="flex items-center gap-6">
             <button onClick={onCancel} className="p-2 hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft size={20} /></button>
             <div className="flex flex-col">
@@ -2527,6 +2604,36 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                 <BoxSelect size={14} /> {t(lang, 'preview3D')}
               </button>
             </div>
+            {viewMode === '3d' && (
+              <div className="flex items-center gap-2 mr-2">
+                <button
+                  type="button"
+                  onClick={handleSave3DSnapshot}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-900/30 border border-emerald-400/30 cursor-pointer"
+                  title={lang === 'tr' ? 'Bu 3D görünüm açısını poz için kaydeder' : 'Save current 3D view'}
+                >
+                  <Camera size={15} />
+                  <span>{lang === 'tr' ? '3D Görünümü Kaydet' : 'Save 3D View'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpen3DPrint}
+                  className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-lg shadow-sky-900/30 border border-sky-400/30 cursor-pointer"
+                  title={lang === 'tr' ? '3D görünümü yazdır veya PDF olarak kaydet' : 'Print 3D view'}
+                >
+                  <Printer size={15} />
+                  <span>{lang === 'tr' ? '3D Yazdır' : 'Print 3D'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload3DPng}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-white/5 transition-colors cursor-pointer"
+                  title={lang === 'tr' ? '3D Görseli PNG İndir' : 'Download PNG'}
+                >
+                  <Download size={15} />
+                </button>
+              </div>
+            )}
             <button onClick={handleUndo} disabled={history.length === 0} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 rounded-xl font-bold flex items-center gap-2 transition-all border border-white/5">
               <Undo2 size={18} /> {t(lang, 'undo')}
             </button>
@@ -3613,11 +3720,108 @@ max="0.95"
                   )}
                </div>
              ) : (
-               <ThreeDPreview 
-                  unit={currentUnitFor3D} 
-                  system={selectedSystem} 
-                  scale={visualScale}
-               />
+                <div className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden">
+                  {/* Floating 3D Action Toolbar */}
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-white/10 shadow-2xl">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                      {lang === 'tr' ? 'Açı:' : 'Angle:'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => threeDRef.current?.setAngle(0, 0)}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                      title={lang === 'tr' ? 'Düz Ön Görünüm' : 'Front View'}
+                    >
+                      {lang === 'tr' ? 'Ön' : 'Front'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => threeDRef.current?.setAngle(0.45, 0.12)}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                      title={lang === 'tr' ? 'İzometrik 3D Perspektif' : 'Isometric Perspective'}
+                    >
+                      {lang === 'tr' ? 'Perspektif' : '3D'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => threeDRef.current?.setAngle(0.85, 0.08)}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                      title={lang === 'tr' ? 'Yan Açı' : 'Side Angle'}
+                    >
+                      {lang === 'tr' ? 'Yan' : 'Side'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => threeDRef.current?.resetView()}
+                      className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                      title={lang === 'tr' ? 'Görünümü Sıfırla' : 'Reset View'}
+                    >
+                      <RotateCcw size={13} />
+                    </button>
+
+                    <div className="w-[1px] h-4 bg-white/10 mx-1" />
+
+                    {/* Save 3D View Button */}
+                    <button
+                      type="button"
+                      onClick={handleSave3DSnapshot}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950/40 transition-all cursor-pointer"
+                      title={lang === 'tr' ? 'Bu 3D görünüm açısını poz için kaydeder' : 'Save current 3D view'}
+                    >
+                      <Camera size={13} />
+                      <span>{lang === 'tr' ? '3D Görünümü Kaydet' : 'Save 3D View'}</span>
+                    </button>
+
+                    {/* Print 3D Button */}
+                    <button
+                      type="button"
+                      onClick={handleOpen3DPrint}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-blue-950/40 transition-all cursor-pointer"
+                      title={lang === 'tr' ? 'Bu 3D görünümü yazdır veya PDF olarak kaydet' : 'Print 3D view'}
+                    >
+                      <Printer size={13} />
+                      <span>{lang === 'tr' ? '3D Yazdır' : 'Print 3D'}</span>
+                    </button>
+
+                    {/* Download PNG Button */}
+                    <button
+                      type="button"
+                      onClick={handleDownload3DPng}
+                      className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                      title={lang === 'tr' ? '3D Görseli İndir (PNG)' : 'Download PNG'}
+                    >
+                      <Download size={13} />
+                    </button>
+                  </div>
+
+                  {/* Saved Notification Toast */}
+                  {saved3DSuccess && (
+                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-emerald-500/90 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
+                      <CheckCircle2 size={16} />
+                      <span>{lang === 'tr' ? '✓ 3D Görünüm açısı kaydedildi! Teklif ve dökümlerde bu 3D model kullanılacaktır.' : '✓ 3D view angle saved! This 3D perspective will be used in quotes.'}</span>
+                    </div>
+                  )}
+
+                  {/* 3D Canvas */}
+                  <ThreeDPreview 
+                     ref={threeDRef}
+                     unit={currentUnitFor3D} 
+                     system={selectedSystem} 
+                     scale={visualScale}
+                     onSnapshotReady={(snap) => {
+                       if (snap) {
+                         setCustom3dImage(snap);
+                       }
+                     }}
+                  />
+
+                  {/* Bottom Navigation Hint */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-slate-900/80 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/10 text-[11px] text-slate-300 pointer-events-none select-none shadow-lg">
+                    {lang === 'tr'
+                      ? '💡 Sol tık + sürükle: Döndür • Tekerlek: Yakınlaş • Kaydedilen açı teklif çıktısında basılır'
+                      : '💡 Left click + drag: Rotate • Wheel: Zoom • Saved angle is used in printouts'}
+                  </div>
+                </div>
              )}
         </div>
       </div>
@@ -3735,6 +3939,180 @@ max="0.95"
               >
                 {lang === 'tr' ? 'Kapat' : 'Close'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* 3D Unit Technical Print Sheet Modal */}
+      {show3DPrintModal && print3DImage && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto print:static print:inset-auto print:p-0 print:m-0 print:bg-white print:overflow-visible print:block">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-5 print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:w-full print:max-w-none print:rounded-none">
+            {/* Non-printable modal action bar */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <Printer size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-white text-base">
+                    {lang === 'tr' ? '3D Poz Çıktısı & Teknik Kartı' : '3D Unit Technical Print Sheet'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    {lang === 'tr' ? 'Yazdır butonuna tıklayarak doğrudan yazıcıya gönderebilir veya PDF olarak kaydedebilirsiniz.' : 'Click print to send to printer or save as PDF.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownload3DPng}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-white/5 cursor-pointer"
+                >
+                  <Download size={14} /> {lang === 'tr' ? 'PNG İndir' : 'Download PNG'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-blue-600/20 cursor-pointer"
+                >
+                  <Printer size={14} /> {lang === 'tr' ? 'Yazdır (Print)' : 'Print'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShow3DPrintModal(false)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Sheet (Prints on A4 beautifully) */}
+            <div id="printable-3d-unit-sheet" className="bg-white text-slate-900 rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 print:m-0 space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-widest text-blue-600 mb-0.5">
+                    ALUMETRIC • 3D TEKNİK POZ DETAYI
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">{name}</h1>
+                  <div className="text-xs text-slate-500 font-medium mt-0.5">
+                    {lang === 'tr' ? 'Tarih:' : 'Date:'} {new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')} • {lang === 'tr' ? 'Adet:' : 'Qty:'} {quantity}
+                  </div>
+                </div>
+                {typeof window !== 'undefined' && localStorage.getItem('alucraft_company_logo') ? (
+                  <img src={localStorage.getItem('alucraft_company_logo')!} alt="Logo" className="max-h-12 max-w-[140px] object-contain" />
+                ) : (
+                  <div className="text-right">
+                    <span className="text-lg font-black tracking-wider text-slate-800">ALUMETRIC</span>
+                    <span className="text-[10px] block font-semibold text-slate-400">ENGINEERING SUITE</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Big 3D Perspective Image */}
+              <div className="w-full bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-center overflow-hidden" style={{ minHeight: '360px', maxHeight: '420px' }}>
+                <img 
+                  src={print3DImage} 
+                  alt={name} 
+                  className="max-h-[380px] w-auto max-w-full object-contain drop-shadow-md mx-auto" 
+                />
+              </div>
+
+              {/* Specifications Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Genişlik × Yükseklik' : 'Width × Height'}
+                  </span>
+                  <span className="font-extrabold text-slate-900 text-sm font-mono">{width} × {height} mm</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Toplam Alan' : 'Total Area'}
+                  </span>
+                  <span className="font-extrabold text-slate-900 text-sm font-mono">{((width * height) / 1000000).toFixed(2)} m²</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}
+                  </span>
+                  <span className="font-extrabold text-blue-700 truncate block">{selectedSystem.name}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Profil Rengi' : 'Profile Color'}
+                  </span>
+                  <span className="font-extrabold text-slate-900 truncate block">{specificColor || color}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Cam Türü' : 'Glass Type'}
+                  </span>
+                  <span className="font-extrabold text-slate-900 truncate block">
+                    {includeGlass ? (GLASS_TYPES.find(g => g.id === glassTypeId)?.name || glassTypeId) : (lang === 'tr' ? 'Cam Hariç' : 'No Glass')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Eşik Durumu' : 'Threshold'}
+                  </span>
+                  <span className="font-extrabold text-slate-900">
+                    {hasThreshold ? (lang === 'tr' ? 'Alüminyum Eşikli' : 'Alu Threshold') : (lang === 'tr' ? 'Standart Kasa' : 'Standard')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Baskı Perspektifi' : 'View Perspective'}
+                  </span>
+                  <span className="font-extrabold text-slate-900">
+                    {viewPerspective === 'interior' ? (lang === 'tr' ? 'İç Görünüm' : 'Interior') : (lang === 'tr' ? 'Dış Görünüm' : 'Exterior')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                    {lang === 'tr' ? 'Miktar' : 'Quantity'}
+                  </span>
+                  <span className="font-extrabold text-slate-900 text-sm font-mono">{quantity} {lang === 'tr' ? 'Adet' : 'Qty'}</span>
+                </div>
+              </div>
+
+              {/* Hardware / Accessories summary if selected */}
+              {(selectedHandle || selectedHinge || selectedLock || selectedGasket || selectedCorner) && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    {lang === 'tr' ? 'Seçili Donanım:' : 'Selected Hardware:'}
+                  </span>
+                  {selectedHandle && (
+                    <span className="text-slate-800 font-semibold">
+                      {lang === 'tr' ? 'Kol:' : 'Handle:'} {accessories.find(a => a.id === selectedHandle)?.name || selectedHandle}
+                    </span>
+                  )}
+                  {selectedHinge && (
+                    <span className="text-slate-800 font-semibold">
+                      {lang === 'tr' ? 'Menteşe:' : 'Hinge:'} {accessories.find(a => a.id === selectedHinge)?.name || selectedHinge}
+                    </span>
+                  )}
+                  {selectedLock && (
+                    <span className="text-slate-800 font-semibold">
+                      {lang === 'tr' ? 'Kilit:' : 'Lock:'} {accessories.find(a => a.id === selectedLock)?.name || selectedLock}
+                    </span>
+                  )}
+                  {selectedGasket && (
+                    <span className="text-slate-800 font-semibold">
+                      {lang === 'tr' ? 'Conta:' : 'Gasket:'} {accessories.find(a => a.id === selectedGasket)?.name || selectedGasket}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Footer note */}
+              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                <span>ALUMETRIC 3D CAD ENGINE • POZ DETAY ÇIKTISI</span>
+                <span>{lang === 'tr' ? 'Sayfa 1 / 1' : 'Page 1 / 1'}</span>
+              </div>
             </div>
           </div>
         </div>

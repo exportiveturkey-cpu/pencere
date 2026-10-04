@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 // Build update: 2026-06-06 - Optimized print layouts and itemized accessory prices table formatting
 import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem } from '../types';
-import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw, Copy } from 'lucide-react';
+import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, BoxSelect, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw, Copy, X } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
 import OptimizationReport from './OptimizationReport';
@@ -2410,6 +2410,25 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     return localStorage.getItem('alucraft_show_material_list') !== 'false';
   });
 
+  const [show3DInQuote, setShow3DInQuote] = useState<boolean>(() => {
+    return localStorage.getItem('alucraft_show_3d_in_quote') !== 'false';
+  });
+
+  const [unitViewModeMap, setUnitViewModeMap] = useState<Record<string, '2d' | '3d'>>({});
+  const [printModalUnit, setPrintModalUnit] = useState<Unit | null>(null);
+
+  const isUnit3D = (u: Unit) => {
+    if (unitViewModeMap[u.id] !== undefined) {
+      return unitViewModeMap[u.id] === '3d';
+    }
+    return u.preferredView === '3d' && Boolean(u.custom3dImage);
+  };
+
+  const handleToggle3DInQuote = (checked: boolean) => {
+    setShow3DInQuote(checked);
+    localStorage.setItem('alucraft_show_3d_in_quote', checked ? 'true' : 'false');
+  };
+
   const [companyLogo, setCompanyLogo] = useState<string | null>(() => {
     return localStorage.getItem('alucraft_company_logo') || null;
   });
@@ -2859,7 +2878,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     <div className="flex h-full bg-slate-950 overflow-hidden">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
       
-      <div className="flex-1 flex flex-col h-full overflow-y-auto print:overflow-visible print:bg-white print:text-black">
+      <div className={`flex-1 flex flex-col h-full overflow-y-auto print:overflow-visible print:bg-white print:text-black ${printModalUnit ? 'print:hidden' : ''}`}>
         <div className="h-20 border-b border-slate-700 bg-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 print:hidden shadow-xl">
             <div className="flex items-center gap-4">
                 <button onClick={onBack} className="p-2.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors border border-white/5">
@@ -3133,18 +3152,41 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                             return (
                                 <div key={unit.id} className="bg-slate-800 border border-slate-700 rounded-[1.5rem] overflow-hidden group hover:border-blue-500/50 transition-all flex flex-col shadow-sm relative avoid-break print:bg-white print:border-slate-200">
                                     <div className="flex flex-col h-full">
-                                        <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center p-6 border-b border-slate-200 overflow-hidden print:bg-white">
-                                            <div className="w-full h-full flex items-center justify-center">
-                                              <svg 
-                                                viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
-                                                className="w-full h-full max-h-full max-w-full p-1"
-                                                preserveAspectRatio="xMidYMid meet"
+                                        <div className="aspect-[4/3] bg-slate-50 relative flex items-center justify-center p-6 border-b border-slate-200 overflow-hidden print:bg-white group/card">
+                                            {/* 3D / 2D Toggle Badge */}
+                                            {unit.custom3dImage && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setUnitViewModeMap(prev => ({ ...prev, [unit.id]: isUnit3D(unit) ? '2d' : '3d' }))}
+                                                className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-lg bg-slate-900/80 hover:bg-slate-900 text-white text-[9px] font-bold border border-white/10 shadow flex items-center gap-1 transition-all cursor-pointer print:hidden"
+                                                title={lang === 'tr' ? '2D / 3D Görünümünü Değiştir' : 'Toggle 2D / 3D'}
                                               >
-                                                <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={getSystemForUnit(unit, systems)} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
-                                              </svg>
+                                                <BoxSelect size={11} className={isUnit3D(unit) ? "text-blue-400" : "text-slate-400"} />
+                                                <span>{isUnit3D(unit) ? '3D' : '2D'}</span>
+                                              </button>
+                                            )}
+                                            <div className="w-full h-full flex items-center justify-center">
+                                              {isUnit3D(unit) && unit.custom3dImage ? (
+                                                <img 
+                                                  src={unit.custom3dImage} 
+                                                  alt={unit.name} 
+                                                  className="w-full h-full max-h-full max-w-full object-contain p-2" 
+                                                />
+                                              ) : (
+                                                <svg 
+                                                  viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
+                                                  className="w-full h-full max-h-full max-w-full p-1"
+                                                  preserveAspectRatio="xMidYMid meet"
+                                                >
+                                                  <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={getSystemForUnit(unit, systems)} selectedNodeId={null} onSelectNode={() => {}} shape={unit.shape} archHeight={unit.archHeight} theme="light" hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
+                                                </svg>
+                                              )}
                                             </div>
-                                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2.5 backdrop-blur-[2px] print:hidden">
+                                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px] print:hidden">
                                                 <button onClick={() => onEditUnit(unit)} className="p-2.5 bg-blue-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-blue-500/20" title={t(lang, 'edit')}><Edit2 size={18}/></button>
+                                                {unit.custom3dImage && (
+                                                  <button onClick={() => setPrintModalUnit(unit)} className="p-2.5 bg-sky-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-sky-500/20" title={lang === 'tr' ? '3D Yazdır' : 'Print 3D'}><Printer size={18}/></button>
+                                                )}
                                                 <button onClick={() => handleDuplicateUnit(unit)} className="p-2.5 bg-indigo-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-indigo-500/20" title={lang === 'tr' ? 'Pozu Kopyala (Çoğalt)' : 'Duplicate Position'}><Copy size={18}/></button>
                                                 <button onClick={() => handleExportDXF(unit)} className="p-2.5 bg-emerald-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-emerald-500/20" title={t(lang, 'downloadDxf')}><Download size={18}/></button>
                                                 <button onClick={() => onDeleteUnit(unit.id)} className="p-2.5 bg-rose-500 rounded-xl text-white hover:scale-110 transition-transform shadow-lg shadow-rose-500/20" title={t(lang, 'deleteUnit')}><Trash2 size={18}/></button>
@@ -3393,7 +3435,20 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 </span>
                             </label>
 
-                            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent">
+                            <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition" title={lang === 'tr' ? 'Teklif çıktısında 3D kaydedilmiş pozları 3D görsel olarak gösterir ve yazdırır' : 'Show and print 3D views for units with 3D models'}>
+                                <input
+                                    type="checkbox"
+                                    checked={show3DInQuote}
+                                    onChange={e => handleToggle3DInQuote(e.target.checked)}
+                                    className="rounded border-slate-700 bg-slate-950 text-blue-500 focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <BoxSelect size={14} className={show3DInQuote ? "text-blue-400" : "text-slate-500"} />
+                                    {lang === 'tr' ? '3D Görünüm Çıktısı' : '3D Perspective Print'}
+                                </span>
+                            </label>
+
+                            <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent cursor-pointer">
                                 <Printer size={15} /> {t(lang, 'exportPdf')}
                             </button>
                         </div>
@@ -3580,14 +3635,38 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                         {/* Elevation drawing & side cross section */}
                                                         <div className="flex items-center gap-2">
                                                              {/* Elevation Front View */}
-                                                             <div className="w-56 h-56 print:w-[230px] print:h-[230px] quote-elevation-box bg-white rounded-xl border border-slate-200 p-2 print:p-1.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden" style={{ minWidth: '220px', minHeight: '220px' }}>
-                                                                <svg 
-                                                                  viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
-                                                                  className="w-full h-full max-h-full max-w-full"
-                                                                  preserveAspectRatio="xMidYMid meet"
-                                                                >
-                                                                  <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
-                                                                </svg>
+                                                             <div className="w-56 h-56 print:w-[230px] print:h-[230px] quote-elevation-box bg-white rounded-xl border border-slate-200 p-2 print:p-1.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden relative group/draw" style={{ minWidth: '220px', minHeight: '220px' }}>
+                                                                {unit.custom3dImage && (
+                                                                  <button
+                                                                    type="button"
+                                                                    onClick={() => setUnitViewModeMap(prev => ({ ...prev, [unit.id]: isUnit3D(unit) ? '2d' : '3d' }))}
+                                                                    className="absolute top-1.5 right-1.5 z-10 px-2 py-0.5 rounded-lg bg-slate-900/80 hover:bg-slate-900 text-white text-[9px] font-bold border border-white/10 shadow flex items-center gap-1 transition-all opacity-0 group-hover/draw:opacity-100 print:hidden cursor-pointer"
+                                                                    title={lang === 'tr' ? '2D / 3D Görünümünü Değiştir' : 'Toggle 2D / 3D'}
+                                                                  >
+                                                                    <BoxSelect size={11} className={isUnit3D(unit) ? "text-blue-400" : "text-slate-400"} />
+                                                                    <span>{isUnit3D(unit) ? '3D' : '2D'}</span>
+                                                                  </button>
+                                                                )}
+                                                                {show3DInQuote && isUnit3D(unit) && unit.custom3dImage ? (
+                                                                  <div className="w-full h-full flex flex-col items-center justify-center relative">
+                                                                    <img 
+                                                                      src={unit.custom3dImage} 
+                                                                      alt={unit.name} 
+                                                                      className="w-full h-full max-h-full max-w-full object-contain" 
+                                                                    />
+                                                                    <span className="absolute bottom-1 right-1 text-[8px] font-black uppercase tracking-wider bg-slate-900/80 text-blue-300 px-1.5 py-0.5 rounded border border-white/10 print:hidden">
+                                                                      3D
+                                                                    </span>
+                                                                  </div>
+                                                                ) : (
+                                                                  <svg 
+                                                                    viewBox={getViewBoxWithDimensions(unit.width, unit.height)} 
+                                                                    className="w-full h-full max-h-full max-w-full"
+                                                                    preserveAspectRatio="xMidYMid meet"
+                                                                  >
+                                                                    <Visualizer node={unit.rootNode} width={unit.width} height={unit.height} system={sys || systems[0]} selectedNodeId={null} onSelectNode={() => {}} theme="light" shape={unit.shape} archHeight={unit.archHeight} hasThreshold={unit.hasThreshold} lang={lang} viewPerspective={unit.viewPerspective} />
+                                                                  </svg>
+                                                                )}
                                                              </div>
 
                                                              {/* Boy Kesit (Y-Y dikey kesit) */}
@@ -7832,6 +7911,189 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
           </button>
         </div>
       )}
+
+      {/* 3D Unit Technical Print Sheet Modal */}
+      {printModalUnit && printModalUnit.custom3dImage && (() => {
+        const sys = getSystemForUnit(printModalUnit, systems);
+        return (
+          <div className="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto print:static print:inset-auto print:p-0 print:m-0 print:bg-white print:overflow-visible print:block">
+            <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-5 print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:w-full print:max-w-none print:rounded-none">
+              {/* Modal action bar (hidden in print) */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-4 print:hidden">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-600/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                    <Printer size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-white text-base">
+                      {lang === 'tr' ? '3D Poz Çıktısı & Teknik Kartı' : '3D Unit Technical Print Sheet'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      {printModalUnit.name} • {printModalUnit.width} × {printModalUnit.height} mm
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = printModalUnit.custom3dImage!;
+                      a.download = `${printModalUnit.name.replace(/\s+/g, '_')}_3D_Cizim.png`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-white/5 cursor-pointer"
+                  >
+                    <Download size={14} /> {lang === 'tr' ? 'PNG İndir' : 'Download PNG'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-blue-600/20 cursor-pointer"
+                  >
+                    <Printer size={14} /> {lang === 'tr' ? 'Yazdır (Print)' : 'Print'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintModalUnit(null)}
+                    className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Sheet */}
+              <div id="printable-3d-unit-sheet" className="bg-white text-slate-900 rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 print:m-0 space-y-5">
+                {/* Header */}
+                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-widest text-blue-600 mb-0.5">
+                      ALUMETRIC • 3D TEKNİK POZ DETAYI
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">{printModalUnit.name}</h1>
+                    <div className="text-xs text-slate-500 font-medium mt-0.5">
+                      {project.name} • {lang === 'tr' ? 'Tarih:' : 'Date:'} {project.date || new Date().toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US')} • {lang === 'tr' ? 'Adet:' : 'Qty:'} {printModalUnit.quantity}
+                    </div>
+                  </div>
+                  {companyLogo ? (
+                    <img src={companyLogo} alt="Logo" className="max-h-12 max-w-[140px] object-contain" />
+                  ) : (
+                    <div className="text-right">
+                      <span className="text-lg font-black tracking-wider text-slate-800">ALUMETRIC</span>
+                      <span className="text-[10px] block font-semibold text-slate-400">ENGINEERING SUITE</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Big 3D Perspective Image */}
+                <div className="w-full bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-center overflow-hidden" style={{ minHeight: '360px', maxHeight: '420px' }}>
+                  <img 
+                    src={printModalUnit.custom3dImage} 
+                    alt={printModalUnit.name} 
+                    className="max-h-[380px] w-auto max-w-full object-contain drop-shadow-md mx-auto" 
+                  />
+                </div>
+
+                {/* Specifications Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Genişlik × Yükseklik' : 'Width × Height'}
+                    </span>
+                    <span className="font-extrabold text-slate-900 text-sm font-mono">{printModalUnit.width} × {printModalUnit.height} mm</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Toplam Alan' : 'Total Area'}
+                    </span>
+                    <span className="font-extrabold text-slate-900 text-sm font-mono">{((printModalUnit.width * printModalUnit.height) / 1000000).toFixed(2)} m²</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Profil Sistemi' : 'Profile System'}
+                    </span>
+                    <span className="font-extrabold text-blue-700 truncate block">{sys.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Profil Rengi' : 'Profile Color'}
+                    </span>
+                    <span className="font-extrabold text-slate-900 truncate block">{printModalUnit.specificColor || printModalUnit.color}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Cam Türü' : 'Glass Type'}
+                    </span>
+                    <span className="font-extrabold text-slate-900 truncate block">
+                      {printModalUnit.includeGlass !== false ? (GLASS_TYPES.find(g => g.id === printModalUnit.glassType)?.name || printModalUnit.glassType) : (lang === 'tr' ? 'Cam Hariç' : 'No Glass')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Eşik Durumu' : 'Threshold'}
+                    </span>
+                    <span className="font-extrabold text-slate-900">
+                      {printModalUnit.hasThreshold ? (lang === 'tr' ? 'Alüminyum Eşikli' : 'Alu Threshold') : (lang === 'tr' ? 'Standart Kasa' : 'Standard')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Baskı Perspektifi' : 'View Perspective'}
+                    </span>
+                    <span className="font-extrabold text-slate-900">
+                      {printModalUnit.viewPerspective === 'interior' ? (lang === 'tr' ? 'İç Görünüm' : 'Interior') : (lang === 'tr' ? 'Dış Görünüm' : 'Exterior')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      {lang === 'tr' ? 'Miktar' : 'Quantity'}
+                    </span>
+                    <span className="font-extrabold text-slate-900 text-sm font-mono">{printModalUnit.quantity} {lang === 'tr' ? 'Adet' : 'Qty'}</span>
+                  </div>
+                </div>
+
+                {/* Hardware / Accessories summary if selected */}
+                {(printModalUnit.selectedHandle || printModalUnit.selectedHinge || printModalUnit.selectedLock || printModalUnit.selectedGasket || printModalUnit.selectedCorner) && (
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {lang === 'tr' ? 'Seçili Donanım:' : 'Selected Hardware:'}
+                    </span>
+                    {printModalUnit.selectedHandle && (
+                      <span className="text-slate-800 font-semibold">
+                        {lang === 'tr' ? 'Kol:' : 'Handle:'} {accessories.find(a => a.id === printModalUnit.selectedHandle)?.name || printModalUnit.selectedHandle}
+                      </span>
+                    )}
+                    {printModalUnit.selectedHinge && (
+                      <span className="text-slate-800 font-semibold">
+                        {lang === 'tr' ? 'Menteşe:' : 'Hinge:'} {accessories.find(a => a.id === printModalUnit.selectedHinge)?.name || printModalUnit.selectedHinge}
+                      </span>
+                    )}
+                    {printModalUnit.selectedLock && (
+                      <span className="text-slate-800 font-semibold">
+                        {lang === 'tr' ? 'Kilit:' : 'Lock:'} {accessories.find(a => a.id === printModalUnit.selectedLock)?.name || printModalUnit.selectedLock}
+                      </span>
+                    )}
+                    {printModalUnit.selectedGasket && (
+                      <span className="text-slate-800 font-semibold">
+                        {lang === 'tr' ? 'Conta:' : 'Gasket:'} {accessories.find(a => a.id === printModalUnit.selectedGasket)?.name || printModalUnit.selectedGasket}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer note */}
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                  <span>ALUMETRIC 3D CAD ENGINE • POZ DETAY ÇIKTISI</span>
+                  <span>{lang === 'tr' ? 'Sayfa 1 / 1' : 'Page 1 / 1'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

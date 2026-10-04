@@ -74,6 +74,8 @@ export interface Unit {
   crossSectionUrl?: string;
   planSectionProfileCode?: string;
   crossSectionProfileCode?: string;
+  custom3dImage?: string;
+  preferredView?: '2d' | '3d';
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel' | 'void';

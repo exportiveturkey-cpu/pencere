@@ -1,21 +1,92 @@
-
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { Unit, ProfileSystem, WindowNode } from '../types';
+
+export interface ThreeDPreviewHandle {
+  captureSnapshot: (whiteBg?: boolean) => string | null;
+  resetView: () => void;
+  setAngle: (yaw: number, pitch?: number) => void;
+  rotateY: (delta: number) => void;
+}
 
 interface ThreeDPreviewProps {
   unit: Unit;
   system: ProfileSystem;
   scale?: number;
+  backgroundColor?: string;
+  onAngleChange?: (yaw: number) => void;
+  onSnapshotReady?: (dataUrl: string) => void;
 }
 
-const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.20 }) => {
+const getProfileHexColor = (colorKey?: string, specificColor?: string): number => {
+  const combined = `${specificColor || ''} ${colorKey || ''}`.toLowerCase();
+  if (combined.includes('9016') || combined.includes('beyaz') || combined.includes('white')) return 0xf8fafc;
+  if (combined.includes('7016') || combined.includes('antrasit') || combined.includes('anthracite')) return 0x334155;
+  if (combined.includes('9005') || combined.includes('siyah') || combined.includes('black')) return 0x18181b;
+  if (combined.includes('bronze') || combined.includes('bronz')) return 0x78553d;
+  if (combined.includes('wood') || combined.includes('ahsap') || combined.includes('ahşap')) return 0x854d0e;
+  if (combined.includes('pres') || combined.includes('ham') || combined.includes('raw')) return 0x94a3b8;
+  if (combined.includes('9006') || combined.includes('silver') || combined.includes('gümüş')) return 0xcfd6dc;
+  if (combined.includes('eloxal') || combined.includes('eloksal')) return 0x64748b;
+  return 0x475569;
+};
+
+const ThreeDPreview = forwardRef<ThreeDPreviewHandle, ThreeDPreviewProps>(({
+  unit,
+  system,
+  scale = 0.20,
+  backgroundColor = '#f8fafc',
+  onAngleChange,
+  onSnapshotReady
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const animationFrameRef = useRef<number>(0);
   const groupRef = useRef<THREE.Group | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    captureSnapshot: (whiteBg = true): string | null => {
+      if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return null;
+      const renderer = rendererRef.current;
+      const scene = sceneRef.current;
+      const camera = cameraRef.current;
+      const prevBg = scene.background;
+      
+      if (whiteBg) {
+        scene.background = new THREE.Color(0xffffff);
+      }
+      renderer.render(scene, camera);
+      const dataUrl = renderer.domElement.toDataURL('image/png', 1.0);
+      
+      scene.background = prevBg;
+      renderer.render(scene, camera);
+      return dataUrl;
+    },
+    resetView: () => {
+      if (groupRef.current && cameraRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        const maxDim = Math.max(unit.width, unit.height);
+        cameraRef.current.position.set(maxDim * 0.55, maxDim * 0.35, maxDim * 2.8);
+        cameraRef.current.lookAt(0, 0, 0);
+        onAngleChange?.(0);
+      }
+    },
+    setAngle: (yaw: number, pitch = 0) => {
+      if (groupRef.current) {
+        groupRef.current.rotation.y = yaw;
+        groupRef.current.rotation.x = pitch;
+        onAngleChange?.(yaw);
+      }
+    },
+    rotateY: (delta: number) => {
+      if (groupRef.current) {
+        groupRef.current.rotation.y += delta;
+        onAngleChange?.(groupRef.current.rotation.y);
+      }
+    }
+  }));
 
   useEffect(() => {
     if (groupRef.current) {
@@ -29,72 +100,87 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf1f5f9); 
+    scene.background = new THREE.Color(backgroundColor); 
     sceneRef.current = scene;
 
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
+    const width = containerRef.current.clientWidth || 600;
+    const height = containerRef.current.clientHeight || 500;
     const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000);
     
     const maxDim = Math.max(unit.width, unit.height);
-    camera.position.set(maxDim * 0.6, maxDim * 0.4, maxDim * 2.8);
+    camera.position.set(maxDim * 0.55, maxDim * 0.35, maxDim * 2.8);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      alpha: true, 
+      preserveDrawingBuffer: true 
+    });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    mainLight.position.set(maxDim, maxDim, maxDim);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.3);
+    mainLight.position.set(maxDim * 1.2, maxDim * 1.5, maxDim * 1.8);
     mainLight.castShadow = true;
-    mainLight.shadow.camera.left = -maxDim;
-    mainLight.shadow.camera.right = maxDim;
-    mainLight.shadow.camera.top = maxDim;
-    mainLight.shadow.camera.bottom = -maxDim;
+    mainLight.shadow.mapSize.width = 1024;
+    mainLight.shadow.mapSize.height = 1024;
+    mainLight.shadow.camera.left = -maxDim * 1.2;
+    mainLight.shadow.camera.right = maxDim * 1.2;
+    mainLight.shadow.camera.top = maxDim * 1.2;
+    mainLight.shadow.camera.bottom = -maxDim * 1.2;
     scene.add(mainLight);
 
+    const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.6);
+    fillLight.position.set(-maxDim, -maxDim * 0.5, maxDim);
+    scene.add(fillLight);
+
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    backLight.position.set(0, maxDim, -maxDim);
+    scene.add(backLight);
+
+    const aluHex = getProfileHexColor(unit.color, unit.specificColor);
     const aluminumMaterial = new THREE.MeshStandardMaterial({
-      color: 0x475569,
-      metalness: 0.9,
-      roughness: 0.1,
+      color: aluHex,
+      metalness: 0.85,
+      roughness: 0.22,
     });
 
     const thresholdMaterial = new THREE.MeshStandardMaterial({
-      color: 0xeab308, // Bright architectural amber/gold
+      color: 0xd97706, // Architectural satin amber/gold
       metalness: 0.95,
-      roughness: 0.1,
-      emissive: 0x78350f, // Rich amber/bronze warm glow
+      roughness: 0.15,
+      emissive: 0x451a03,
     });
 
     const glassMaterial = new THREE.MeshStandardMaterial({
-      color: 0xbae6fd, 
+      color: 0x38bdf8, 
       transparent: true,
-      opacity: 0.4,
-      metalness: 0.2,
+      opacity: 0.35,
+      metalness: 0.25,
       roughness: 0.05,
       side: THREE.DoubleSide
     });
 
-    // Teknik Kesikli Çizgi Materyali
+    // Technical Dashed Lines for Opening direction
     const symbolMaterial = new THREE.LineDashedMaterial({ 
-      color: 0x1e293b,
+      color: 0x0f172a,
       dashSize: 30,
       gapSize: 20,
-      linewidth: 1,
+      linewidth: 2,
     });
 
     const hardwareMaterial = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
-      metalness: 1.0,
-      roughness: 0.0,
+      metalness: 0.95,
+      roughness: 0.1,
     });
 
     const group = new THREE.Group();
@@ -117,8 +203,8 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
       pGroup.add(body);
 
       const stepD = d * 0.4;
-      const stepW = isSash ? w - 10 : w - 20; 
-      const stepH = isSash ? h - 10 : h - 20;
+      const stepW = isSash ? Math.max(1, w - 10) : Math.max(1, w - 20); 
+      const stepH = isSash ? Math.max(1, h - 10) : Math.max(1, h - 20);
       const stepGeo = new THREE.BoxGeometry(stepW, stepH, stepD);
       const step = new THREE.Mesh(stepGeo, currentMat);
       step.position.z = d/2 + stepD/2 - 2; 
@@ -176,14 +262,12 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
           new THREE.Vector3(arrowLen/2 - 20, -15, 0)
         ], false);
       } else {
-        // TURN (Yan Açılım) - Sola veya Sağa
         if (type.includes('left')) {
           addLine([new THREE.Vector3(-hw, -hh, 0), new THREE.Vector3(hw, 0, 0), new THREE.Vector3(-hw, hh, 0)]);
         } else if (type.includes('right')) {
           addLine([new THREE.Vector3(hw, -hh, 0), new THREE.Vector3(-hw, 0, 0), new THREE.Vector3(hw, hh, 0)]);
         }
 
-        // TILT (Vasistas) - Çift açılım veya tek vasistas durumunda
         if (type.includes('tilt')) {
           addLine([new THREE.Vector3(-hw, -hh, 0), new THREE.Vector3(0, hh, 0), new THREE.Vector3(hw, -hh, 0)]);
         }
@@ -210,7 +294,7 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
         buildModel(node.children[0], xOffset, yOffset, isVert ? s1 : w, isVert ? h : s1);
         buildModel(node.children[1], isVert ? xOffset + s1 + frameW : xOffset, isVert ? yOffset : yOffset + s1 + frameW, isVert ? s2 : w, isVert ? h : s2);
       } else {
-        if (node.type === 'void') return; // Empty opening/void space in 3D
+        if (node.type === 'void') return;
         const isOpening = node.openingType && node.openingType !== 'fixed';
         
         const leftFw = xOffset === 0 ? frameW : 0;
@@ -288,7 +372,7 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
       group.add(createProfile(unit.width, frameW, profileDepth, 0, -(centerY - frameW/2), 0));
     }
 
-    // Left & Right profiles sitting perfectly on bottom line
+    // Left & Right profiles
     const lrHeight = unit.hasThreshold ? unit.height - bottomFw : unit.height;
     const lrY = unit.hasThreshold ? (bottomFw / 2) : 0;
     group.add(createProfile(frameW, lrHeight, profileDepth, -(centerX - frameW/2), lrY, 0));
@@ -307,29 +391,81 @@ const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({ unit, system, scale = 0.2
 
     let isDragging = false;
     let prevX = 0;
-    const onMouseDown = (e: MouseEvent) => { isDragging = true; prevX = e.clientX; };
+    let prevY = 0;
+    const onMouseDown = (e: MouseEvent) => { 
+      isDragging = true; 
+      prevX = e.clientX; 
+      prevY = e.clientY; 
+    };
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      group.rotation.y += (e.clientX - prevX) * 0.01;
+      const deltaX = (e.clientX - prevX) * 0.01;
+      const deltaY = (e.clientY - prevY) * 0.005;
+      group.rotation.y += deltaX;
+      group.rotation.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, group.rotation.x + deltaY));
       prevX = e.clientX;
+      prevY = e.clientY;
+      onAngleChange?.(group.rotation.y);
     };
-    const onMouseUp = () => isDragging = false;
+    const onMouseUp = () => { isDragging = false; };
 
-    containerRef.current.addEventListener('mousedown', onMouseDown);
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (cameraRef.current) {
+        cameraRef.current.position.z += e.deltaY * 0.6;
+        const maxLimit = maxDim * 6;
+        const minLimit = maxDim * 0.8;
+        cameraRef.current.position.z = Math.max(minLimit, Math.min(maxLimit, cameraRef.current.position.z));
+      }
+    };
+
+    const containerEl = containerRef.current;
+    containerEl.addEventListener('mousedown', onMouseDown);
+    containerEl.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
+    // Initial render
+    renderer.render(scene, camera);
+
+    let snapTimer: any = null;
+    if (onSnapshotReady) {
+      snapTimer = setTimeout(() => {
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          const prevBg = sceneRef.current.background;
+          sceneRef.current.background = new THREE.Color(0xffffff);
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+          const snap = rendererRef.current.domElement.toDataURL('image/png', 1.0);
+          sceneRef.current.background = prevBg;
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+          if (snap && snap.length > 100) {
+            onSnapshotReady(snap);
+          }
+        }
+      }, 250);
+    }
+
     return () => {
+      if (snapTimer) clearTimeout(snapTimer);
       cancelAnimationFrame(animationFrameRef.current);
+      containerEl.removeEventListener('mousedown', onMouseDown);
+      containerEl.removeEventListener('wheel', onWheel);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      if (rendererRef.current && containerRef.current) {
-        containerRef.current.removeChild(rendererRef.current.domElement);
+      if (rendererRef.current && containerEl) {
+        try {
+          containerEl.removeChild(rendererRef.current.domElement);
+          rendererRef.current.dispose();
+        } catch (e) {
+          // ignore cleanup errors
+        }
       }
     };
-  }, [unit, system]);
+  }, [unit, system, backgroundColor]);
 
-  return <div ref={containerRef} className="w-full h-full cursor-move" />;
-};
+  return <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing select-none" />;
+});
+
+ThreeDPreview.displayName = 'ThreeDPreview';
 
 export default ThreeDPreview;
