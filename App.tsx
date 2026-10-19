@@ -595,6 +595,10 @@ const App: React.FC = () => {
           lang={lang}
           onBack={() => setView('DASHBOARD')}
           theme={theme}
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onUpdateProject={handleUpdateProject}
+          onSelectProject={(id) => { setActiveProjectId(id); setView('PROJECT_VIEW'); }}
         />
       )}
       

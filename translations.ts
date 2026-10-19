@@ -43,7 +43,8 @@ type TranslationKey =
   | 'exportSale' | 'domesticSale' | 'isExport' | 'subTotal' | 'vatAmount' | 'grandTotal' | 'exportVatNote'
   | 'softwareUpdated' | 'version' | 'noKeyContact'
   | 'materialSummary' | 'profilesSummary' | 'accessoriesSummary' | 'totalQty' | 'totalMeters'
-  | 'selectMachine' | 'scanDrawing' | 'view2D' | 'preview3D';
+  | 'selectMachine' | 'scanDrawing' | 'view2D' | 'preview3D'
+  | 'glassToolReport' | 'glassToolAnnex' | 'attachGlassToolReport' | 'uploadGlassToolReport' | 'certifiedGlassSpecs';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -318,7 +319,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     noMachinesFound: 'Add machines in Settings.',
     scanDrawing: 'Scan Drawing (PDF/Image)',
     view2D: '2D VIEW',
-    preview3D: '3D PREVIEW'
+    preview3D: '3D PREVIEW',
+    glassToolReport: 'Şişecam GlassTool™ Report',
+    glassToolAnnex: 'Annex: GlassTool Technical Performance Report',
+    attachGlassToolReport: 'Attach GlassTool PDF',
+    uploadGlassToolReport: 'Upload GlassTool PDF Report',
+    certifiedGlassSpecs: 'Certified Glass Performance (EN 410 / EN 673)'
   },
   tr: {
     selectMachine: 'İşlem Yapılacak Makineyi Seçiniz',
@@ -592,7 +598,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     noMachinesFound: 'Lütfen önce Ayarlar kısmından bir CNC makinesi tanımlayın.',
     scanDrawing: 'Çizim Tara (PDF/Resim)',
     view2D: '2D GÖRÜNÜM',
-    preview3D: '3D ÖNGÖRÜNÜM'
+    preview3D: '3D ÖNGÖRÜNÜM',
+    glassToolReport: 'Şişecam GlassTool™ Raporu',
+    glassToolAnnex: 'EK: Şişecam GlassTool™ Akredite Cam Raporu',
+    attachGlassToolReport: 'GlassTool PDF Raporu Ekle',
+    uploadGlassToolReport: 'GlassTool PDF Raporu Yükle',
+    certifiedGlassSpecs: 'Onaylı Cam Performans Değerleri (EN 410 / EN 673)'
   }
 };
 

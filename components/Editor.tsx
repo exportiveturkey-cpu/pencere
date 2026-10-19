@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing, NodeType } from '../types';
+import { Unit, WindowNode, ProfileSystem, Language, Accessory, SplitDirection, UnitShape, ProfileDrawing, NodeType, isDoorUnit } from '../types';
 import Visualizer, { getYCuts, getXCuts, getSegmentsFromCuts } from './Visualizer';
 import ThreeDPreview, { ThreeDPreviewHandle } from './ThreeDPreview';
 import CrossSection from './CrossSection';
@@ -1009,6 +1009,10 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
   const [shape, setShape] = useState<UnitShape>(initialUnit?.shape || 'rect');
   const [archHeight, setArchHeight] = useState(initialUnit?.archHeight || 400);
   const [viewPerspective, setViewPerspective] = useState<'interior' | 'exterior'>(initialUnit?.viewPerspective || 'interior');
+  const [unitType, setUnitType] = useState<'window' | 'door'>(() => {
+    if (initialUnit?.unitType) return initialUnit.unitType;
+    return isDoorUnit(initialUnit) ? 'door' : 'window';
+  });
   const [systemId, setSystemId] = useState(() => getNormalizedSystemId(initialUnit?.system || '', systems, initialUnit?.selectedFrameProfile));
   const [planSectionUrl, setPlanSectionUrl] = useState<string>(initialUnit?.planSectionUrl || '');
   const [crossSectionUrl, setCrossSectionUrl] = useState<string>(initialUnit?.crossSectionUrl || '');
@@ -1312,6 +1316,13 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
     setSelectedTypology(typoId);
     setRootNode(getInitialNodeForTypology(typoId));
     setSelectedNodeId(null);
+
+    const typoLower = typoId.toLowerCase();
+    if (typoLower.includes('door') || typoLower.includes('kapı') || typoLower.includes('kapi')) {
+      setUnitType('door');
+    } else if (typoLower.includes('window') || typoLower.includes('pencere')) {
+      setUnitType('window');
+    }
 
     // Check if the current system is compatible with this typology
     const activeSys = systems.find(s => s.id === systemId);
@@ -1778,31 +1789,57 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
           }
 
           // Handles & Hinges
+          // Architectural rule:
+          // Pencerelerin dıştan görünümünde kol bulunmaz (dış kısımda kol olmaz).
+          // Ancak kapılarda hem içeride hem dışarıda kol olur ve çizimde gözükmeli.
+          const isDoorActive = unitType === 'door' || isDoorUnit({ unitType, typology: selectedTypology, name, hasThreshold });
+          const isExterior = viewPerspective === 'exterior';
+          const shouldDrawHandle = !isExterior || isDoorActive;
+
           ctx.fillStyle = hardwareColor;
           if (type.includes('left') && !type.includes('sliding')) {
             // Hinges
             ctx.fillRect(glassX - 1, glassY + 15, 2.5, 8);
             ctx.fillRect(glassX - 1, glassY + glassH - 23, 2.5, 8);
             // Handle
-            ctx.fillRect(glassX + glassW - 8, glassY + glassH / 2 - 6, 2.5, 12);
-            ctx.fillRect(glassX + glassW - 11, glassY + glassH / 2 - 1.5, 4, 3);
+            if (shouldDrawHandle) {
+              ctx.fillRect(glassX + glassW - 8, glassY + glassH / 2 - 6, 2.5, 12);
+              ctx.fillRect(glassX + glassW - 11, glassY + glassH / 2 - 1.5, 4, 3);
+              if (isExterior && isDoorActive) {
+                // Keyhole cylinder indicator on exterior door handle
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(glassX + glassW - 7.5, glassY + glassH / 2 + 2, 1.5, 2.5);
+                ctx.fillStyle = hardwareColor;
+              }
+            }
           } else if (type.includes('right') && !type.includes('sliding')) {
             // Hinges
             ctx.fillRect(glassX + glassW - 1.5, glassY + 15, 2.5, 8);
             ctx.fillRect(glassX + glassW - 1.5, glassY + glassH - 23, 2.5, 8);
             // Handle
-            ctx.fillRect(glassX + 5, glassY + glassH / 2 - 6, 2.5, 12);
-            ctx.fillRect(glassX + 7, glassY + glassH / 2 - 1.5, 4, 3);
+            if (shouldDrawHandle) {
+              ctx.fillRect(glassX + 5, glassY + glassH / 2 - 6, 2.5, 12);
+              ctx.fillRect(glassX + 7, glassY + glassH / 2 - 1.5, 4, 3);
+              if (isExterior && isDoorActive) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(glassX + 5.5, glassY + glassH / 2 + 2, 1.5, 2.5);
+                ctx.fillStyle = hardwareColor;
+              }
+            }
           } else if (type === 'tilt') {
             // Hinges bottom
             ctx.fillRect(glassX + 15, glassY + glassH - 1.5, 8, 2.5);
             ctx.fillRect(glassX + glassW - 23, glassY + glassH - 1.5, 8, 2.5);
             // Handle top
-            ctx.fillRect(glassX + glassW / 2 - 6, glassY + 5, 12, 2.5);
-            ctx.fillRect(glassX + glassW / 2 - 1.5, glassY + 7, 3, 4);
+            if (shouldDrawHandle) {
+              ctx.fillRect(glassX + glassW / 2 - 6, glassY + 5, 12, 2.5);
+              ctx.fillRect(glassX + glassW / 2 - 1.5, glassY + 7, 3, 4);
+            }
           } else if (type.includes('sliding')) {
             // Handle
-            ctx.fillRect(glassX + 6, glassY + glassH / 2 - 8, 2.5, 16);
+            if (shouldDrawHandle) {
+              ctx.fillRect(glassX + 6, glassY + glassH / 2 - 8, 2.5, 16);
+            }
           }
         }
       }
@@ -1949,7 +1986,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       });
     }
 
-  }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems, viewPerspective]);
+  }, [width, height, rootNode, selectedNodeId, shape, archHeight, hasThreshold, theme, systemId, systems, viewPerspective, unitType, selectedTypology, name]);
 
   useEffect(() => {
     if (previewType === 'canvas') {
@@ -2246,6 +2283,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedMullionProfileImage,
       customProfileImages,
       viewPerspective,
+      unitType,
       planSectionUrl,
       crossSectionUrl,
       planSectionProfileCode,
@@ -2302,6 +2340,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
       selectedMullionProfileImage,
       customProfileImages,
       viewPerspective,
+      unitType,
       planSectionUrl,
       crossSectionUrl,
       planSectionProfileCode,
@@ -2678,8 +2717,13 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                            <span className="text-[10px] text-slate-600 font-bold uppercase">{t(lang, 'unitPce')}</span>
                         </div>
                     </div>
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5">
-                        <label className="block text-[9px] text-slate-500 mb-1.5 uppercase">{lang === 'tr' ? 'Bakış Açısı / Görünüm' : 'View Perspective'}</label>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-white/5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[9px] text-slate-500 uppercase">{lang === 'tr' ? 'Bakış Açısı / Görünüm' : 'View Perspective'}</label>
+                          <span className="text-[9px] font-mono text-slate-400 font-bold">
+                            {viewPerspective === 'interior' ? (lang === 'tr' ? 'İçten' : 'Interior') : (lang === 'tr' ? 'Dıştan' : 'Exterior')}
+                          </span>
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           <button 
                             type="button"
@@ -2695,6 +2739,55 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
                           >
                             🌳 {lang === 'tr' ? 'Dıştan' : 'Exterior'}
                           </button>
+                        </div>
+
+                        {/* Doğrama Tipi (Pencere vs Kapı) Kol Görünüm Kuralı */}
+                        <div className="pt-2 border-t border-white/5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                              {lang === 'tr' ? 'Doğrama Tipi (Kol Standardı)' : 'Joinery Type (Handle Std)'}
+                            </label>
+                            <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+                              {unitType === 'door' ? (lang === 'tr' ? 'Çift Kollu (İç+Dış)' : 'Dual (In+Out)') : (lang === 'tr' ? 'İçte Kolsuz Dış' : 'Inside Only')}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setUnitType('window')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1.5 ${unitType === 'window' ? 'bg-sky-600/20 border-sky-500 text-sky-400 font-black shadow-sm' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'}`}
+                              title={lang === 'tr' ? 'Pencere: Dıştan görünümde kol çizilmez (yalnızca içte kol olur).' : 'Window: Exterior view has NO handle.'}
+                            >
+                              🪟 {lang === 'tr' ? 'Pencere' : 'Window'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setUnitType('door')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all flex items-center justify-center gap-1.5 ${unitType === 'door' ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400 font-black shadow-sm' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'}`}
+                              title={lang === 'tr' ? 'Kapı: Hem içte hem dışta kol çizilir (iç/dış çift taraflı kol).' : 'Door: Handles appear on both interior & exterior views.'}
+                            >
+                              🚪 {lang === 'tr' ? 'Kapı' : 'Door'}
+                            </button>
+                          </div>
+                          
+                          {/* Live Explanation Badge */}
+                          <div className={`text-[9px] leading-relaxed p-2 rounded-lg border font-medium ${
+                            viewPerspective === 'exterior'
+                              ? (unitType === 'door' 
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
+                                  : 'bg-amber-500/10 border-amber-500/20 text-amber-300')
+                              : 'bg-slate-900 border-white/5 text-slate-400'
+                          }`}>
+                            {viewPerspective === 'exterior' ? (
+                              unitType === 'door' ? (
+                                <span>✓ <strong>{lang === 'tr' ? 'Kapı Dış Görünümü:' : 'Door Exterior View:'}</strong> {lang === 'tr' ? 'Dış kapı kolu ve barel rozeti çizimde gösterilir.' : 'Exterior door handle & cylinder lock are rendered.'}</span>
+                              ) : (
+                                <span>ℹ️ <strong>{lang === 'tr' ? 'Pencere Dış Görünümü:' : 'Window Exterior View:'}</strong> {lang === 'tr' ? 'Dış kısımda kol bulunmadığı için çizimde kol gizlenmiştir.' : 'No exterior handle exists; handle is hidden on exterior drawing.'}</span>
+                              )
+                            ) : (
+                              <span>✓ <strong>{lang === 'tr' ? 'İç Görünüm:' : 'Interior View:'}</strong> {lang === 'tr' ? 'Açılır kanatta pencere/kapı ispanyolet kolu çizilmektedir.' : 'Operating sash handle is rendered.'}</span>
+                            )}
+                          </div>
                         </div>
                     </div>
                     <div className="space-y-3 pt-2">
@@ -3613,24 +3706,49 @@ max="0.95"
 
         <div className={`flex-1 ${viewMode === '3d' ? 'bg-slate-100' : 'bg-slate-900'} relative flex items-center justify-center p-8 overflow-auto`} onClick={() => setSelectedNodeId(null)}>
              
-             {/* Floating Toggle for View Perspective */}
+             {/* Floating Toggle for View Perspective & Joinery Type */}
              <div className="absolute top-6 right-6 flex items-center bg-slate-800/85 p-1.5 rounded-2xl border border-white/10 z-45 gap-1.5 backdrop-blur-md shadow-2xl" onClick={e => e.stopPropagation()}>
-               <div className="text-[9px] font-black text-slate-400 px-2 uppercase tracking-widest">
-                 {lang === 'tr' ? 'Görünüm:' : 'View:'}
+               {/* Joinery Type Quick Toggle */}
+               <div className="flex items-center gap-1 pr-1.5 border-r border-white/10">
+                 <button
+                   type="button"
+                   onClick={() => setUnitType('window')}
+                   className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${unitType === 'window' ? 'bg-sky-600 text-white shadow-lg shadow-sky-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                   title={lang === 'tr' ? 'Pencere: Dış görünümde kol çizilmez' : 'Window: No handle on exterior'}
+                 >
+                   🪟 {lang === 'tr' ? 'Pencere' : 'Window'}
+                 </button>
+                 <button
+                   type="button"
+                   onClick={() => setUnitType('door')}
+                   className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${unitType === 'door' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' : 'text-slate-400 hover:text-slate-200'}`}
+                   title={lang === 'tr' ? 'Kapı: Hem iç hem dış görünümde kol çizilir' : 'Door: Handles on interior & exterior'}
+                 >
+                   🚪 {lang === 'tr' ? 'Kapı' : 'Door'}
+                 </button>
+               </div>
+
+               <div className="text-[9px] font-black text-slate-400 px-1 uppercase tracking-widest">
+                 {lang === 'tr' ? 'Bakış:' : 'View:'}
                </div>
                <button 
                  type="button"
                  onClick={() => setViewPerspective('interior')} 
                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewPerspective === 'interior' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                >
-                 🚪 {lang === 'tr' ? 'İçten (Standart)' : 'Interior (Std)'}
+                 {lang === 'tr' ? 'İçten' : 'Interior'}
                </button>
                <button 
                  type="button"
                  onClick={() => setViewPerspective('exterior')} 
                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewPerspective === 'exterior' ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/30' : 'text-slate-400 hover:text-slate-200'}`}
                >
-                 🌳 {lang === 'tr' ? 'Dıştan' : 'Exterior'}
+                 {lang === 'tr' ? 'Dıştan' : 'Exterior'}
+                 {viewPerspective === 'exterior' && (
+                   <span className="text-[8px] bg-black/30 px-1 py-0.5 rounded font-mono">
+                     {unitType === 'door' ? (lang === 'tr' ? 'Kollu' : 'Handled') : (lang === 'tr' ? 'Kolsuz' : 'No Handle')}
+                   </span>
+                 )}
                </button>
              </div>
 
@@ -3707,6 +3825,8 @@ max="0.95"
                               hasThreshold={hasThreshold}
                               lang={lang}
                               viewPerspective={viewPerspective}
+                              unitType={unitType}
+                              isDoor={unitType === 'door' || isDoorUnit({ unitType, typology: selectedTypology, name, hasThreshold })}
                           />
                       </svg>
                     </div>

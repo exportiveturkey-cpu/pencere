@@ -1,5 +1,5 @@
-import React from 'react';
-import { Language } from '../types';
+import React, { useState, useRef } from 'react';
+import { Language, Project, GlassToolReport } from '../types';
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -10,19 +10,126 @@ import {
   BookmarkCheck,
   Scale,
   Zap,
-  HelpCircle
+  HelpCircle,
+  Upload,
+  Plus,
+  Trash2,
+  Eye,
+  Download,
+  Sparkles,
+  ArrowRight,
+  FileCheck
 } from 'lucide-react';
 import Logo from './Logo';
+import { createDefaultGlassToolReport } from '../services/glassToolService';
 
 interface GlassAnalysisProps {
   lang: Language;
   onBack: () => void;
   theme: 'light' | 'dark';
+  projects?: Project[];
+  activeProjectId?: string;
+  onUpdateProject?: (project: Project) => void;
+  onSelectProject?: (projectId: string) => void;
 }
 
-export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, theme }) => {
+export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ 
+  lang, 
+  onBack, 
+  theme,
+  projects = [],
+  activeProjectId,
+  onUpdateProject,
+  onSelectProject
+}) => {
   const isTr = lang === 'tr';
   const isDark = theme === 'dark';
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
+    return activeProjectId || (projects[0]?.id || '');
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const currentProject = projects.find(p => p.id === selectedProjectId) || projects[0];
+  const reports: GlassToolReport[] = currentProject?.glassToolReports || [];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentProject || !onUpdateProject) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = file.type.startsWith('image/');
+
+    if (!isPdf && !isImage) {
+      alert(isTr ? 'Lütfen sadece PDF veya Resim formatında Şişecam GlassTool raporu yükleyiniz.' : 'Please upload only PDF or Image GlassTool reports.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const newReport: GlassToolReport = {
+        id: `glasstool-${Date.now()}`,
+        name: file.name,
+        fileData: dataUrl,
+        fileType: isPdf ? 'pdf' : 'image',
+        fileSize: file.size,
+        uploadedAt: new Date().toISOString().split('T')[0],
+        glassCombination: isTr 
+          ? '6 mm Isıcam Konfor + 16 mm HB (%90 Argon) + 4+4.2 Lamine Cam' 
+          : '6 mm Isıcam Konfor + 16 mm Cavity (90% Argon) + 4+4.2 Laminated',
+        ugValue: 1.10,
+        lightTransmission: 71,
+        solarFactor: 43,
+        soundReductionRw: 36,
+        totalThicknessMm: 30.2,
+        spacerGas: '16 mm HB (%90 Argon)',
+        standards: 'TS EN 410 / TS EN 673 CE Uygunluk Beyanı',
+        notes: isTr 
+          ? 'Şişecam GlassTool uygulamasından alınan resmi performans ve statik yalıtım raporudur.' 
+          : 'Official certified performance and thermal insulation report calculated via Şişecam GlassTool.',
+        includeInQuotePrint: true
+      };
+
+      const updated = [...(currentProject.glassToolReports || []), newReport];
+      onUpdateProject({
+        ...currentProject,
+        glassToolReports: updated
+      });
+
+      setToastMessage(isTr ? `"${file.name}" seçilen projeye başarıyla eklendi!` : `"${file.name}" attached to selected project!`);
+      setTimeout(() => setToastMessage(null), 4000);
+    };
+
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddSampleReport = () => {
+    if (!currentProject || !onUpdateProject) return;
+    const sample = createDefaultGlassToolReport(currentProject);
+    const updated = [...(currentProject.glassToolReports || []), sample];
+    onUpdateProject({
+      ...currentProject,
+      glassToolReports: updated
+    });
+    setToastMessage(isTr ? 'Örnek Şişecam GlassTool raporu projeye eklendi!' : 'Sample GlassTool report attached!');
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleDeleteReport = (reportId: string) => {
+    if (!currentProject || !onUpdateProject) return;
+    const updated = (currentProject.glassToolReports || []).filter(r => r.id !== reportId);
+    onUpdateProject({
+      ...currentProject,
+      glassToolReports: updated
+    });
+  };
 
   return (
     <div className={`min-h-screen flex flex-col font-sans selection:bg-teal-500 selection:text-white transition-colors duration-200 ${
@@ -47,7 +154,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
             <div className={`h-6 w-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
             <div className="flex items-center gap-3">
               <Logo className="w-8 h-8" />
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
+              <span className="text-[10px] bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">
                 GLASSTOOL PORTAL
               </span>
             </div>
@@ -74,6 +181,11 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
           }`}>
             {isTr ? 'Şişecam GlassTool™ Entegrasyonu' : 'Şişecam GlassTool™ Integration'}
           </h1>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'} max-w-2xl mx-auto`}>
+            {isTr 
+              ? 'Şişecam resmi web hesaplayıcısından aldığınız onaylı PDF performans raporunu tekliflerinize ek belge (Annex) olarak ekleyin.' 
+              : 'Calculate accredited glass performance in GlassTool and attach official PDF reports directly into your customer quotations.'}
+          </p>
         </div>
 
         {/* Central Hub Card */}
@@ -171,6 +283,150 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
           </div>
         </div>
 
+        {/* Direct Project Attachment Section */}
+        {projects.length > 0 && (
+          <div className={`rounded-3xl p-8 border shadow-xl transition-all duration-200 ${
+            isDark ? 'bg-slate-900/60 border-teal-500/30' : 'bg-white border-teal-500/40'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-700/40">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-teal-500/10 text-teal-400 border border-teal-500/20 rounded-2xl">
+                  <FileCheck size={22} />
+                </div>
+                <div>
+                  <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {isTr ? 'Teklif Ekine Şişecam GlassTool™ PDF Raporu Ekle' : 'Attach GlassTool PDF Report to Proposal'}
+                  </h3>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {isTr 
+                      ? 'Raporu seçtiğiniz projenin teklifine ekleyin. Teklif çıktısında resmi ek sayfa olarak yer alır.' 
+                      : 'Attach official PDF report to any proposal to include it in print and client sheets.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Project selector dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400">{isTr ? 'Proje:' : 'Project:'}</span>
+                <select
+                  value={currentProject?.id || ''}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  className={`text-xs font-bold rounded-xl px-3 py-2 border outline-none ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                >
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.client})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Toast notice */}
+            {toastMessage && (
+              <div className="mt-4 p-3 bg-teal-500/15 border border-teal-500/30 rounded-xl flex items-center gap-2 text-teal-300 text-xs font-bold animate-in fade-in">
+                <CheckCircle2 size={16} />
+                <span>{toastMessage}</span>
+              </div>
+            )}
+
+            {/* Upload actions and attached report status */}
+            <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4 bg-teal-500/5 p-4 rounded-2xl border border-teal-500/10">
+              <div className="flex items-center gap-3">
+                <FileText size={20} className="text-teal-400" />
+                <div>
+                  <div className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    {currentProject?.name} &bull; {reports.length} {isTr ? 'GlassTool Raporu Ekli' : 'Report(s) Attached'}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    {reports.length > 0 
+                      ? (isTr ? `Son eklenen: ${reports[reports.length - 1].name}` : `Latest: ${reports[reports.length - 1].name}`)
+                      : (isTr ? 'Henüz bu projeye GlassTool raporu yüklenmemiş.' : 'No GlassTool report uploaded yet.')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf,image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow"
+                >
+                  <Upload size={14} />
+                  <span>{isTr ? 'PDF Raporu Yükle' : 'Upload PDF Report'}</span>
+                </button>
+
+                {reports.length === 0 && (
+                  <button
+                    onClick={handleAddSampleReport}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <Sparkles size={13} />
+                    <span>{isTr ? 'Örnek Rapor' : 'Sample'}</span>
+                  </button>
+                )}
+
+                {onSelectProject && currentProject && (
+                  <button
+                    onClick={() => onSelectProject(currentProject.id)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <span>{isTr ? 'Teklifi Aç' : 'Open Proposal'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Reports list cards */}
+            {reports.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {reports.map(rep => (
+                  <div 
+                    key={rep.id}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                      isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText size={16} className="text-teal-400 shrink-0" />
+                      <span className="font-bold truncate text-slate-200">{rep.name}</span>
+                      <span className="text-[10px] text-teal-400 font-mono">Ug: {rep.ugValue || 1.1} W/m²K</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={rep.fileData}
+                        download={rep.name}
+                        className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                        title={isTr ? 'İndir' : 'Download'}
+                      >
+                        <Download size={14} />
+                      </a>
+                      <button
+                        onClick={() => handleDeleteReport(rep.id)}
+                        className="p-1.5 text-rose-400 hover:text-rose-300 rounded-lg hover:bg-rose-500/10 transition"
+                        title={isTr ? 'Sil' : 'Delete'}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Step-by-Step Instructions */}
         <div className="space-y-6">
           <div className="flex items-center gap-2.5">
@@ -189,7 +445,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
               <span className={`absolute top-4 right-4 text-3xl font-black ${
                 isDark ? 'text-slate-800/40' : 'text-slate-100'
               }`}>01</span>
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs border border-blue-500/20">
+              <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center font-bold text-xs border border-teal-500/20">
                 1
               </div>
               <div className="space-y-1.5">
@@ -215,7 +471,7 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
               <span className={`absolute top-4 right-4 text-3xl font-black ${
                 isDark ? 'text-slate-800/40' : 'text-slate-100'
               }`}>02</span>
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs border border-blue-500/20">
+              <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center font-bold text-xs border border-teal-500/20">
                 2
               </div>
               <div className="space-y-1.5">
@@ -228,8 +484,8 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
                   isDark ? 'text-slate-400' : 'text-slate-600'
                 }`}>
                   {isTr 
-                    ? 'Uygulamada "Hesapla" butonuna basarak Ug (ısı iletkenliği), LT (ışık geçirgenliği) ve g (güneş faktörü) resmi değerlerini saniyeler içinde alın.' 
-                    : 'Press compute inside GlassTool to instantly get the officially certified Ug value, Light Transmission (LT), and solar g-value.'}
+                    ? 'Uygulamada "Hesapla" butonuna basarak Ug (ısı iletkenliği), LT (ışık geçirgenliği) ve g (güneş faktörü) resmi değerlerini saniyeler içinde alın ve "Rapor Al (PDF)" ile indirin.' 
+                    : 'Press compute inside GlassTool to instantly get the officially certified Ug value, Light Transmission (LT), and solar g-value and download PDF report.'}
                 </p>
               </div>
             </div>
@@ -241,21 +497,21 @@ export const GlassAnalysis: React.FC<GlassAnalysisProps> = ({ lang, onBack, them
               <span className={`absolute top-4 right-4 text-3xl font-black ${
                 isDark ? 'text-slate-800/40' : 'text-slate-100'
               }`}>03</span>
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs border border-blue-500/20">
+              <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center font-bold text-xs border border-teal-500/20">
                 3
               </div>
               <div className="space-y-1.5">
                 <h4 className={`font-bold text-xs uppercase tracking-wider ${
                   isDark ? 'text-slate-200' : 'text-slate-800'
                 }`}>
-                  {isTr ? 'Teklife Not Düşün' : 'Append to quotation'}
+                  {isTr ? 'Teklifin Ekine PDF Olarak Koyun' : 'Attach PDF to Proposal'}
                 </h4>
                 <p className={`text-[11px] leading-relaxed ${
                   isDark ? 'text-slate-400' : 'text-slate-600'
                 }`}>
                   {isTr 
-                    ? 'Alınan resmi değerleri veya hesaplanan rapor PDF bağlantısını Alumetric teklifindeki "Poz Özel Notu" veya "Proje Notu" kısmına ekleyin.' 
-                    : 'Copy the certified specifications or attach the calculated report link directly into your Alumetric position notes or project descriptions.'}
+                    ? 'İndirdiğiniz resmi PDF raporunu doğrudan teklifinize yükleyin. Teklif çıktısında ve müşteri onay ekranında resmi EN 410 / EN 673 CE eki (Annex) olarak yer alır.' 
+                    : 'Upload the downloaded PDF report directly into your Alumetric quotation. It will be printed as an accredited technical annex to the proposal.'}
                 </p>
               </div>
             </div>

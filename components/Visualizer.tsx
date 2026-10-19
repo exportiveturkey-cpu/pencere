@@ -18,6 +18,8 @@ interface VisualizerProps {
   lang?: string;
   viewPerspective?: 'interior' | 'exterior';
   showDimensions?: boolean;
+  unitType?: 'window' | 'door';
+  isDoor?: boolean;
 }
 
 // Helper: Calculate Y cuts for horizontal transoms (dividing height)
@@ -108,10 +110,14 @@ export const getViewBoxWithDimensions = (w: number, h: number) => {
 };
 
 const Visualizer: React.FC<VisualizerProps> = ({ 
-  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr', viewPerspective = 'interior', showDimensions = true
+  node, width, height, x = 0, y = 0, system, selectedNodeId, onSelectNode, theme = 'light', shape = 'rect', archHeight = 400, hasThreshold = false, lang = 'tr', viewPerspective = 'interior', showDimensions = true, unitType, isDoor
 }) => {
   const isSelected = node.id === selectedNodeId;
   const isRoot = x === 0 && y === 0;
+  
+  // Architectural standard: Door units have handles on both interior & exterior views;
+  // Window units only have handles on interior view (exterior has NO handle).
+  const isDoorActive = isDoor ?? (unitType === 'door' || hasThreshold);
   
   const frameWidth = system.frameWidth;
   const bottomFw = (isRoot && hasThreshold) ? Math.min(15, frameWidth) : frameWidth;
@@ -171,6 +177,14 @@ const Visualizer: React.FC<VisualizerProps> = ({
 
   const renderHandle = (gx: number, gy: number, gw: number, gh: number, type: string) => {
     if (!type || type === 'fixed') return null;
+
+    // Architectural Rule:
+    // Pencerelerin dıştan görünümünde kol bulunmaz (dış kısımda kol olmaz).
+    // Ancak kapılarda hem içeride hem dışarıda kol olur ve çizimde gözükmeli.
+    const isExterior = viewPerspective === 'exterior';
+    if (isExterior && !isDoorActive) {
+      return null;
+    }
     
     let finalH = 100;
     let finalW = 20;
@@ -238,6 +252,28 @@ const Visualizer: React.FC<VisualizerProps> = ({
           strokeWidth="1" 
           rx="3" 
         />
+
+        {/* Exterior door cylinder keyhole (Dış kapı barel ve kilit rozeti - LogiKal mimari standardı) */}
+        {isExterior && isDoorActive && (
+          <g opacity="0.95">
+            <circle 
+              cx={finalW / 2} 
+              cy={finalH / 2 + finalRosetteH * 0.25} 
+              r={Math.max(2.5, finalRosetteW * 0.12)} 
+              fill="#0f172a" 
+              stroke="#475569" 
+              strokeWidth="0.8" 
+            />
+            <rect 
+              x={finalW / 2 - Math.max(1, finalRosetteW * 0.05)} 
+              y={finalH / 2 + finalRosetteH * 0.25} 
+              width={Math.max(2, finalRosetteW * 0.1)} 
+              height={Math.max(5, finalRosetteH * 0.15)} 
+              fill="#0f172a" 
+              rx="0.5" 
+            />
+          </g>
+        )}
         
         {/* Connection neck */}
         <rect 
@@ -379,11 +415,11 @@ const Visualizer: React.FC<VisualizerProps> = ({
             </>
           )}
           <g clipPath={isRoot ? `url(#${clipId})` : undefined}>
-            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} />
+            <Visualizer node={node.children[0]} width={isVerticalSplit ? firstSize : width} height={isVerticalSplit ? height : firstSize} x={x} y={y} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} isDoor={isDoorActive} unitType={unitType} />
             <g onClick={(e) => { e.stopPropagation(); onSelectNode(node.id); }}>
                {renderProfileRect(isVerticalSplit ? x + firstSize : x, isVerticalSplit ? y : y + firstSize, isVerticalSplit ? frameWidth : width, isVerticalSplit ? height : frameWidth)}
             </g>
-            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} />
+            <Visualizer node={node.children[1]} width={isVerticalSplit ? secondSize : width} height={isVerticalSplit ? height : secondSize} x={isVerticalSplit ? x + firstSize + frameWidth : x} y={isVerticalSplit ? y : y + firstSize + frameWidth} system={system} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} theme={theme} shape="rect" hasThreshold={hasThreshold} lang={lang} viewPerspective={viewPerspective} isDoor={isDoorActive} unitType={unitType} />
           </g>
         </g>
       );

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, ProfileSystem, Accessory, Language, WindowNode } from '../types';
+import { Project, ProfileSystem, Accessory, Language, WindowNode, isDoorUnit } from '../types';
 import { t } from '../translations';
 import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
 import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
 import { 
   Sparkles, CheckCircle2, AlertOctagon, HelpCircle, PenTool,
   Printer, ArrowLeftRight, ClipboardCheck, MessageSquare, 
-  User, Calendar, Landmark, Coins, FileCheck, CircleDollarSign
+  User, Calendar, Landmark, Coins, FileCheck, CircleDollarSign,
+  FileText, Download, Eye, ExternalLink, X
 } from 'lucide-react';
 import { cloud_saveProject } from '../services/authService';
 import { getSystemForUnit } from './ProjectView';
@@ -45,6 +46,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const [signatoryName, setSignatoryName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [selectedGlassReport, setSelectedGlassReport] = useState<any | null>(null);
 
   // Signature canvas refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -466,6 +468,8 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                                       hasThreshold={unit.hasThreshold} 
                                       lang={lang} 
                                       viewPerspective={unit.viewPerspective}
+                                      unitType={unit.unitType}
+                                      isDoor={isDoorUnit(unit)}
                                     />
                                   </svg>
                                 </div>
@@ -523,7 +527,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                               <div>
                                 <span className="text-slate-500 block">{lang === 'tr' ? 'Bakış / Görünüm' : 'View Perspective'}</span>
                                 <span className="text-white print:text-slate-900 font-bold">
-                                  {unit.viewPerspective === 'exterior' ? (lang === 'tr' ? 'Dıştan Görünüm' : 'Exterior View') : (lang === 'tr' ? 'İçten Görünüm (Standart)' : 'Interior View (Standard)')}
+                                  {unit.viewPerspective === 'exterior' 
+                                    ? (isDoorUnit(unit) 
+                                        ? (lang === 'tr' ? 'Dıştan Görünüm (Kapı - Kollu)' : 'Exterior View (Door - Handled)') 
+                                        : (lang === 'tr' ? 'Dıştan Görünüm (Pencere - Kolsuz)' : 'Exterior View (Window - No Handle)'))
+                                    : (lang === 'tr' ? 'İçten Görünüm (Standart)' : 'Interior View (Standard)')}
                                 </span>
                               </div>
                             </div>
@@ -554,6 +562,109 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                 )}
               </div>
 
+              {/* Şişecam GlassTool Certified Glass Performance Annex */}
+              {project.glassToolReports && project.glassToolReports.length > 0 && (
+                <div className="bg-slate-950/40 border border-teal-500/30 rounded-3xl p-6 space-y-5 print:bg-white print:border-slate-300 print:text-black">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-white/5 print:border-slate-200">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-teal-500/20 text-teal-300 print:bg-teal-600 print:text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-teal-500/30">
+                          {lang === 'tr' ? 'TEKLİF EKİ' : 'PROPOSAL ANNEX'}
+                        </span>
+                        <span className="text-[10px] text-teal-400 print:text-teal-700 font-extrabold uppercase tracking-wider">
+                          ŞİŞECAM GLASSTOOL™ AKREDİTE RAPORU
+                        </span>
+                      </div>
+                      <h4 className="text-base sm:text-lg font-black text-white print:text-slate-900">
+                        {lang === 'tr' ? 'Onaylı Cam Performans ve Isı Yalıtım Raporu' : 'Certified Glass Performance & Thermal Declaration'}
+                      </h4>
+                      <p className="text-xs text-slate-400 print:text-slate-600">
+                        {lang === 'tr' ? 'TS EN 410 ve TS EN 673 Standartlarına Uygun CE Beyanı' : 'Compliant with TS EN 410 and TS EN 673 CE European Standards'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-teal-400 animate-pulse print:hidden" />
+                      <span className="text-xs font-mono font-bold text-teal-400 print:text-teal-700">
+                        {project.glassToolReports.length} {lang === 'tr' ? 'Ek Belge' : 'Document(s)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {project.glassToolReports.map((report) => (
+                    <div key={report.id} className="p-4 bg-slate-900/60 border border-white/5 rounded-2xl print:bg-slate-50 print:border-slate-200 space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-400 flex items-center justify-center shrink-0">
+                            <FileText size={20} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-extrabold text-white print:text-slate-900 text-xs truncate">
+                              {report.name}
+                            </div>
+                            <div className="text-[10px] text-slate-400 print:text-slate-500 font-mono">
+                              {report.glassCombination}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 print:hidden">
+                          <button
+                            onClick={() => setSelectedGlassReport(report)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-white/5"
+                          >
+                            <Eye size={13} />
+                            <span>{lang === 'tr' ? 'Raporu İncele' : 'Inspect'}</span>
+                          </button>
+                          <a
+                            href={report.fileData}
+                            download={report.name}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+                          >
+                            <Download size={13} />
+                            <span>{lang === 'tr' ? 'PDF İndir' : 'Download'}</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Metric Boxes */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                        <div className="bg-teal-500/10 print:bg-teal-50 border border-teal-500/20 print:border-teal-300 rounded-xl p-2.5">
+                          <span className="text-[9px] font-bold text-teal-400 print:text-teal-800 block">Ug Değeri</span>
+                          <span className="text-lg font-black text-white print:text-teal-950 font-mono block">
+                            {report.ugValue?.toFixed(2) || '1.10'}
+                          </span>
+                          <span className="text-[8px] text-teal-400/80 print:text-teal-700">W/m²K (EN 673)</span>
+                        </div>
+
+                        <div className="bg-sky-500/10 print:bg-sky-50 border border-sky-500/20 print:border-sky-300 rounded-xl p-2.5">
+                          <span className="text-[9px] font-bold text-sky-400 print:text-sky-800 block">LT (Işık)</span>
+                          <span className="text-lg font-black text-white print:text-sky-950 font-mono block">
+                            %{report.lightTransmission || '71'}
+                          </span>
+                          <span className="text-[8px] text-sky-400/80 print:text-sky-700">EN 410 Standardı</span>
+                        </div>
+
+                        <div className="bg-amber-500/10 print:bg-amber-50 border border-amber-500/20 print:border-amber-300 rounded-xl p-2.5">
+                          <span className="text-[9px] font-bold text-amber-400 print:text-amber-800 block">g (Güneş Faktörü)</span>
+                          <span className="text-lg font-black text-white print:text-amber-950 font-mono block">
+                            %{report.solarFactor || '43'}
+                          </span>
+                          <span className="text-[8px] text-amber-400/80 print:text-amber-700">EN 410 Standardı</span>
+                        </div>
+
+                        <div className="bg-emerald-500/10 print:bg-emerald-50 border border-emerald-500/20 print:border-emerald-300 rounded-xl p-2.5">
+                          <span className="text-[9px] font-bold text-emerald-400 print:text-emerald-800 block">Rw (Ses Yalıtımı)</span>
+                          <span className="text-lg font-black text-white print:text-emerald-950 font-mono block">
+                            {report.soundReductionRw || '36'} dB
+                          </span>
+                          <span className="text-[8px] text-emerald-400/80 print:text-emerald-700">EN 12758 Standardı</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Right Column - Client Contract Drawer & Signature */}
@@ -735,6 +846,58 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
             </div>
 
+          </div>
+        )}
+
+        {/* GlassTool PDF Report Preview Modal */}
+        {selectedGlassReport && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[150] flex items-center justify-center p-4 print:hidden">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-teal-400" />
+                  <h3 className="font-extrabold text-white text-sm truncate max-w-md">
+                    {selectedGlassReport.name}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={selectedGlassReport.fileData}
+                    download={selectedGlassReport.name}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <Download size={14} />
+                    <span>{lang === 'tr' ? 'PDF İndir' : 'Download'}</span>
+                  </a>
+                  <button
+                    onClick={() => setSelectedGlassReport(null)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-950">
+                {selectedGlassReport.fileType === 'pdf' ? (
+                  <div className="w-full h-[650px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800">
+                    <iframe
+                      src={selectedGlassReport.fileData}
+                      className="w-full h-full border-none"
+                      title="GlassTool Report Preview"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center p-4">
+                    <img
+                      src={selectedGlassReport.fileData}
+                      alt={selectedGlassReport.name}
+                      className="max-h-[650px] object-contain rounded-xl border border-slate-800"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

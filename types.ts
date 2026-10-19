@@ -18,7 +18,27 @@ export interface Project {
   clientSignatureDate?: string;
   clientSignatureData?: string;
   shadingItems?: ShadingItem[];
+  glassToolReports?: GlassToolReport[];
   updatedAt?: number;
+}
+
+export interface GlassToolReport {
+  id: string;
+  name: string;
+  fileData: string;
+  fileType: 'pdf' | 'image';
+  fileSize?: number;
+  uploadedAt: string;
+  glassCombination?: string;
+  ugValue?: number;
+  lightTransmission?: number;
+  solarFactor?: number;
+  soundReductionRw?: number;
+  totalThicknessMm?: number;
+  spacerGas?: string;
+  standards?: string;
+  notes?: string;
+  includeInQuotePrint?: boolean;
 }
 
 export interface Accessory {
@@ -76,6 +96,53 @@ export interface Unit {
   crossSectionProfileCode?: string;
   custom3dImage?: string;
   preferredView?: '2d' | '3d';
+  unitType?: 'window' | 'door';
+}
+
+/**
+ * Determines whether a unit is categorized as a Door or Window for CAD drawing and accessories.
+ * In architectural standards:
+ * - Windows (Pencere): Handles are located inside only (exterior view has NO handle).
+ * - Doors (Kapı): Handles are located both inside and outside (exterior view HAS handle).
+ */
+export function isDoorUnit(unit?: {
+  unitType?: string;
+  typology?: string;
+  name?: string;
+  hasThreshold?: boolean;
+} | null): boolean {
+  if (!unit) return false;
+  if (unit.unitType === 'door') return true;
+  if (unit.unitType === 'window') return false;
+
+  const typology = (unit.typology || '').toLowerCase();
+  if (
+    typology.includes('door') ||
+    typology.includes('kapı') ||
+    typology.includes('kapi')
+  ) {
+    return true;
+  }
+
+  const name = (unit.name || '').toLowerCase().trim();
+  if (
+    name.includes('kapı') ||
+    name.includes('kapi') ||
+    name.includes('door') ||
+    name.includes('balkon') ||
+    name.includes('giris') ||
+    name.includes('giriş') ||
+    /^k[-_0-9]/i.test(name) ||
+    /^k[0-9]/i.test(name)
+  ) {
+    return true;
+  }
+
+  if (unit.hasThreshold) {
+    return true;
+  }
+
+  return false;
 }
 
 export type NodeType = 'container' | 'glass' | 'sash' | 'panel' | 'void';
