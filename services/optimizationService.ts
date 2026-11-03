@@ -1,5 +1,5 @@
 
-import { Unit, ProfileSystem, WindowNode, GlassType, UnitShape, Accessory } from '../types';
+import { Unit, ProfileSystem, WindowNode, GlassType, UnitShape, Accessory, ProfileBarConfig } from '../types';
 import { GLASS_TYPES, PROFILE_SYSTEMS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 
 export interface OptimizedBar {
@@ -19,6 +19,9 @@ export interface SystemOptimization {
   totalWaste: number; 
   bars: OptimizedBar[];
   totalCutCount: number;
+  isCustomLength?: boolean;
+  isMixedLength?: boolean;
+  barLengthsBreakdown?: Record<number, number>; // e.g. { 6000: 8, 7000: 3 }
 }
 
 export interface CutItem {
@@ -169,7 +172,12 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
   return cuts;
 };
 
-export const calculateProjectOptimization = (units: Unit[], systems: ProfileSystem[]): SystemOptimization[] => {
+export const calculateProjectOptimization = (
+  units: Unit[], 
+  systems: ProfileSystem[],
+  customBarLengthMm?: number,
+  profileBarLengths?: Record<string, number | ProfileBarConfig>
+): SystemOptimization[] => {
   const result: SystemOptimization[] = [];
   const cutsByProfile: Record<string, { system: ProfileSystem, label: string, code: string, lengths: number[] }> = {};
 
@@ -199,12 +207,55 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
 
   for (const key in cutsByProfile) {
     const profileData = cutsByProfile[key];
-    const barLengthMm = (profileData.system.profileLength || 6.0) * 1000;
-    const optimizedBars = optimizeCutsForSystem(profileData.lengths, barLengthMm);
-    const totalUsedLength = optimizedBars.reduce((acc, bar) => acc + (barLengthMm - bar.remaining), 0);
-    const totalCapacity = optimizedBars.length * barLengthMm;
+    const defaultBarLengthMm = (profileData.system.profileLength || 6.0) * 1000;
+    const baseProjectLengthMm = (customBarLengthMm && customBarLengthMm >= 1000 && customBarLengthMm <= 15000)
+      ? customBarLengthMm
+      : defaultBarLengthMm;
+
+    // Check profile-specific bar length override
+    const rawSetting = 
+      (profileBarLengths?.[key]) ||
+      (profileData.code && profileBarLengths?.[profileData.code]) ||
+      (profileData.label.toLowerCase().includes('frame') ? profileBarLengths?.['frame'] : undefined) ||
+      (profileData.label.toLowerCase().includes('sash') ? profileBarLengths?.['sash'] : undefined) ||
+      (profileData.label.toLowerCase().includes('mullion') || profileData.label.toLowerCase().includes('transom') ? profileBarLengths?.['mullion'] : undefined) ||
+      (profileData.label.toLowerCase().includes('bead') ? profileBarLengths?.['bead'] : undefined);
+
+    let configMode: 'single' | 'mixed' | 'manual' = 'single';
+    let barLengthMm = baseProjectLengthMm;
+    let mixedLengths: number[] | undefined = undefined;
+    let manualSplits: { lengthMm: number; count: number }[] | undefined = undefined;
+
+    if (typeof rawSetting === 'number') {
+      if (rawSetting >= 1000 && rawSetting <= 15000) {
+        barLengthMm = rawSetting;
+      }
+      configMode = 'single';
+    } else if (rawSetting && typeof rawSetting === 'object') {
+      configMode = rawSetting.mode || 'single';
+      if (rawSetting.lengthMm && rawSetting.lengthMm >= 1000) barLengthMm = rawSetting.lengthMm;
+      if (rawSetting.mixedLengths && rawSetting.mixedLengths.length > 0) mixedLengths = rawSetting.mixedLengths;
+      if (rawSetting.manualSplits && rawSetting.manualSplits.length > 0) manualSplits = rawSetting.manualSplits;
+    }
+
+    const optimizedBars = optimizeCutsAdvanced(profileData.lengths, {
+      mode: configMode,
+      baseLength: barLengthMm,
+      mixedLengths,
+      manualSplits
+    });
+
+    const breakdown: Record<number, number> = {};
+    optimizedBars.forEach(b => {
+      breakdown[b.barLength] = (breakdown[b.barLength] || 0) + 1;
+    });
+
+    const totalUsedLength = optimizedBars.reduce((acc, bar) => acc + (bar.barLength - bar.remaining), 0);
+    const totalCapacity = optimizedBars.reduce((acc, bar) => acc + bar.barLength, 0);
     const efficiency = totalCapacity > 0 ? (totalUsedLength / totalCapacity) * 100 : 0;
-    
+    const isMixed = Object.keys(breakdown).length > 1;
+    const isCustom = !isMixed && barLengthMm !== 6000;
+
     result.push({
       systemId: profileData.system.id,
       systemName: profileData.system.name,
@@ -215,21 +266,83 @@ export const calculateProjectOptimization = (units: Unit[], systems: ProfileSyst
       bars: optimizedBars,
       totalEfficiency: efficiency,
       totalWaste: 100 - efficiency,
-      totalCutCount: profileData.lengths.length
+      totalCutCount: profileData.lengths.length,
+      isCustomLength: isCustom,
+      isMixedLength: isMixed,
+      barLengthsBreakdown: breakdown
     });
   }
   return result;
 };
 
-const optimizeCutsForSystem = (lengths: number[], barLengthMm: number): OptimizedBar[] => {
+const optimizeCutsAdvanced = (
+  lengths: number[], 
+  config: {
+    mode: 'single' | 'mixed' | 'manual';
+    baseLength: number;
+    mixedLengths?: number[];
+    manualSplits?: { lengthMm: number; count: number }[];
+  }
+): OptimizedBar[] => {
   const sortedCuts = [...lengths].sort((a, b) => b - a);
   const bars: OptimizedBar[] = [];
-  
-  for (const cut of sortedCuts) {
+
+  // Manual splits mode: Pre-seed specific bar counts and lengths
+  if (config.mode === 'manual' && config.manualSplits && config.manualSplits.length > 0) {
+    config.manualSplits.forEach(split => {
+      const bLen = split.lengthMm || config.baseLength;
+      for (let i = 0; i < (split.count || 0); i++) {
+        bars.push({
+          barLength: bLen,
+          cuts: [],
+          remaining: bLen
+        });
+      }
+    });
+
+    for (const cut of sortedCuts) {
+      const cutWithKerf = cut + SAW_BLADE_THICKNESS;
+      let bestBarIndex = -1;
+      let minRemaining = Number.MAX_VALUE;
+
+      for (let i = 0; i < bars.length; i++) {
+        if (bars[i].remaining >= cutWithKerf) {
+          const remainingAfter = bars[i].remaining - cutWithKerf;
+          if (remainingAfter < minRemaining) {
+            minRemaining = remainingAfter;
+            bestBarIndex = i;
+          }
+        }
+      }
+
+      if (bestBarIndex !== -1) {
+        bars[bestBarIndex].cuts.push(cut);
+        bars[bestBarIndex].remaining -= cutWithKerf;
+      } else {
+        // Pre-allocated bars are full, add fallback bar with baseLength
+        bars.push({
+          barLength: config.baseLength,
+          cuts: [cut],
+          remaining: config.baseLength - cutWithKerf
+        });
+      }
+    }
+
+    return bars.filter(b => b.cuts.length > 0);
+  }
+
+  // Automatic multi-stock optimization mode
+  const allowedStockLengths = (config.mode === 'mixed' && config.mixedLengths && config.mixedLengths.length > 0)
+    ? [...config.mixedLengths].sort((a, b) => a - b)
+    : [config.baseLength];
+
+  for (let cIdx = 0; cIdx < sortedCuts.length; cIdx++) {
+    const cut = sortedCuts[cIdx];
     const cutWithKerf = cut + SAW_BLADE_THICKNESS;
     let bestBarIndex = -1;
     let minRemaining = Number.MAX_VALUE;
 
+    // 1. Try to place cut in an existing open bar
     for (let i = 0; i < bars.length; i++) {
       if (bars[i].remaining >= cutWithKerf) {
         const remainingAfter = bars[i].remaining - cutWithKerf;
@@ -244,13 +357,38 @@ const optimizeCutsForSystem = (lengths: number[], barLengthMm: number): Optimize
       bars[bestBarIndex].cuts.push(cut);
       bars[bestBarIndex].remaining -= cutWithKerf;
     } else {
+      // 2. Open a new bar: select which stock length maximizes utilization
+      let bestStockLength = allowedStockLengths[0];
+      let bestWasteRatio = Number.MAX_VALUE;
+      const remainingCuts = sortedCuts.slice(cIdx + 1);
+
+      for (const stockLen of allowedStockLengths) {
+        if (stockLen < cutWithKerf) continue;
+
+        let rem = stockLen - cutWithKerf;
+        for (const nextCut of remainingCuts) {
+          const nextWithKerf = nextCut + SAW_BLADE_THICKNESS;
+          if (rem >= nextWithKerf) {
+            rem -= nextWithKerf;
+          }
+        }
+
+        const wasteRatio = rem / stockLen;
+        // Favor shorter stock unless longer stock yields noticeably better efficiency
+        if (wasteRatio < bestWasteRatio - 0.03) {
+          bestWasteRatio = wasteRatio;
+          bestStockLength = stockLen;
+        }
+      }
+
       bars.push({
-        barLength: barLengthMm,
+        barLength: bestStockLength,
         cuts: [cut],
-        remaining: barLengthMm - cutWithKerf
+        remaining: bestStockLength - cutWithKerf
       });
     }
   }
+
   return bars;
 };
 

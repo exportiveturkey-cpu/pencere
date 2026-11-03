@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem, isDoorUnit } from '../types';
+import { Project, Unit, ProfileSystem, Language, Accessory, WindowNode, MachineConfig, Customer, ShadingItem, isDoorUnit, ProfileBarConfig } from '../types';
 import { ArrowLeft, Edit2, Plus, Trash2, Printer, Sparkles, FileText, Loader2, Save, Layers, Wrench, Cpu, Download, Box, BoxSelect, LayoutGrid, Scissors, Droplets, AlertCircle, Globe, Image as ImageIcon, ScanSearch, Ruler, Maximize2, FileCheck, DollarSign, Package, ChevronDown, Sun, Moon, Share2, ClipboardCheck, Sliders, Eye, Upload, Trash, Wand2, Brain, Palette, MessageSquare, Move, ExternalLink, CheckCircle2, PlusCircle, RefreshCw, Copy, X } from 'lucide-react';
 import { t } from '../translations';
 import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
@@ -11,7 +11,7 @@ import { GLASS_TYPES, COLOR_GROUPS, PROFILE_SYSTEMS } from '../constants';
 import { analyzeDrawing, generateSalesPitch, analyzeShadingImage, ShadingAnalysisResult } from '../services/geminiService';
 import { generateCNCCSV } from '../services/cncService';
 import { generateDXF } from '../services/dxfService';
-import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization } from '../services/optimizationService';
+import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessorySummary, calculateProjectOptimization, SystemOptimization } from '../services/optimizationService';
 import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice, getUnitSashLaborCounts } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
 import { cloud_saveProductTypes, cloud_getProductTypes } from '../services/authService';
@@ -2408,6 +2408,11 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
   
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [tempProject, setTempProject] = useState<Project>(project);
+  const [splitModalOpt, setSplitModalOpt] = useState<SystemOptimization | null>(null);
+  const [manualSplitRows, setManualSplitRows] = useState<{ lengthMm: number; count: number }[]>([
+    { lengthMm: 6000, count: 0 },
+    { lengthMm: 7000, count: 0 }
+  ]);
 
   const taxRate = Number(localStorage.getItem('alucraft_tax')) || 20;
   const [currency, setCurrency] = useState('USD');
@@ -2499,7 +2504,50 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
   const glassOrders = useMemo(() => getAggregatedGlassOrder(project.units, systems), [project.units, systems]);
   const accessorySummary = useMemo(() => getProjectAccessorySummary(project.units, accessories), [project.units, accessories]);
-  const optimizationSummary = useMemo(() => calculateProjectOptimization(project.units, systems), [project.units, systems]);
+  const optimizationSummary = useMemo(
+    () => calculateProjectOptimization(project.units, systems, project.customBarLengthMm, project.profileBarLengths),
+    [project.units, systems, project.customBarLengthMm, project.profileBarLengths]
+  );
+
+  const barLengthsBreakdown = useMemo(() => {
+    const countsByLength: Record<number, number> = {};
+    optimizationSummary.forEach(opt => {
+      if (opt.barLengthsBreakdown && Object.keys(opt.barLengthsBreakdown).length > 0) {
+        Object.entries(opt.barLengthsBreakdown).forEach(([bLenStr, count]) => {
+          const bLen = Number(bLenStr);
+          countsByLength[bLen] = (countsByLength[bLen] || 0) + count;
+        });
+      } else {
+        const len = opt.barLength;
+        countsByLength[len] = (countsByLength[len] || 0) + opt.totalBars;
+      }
+    });
+    return countsByLength;
+  }, [optimizationSummary]);
+
+  const openSplitModal = (opt: SystemOptimization) => {
+    setSplitModalOpt(opt);
+    const profileKey = opt.profileCode && opt.profileCode !== '-' ? opt.profileCode : `${opt.systemId}-${opt.profileLabel}`;
+    const existing = project.profileBarLengths?.[profileKey];
+    
+    if (existing && typeof existing === 'object' && existing.mode === 'manual' && existing.manualSplits && existing.manualSplits.length > 0) {
+      setManualSplitRows([...existing.manualSplits]);
+    } else if (opt.barLengthsBreakdown && Object.keys(opt.barLengthsBreakdown).length > 0) {
+      const rows = Object.entries(opt.barLengthsBreakdown).map(([l, c]) => ({
+        lengthMm: Number(l),
+        count: Number(c)
+      }));
+      setManualSplitRows(rows);
+    } else {
+      const totalBars = opt.totalBars || 11;
+      const count6 = Math.max(1, Math.round(totalBars * 0.7));
+      const count7 = Math.max(1, totalBars - count6);
+      setManualSplitRows([
+        { lengthMm: 6000, count: count6 },
+        { lengthMm: 7000, count: count7 }
+      ]);
+    }
+  };
 
   const handleUpdateInfo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -4109,9 +4157,43 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                     {/* Profiles List */}
                                     {optimizationSummary.length > 0 && (
                                         <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50">
-                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3 pb-2 border-b border-slate-200">
-                                                {lang === 'tr' ? 'Alüminyum Profiller' : 'Aluminum Profiles'}
-                                            </h4>
+                                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
+                                                    {lang === 'tr' ? 'Alüminyum Profiller' : 'Aluminum Profiles'}
+                                                </h4>
+                                                {Object.keys(barLengthsBreakdown).length > 1 ? (
+                                                    <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                                                        ★ {lang === 'tr' ? 'Karma Sipariş Boyu (6m & 7m...)' : 'Mixed Bar Lengths'}
+                                                    </span>
+                                                ) : project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (
+                                                    <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                                        ★ {(project.customBarLengthMm / 1000).toFixed(2)}m {lang === 'tr' ? 'Özel Boy' : 'Custom'}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+
+                                            {/* Mixed or Custom Bar Length Summary Banner */}
+                                            {Object.keys(barLengthsBreakdown).length > 1 ? (
+                                                <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 text-[11px] font-bold text-purple-900 dark:text-purple-300 flex flex-wrap items-center justify-between gap-1 print:bg-purple-50 print:text-purple-950 print:border-purple-300">
+                                                    <span>
+                                                        📦 {lang === 'tr' ? 'Ekstrüzyon Sipariş Dağılımı:' : 'Extrusion Order Breakdown:'}{' '}
+                                                        {Object.entries(barLengthsBreakdown).map(([lenStr, count], bIdx) => (
+                                                            <span key={bIdx} className="font-mono font-black ml-1">
+                                                                {(Number(lenStr) / 1000).toFixed(2)}m: {count} {lang === 'tr' ? 'Boy' : 'Bars'}
+                                                                {Number(lenStr) !== 6000 ? ` (${lang === 'tr' ? 'Özel' : 'Custom'})` : ' (Std)'}
+                                                                {bIdx < Object.keys(barLengthsBreakdown).length - 1 ? ' • ' : ''}
+                                                            </span>
+                                                        ))}
+                                                    </span>
+                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'LogiKal Standardı' : 'LogiKal Standard'}</span>
+                                                </div>
+                                            ) : project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (
+                                                <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-between print:bg-amber-50 print:text-amber-900 print:border-amber-300">
+                                                    <span>📦 {lang === 'tr' ? 'Ekstrüzyon Sipariş Boyu:' : 'Extrusion Bar Length:'} <span className="font-mono font-black">{(project.customBarLengthMm / 1000).toFixed(2)} m</span> ({lang === 'tr' ? 'Özel Boy Siparişi' : 'Custom Extrusion'})</span>
+                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'LogiKal Standardı' : 'LogiKal Standard'}</span>
+                                                </div>
+                                            ) : null}
+
                                             <div className="space-y-2">
                                                 {optimizationSummary.map((opt, idx) => {
                                                     const totalCutLengthM = opt.bars.reduce((acc, bar) => acc + bar.cuts.reduce((sum, cut) => sum + cut, 0), 0) / 1000;
@@ -4132,7 +4214,25 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                             </div>
                                                             <div className="text-right ml-3 shrink-0">
                                                                 <span className="font-mono font-black text-slate-850 block">{totalCutLengthM.toFixed(2)} m</span>
-                                                                <span className="text-[10px] text-slate-400 block">{opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}</span>
+                                                                <span className="text-[10px] text-slate-400 block">
+                                                                    {opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}{' '}
+                                                                    {opt.isMixedLength && opt.barLengthsBreakdown ? (
+                                                                        <span className="font-mono text-purple-700 dark:text-purple-400 font-semibold">
+                                                                            ({Object.entries(opt.barLengthsBreakdown).map(([len, count]) => {
+                                                                                const isCustomBar = Number(len) !== 6000;
+                                                                                return `${count} Boy ${(Number(len)/1000).toFixed(2)}m${isCustomBar ? (lang === 'tr' ? ' Özel' : ' Custom') : ''}`;
+                                                                            }).join(' + ')})
+                                                                        </span>
+                                                                    ) : opt.barLength !== 6000 ? (
+                                                                        <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
+                                                                            ({(opt.barLength / 1000).toFixed(2)}m {lang === 'tr' ? 'Özel Boy' : 'Custom'})
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 font-mono">
+                                                                            (6.00m {lang === 'tr' ? 'Standart' : 'Std'})
+                                                                        </span>
+                                                                    )}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     );
@@ -6241,6 +6341,108 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
             {activeTab === 'production' && (
                 <div className="space-y-8 animate-in fade-in">
+                    {/* LogiKal Style Special Bar Length Control */}
+                    <div className="bg-slate-900/90 border border-slate-700/80 rounded-3xl p-5 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 print:hidden">
+                        <div className="flex items-center gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                                <Ruler size={22} />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-bold text-white text-sm">
+                                        {lang === 'tr' ? 'Profil Ekstrüzyon Sipariş / Kesim Boyu' : 'Profile Extrusion Order / Bar Length'}
+                                    </h3>
+                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/5">
+                                        LogiKal Standard
+                                    </span>
+                                    {project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                            ★ {lang === 'tr' ? `${(project.customBarLengthMm / 1000).toFixed(2)} m ÖZEL SİPARİŞ BOYU` : `${(project.customBarLengthMm / 1000).toFixed(2)} m CUSTOM BAR`}
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                            6.00 m STANDART BOY
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                                    {lang === 'tr'
+                                        ? 'Standart hammadde boyu 6000 mm\'dir. Aşağıdaki malzeme tablosundan istediğiniz profilin boyunu (örn. Kasa 6.00m, Dikme 7.00m) bağımsız olarak da değiştirebilirsiniz.'
+                                        : 'Standard bar length is 6000 mm. You can also customize individual profiles (e.g. Frame 6.00m, Mullion 7.00m) in the table below.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                            {[
+                                { label: '6.000 mm', value: 6000, desc: lang === 'tr' ? 'Standart' : 'Standard' },
+                                { label: '6.500 mm', value: 6500, desc: lang === 'tr' ? 'Geniş Sürme' : 'Sliding' },
+                                { label: '6.800 mm', value: 6800, desc: lang === 'tr' ? 'Özel Boy' : 'Custom' },
+                                { label: '7.000 mm', value: 7000, desc: lang === 'tr' ? 'Yüksek Cephe' : 'Facade' },
+                            ].map((preset) => {
+                                const isSelected = (project.customBarLengthMm || 6000) === preset.value;
+                                return (
+                                    <button
+                                        key={preset.value}
+                                        type="button"
+                                        onClick={() => onUpdateProject({ ...project, customBarLengthMm: preset.value })}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                            isSelected
+                                                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg font-black'
+                                                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600 hover:bg-slate-750'
+                                        }`}
+                                    >
+                                        {preset.label}
+                                    </button>
+                                );
+                            })}
+
+                            {/* Custom mm input */}
+                            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-750 rounded-xl px-3 py-1.5">
+                                <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">{lang === 'tr' ? 'Özel:' : 'Custom:'}</span>
+                                <input
+                                    type="number"
+                                    min="1000"
+                                    max="15000"
+                                    step="50"
+                                    placeholder="6000"
+                                    value={project.customBarLengthMm || 6000}
+                                    onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        if (val >= 1000 && val <= 15000) {
+                                            onUpdateProject({ ...project, customBarLengthMm: val });
+                                        }
+                                    }}
+                                    className="w-16 bg-transparent text-white font-mono text-xs font-bold outline-none text-right"
+                                />
+                                <span className="text-[10px] font-mono text-slate-400">mm</span>
+                            </div>
+
+                            {project.customBarLengthMm && project.customBarLengthMm !== 6000 && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUpdateProject({ ...project, customBarLengthMm: 6000 })}
+                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-all border border-slate-700"
+                                    title={lang === 'tr' ? '6.000 mm Standarta Sıfırla' : 'Reset to 6000 mm Standard'}
+                                >
+                                    {lang === 'tr' ? 'Sıfırla' : 'Reset'}
+                                </button>
+                            )}
+
+                            {project.profileBarLengths && Object.keys(project.profileBarLengths).length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUpdateProject({ ...project, profileBarLengths: {} })}
+                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold text-amber-400 hover:text-white bg-amber-500/10 hover:bg-amber-500/20 transition-all border border-amber-500/30 flex items-center gap-1"
+                                    title={lang === 'tr' ? 'Profil bazlı özel boyları sıfırla' : 'Reset per-profile custom lengths'}
+                                >
+                                    <span>★ {Object.keys(project.profileBarLengths).length} {lang === 'tr' ? 'Özel Profil' : 'Custom'}</span>
+                                    <span className="opacity-60 ml-0.5 font-mono">✕</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex items-center justify-between print:hidden">
                         <div className="flex gap-4 p-1 bg-slate-950 rounded-2xl border border-white/5 w-fit">
                             <button onClick={() => setProductionSubTab('bom')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'materialSummary')}</button>
@@ -6256,27 +6458,42 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         <div className="space-y-8 animate-in slide-in-from-bottom-4">
                             {/* Aluminum BOM */}
                             <div className="bg-slate-800 rounded-[2rem] border border-slate-700 overflow-hidden shadow-2xl print:bg-white print:border-slate-200 print:rounded-none print:shadow-none">
-                                <div className="bg-slate-900/80 p-6 border-b border-slate-700 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
-                                    <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 print:hidden">
-                                        <Package size={24} />
+                                <div className="bg-slate-900/80 p-6 border-b border-slate-700 flex items-center justify-between print:bg-slate-50 print:border-slate-200">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400 print:hidden">
+                                            <Package size={24} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'profilesSummary')}</h2>
+                                            <p className="text-xs text-slate-400 mt-0.5 print:text-slate-600">
+                                                {lang === 'tr' ? 'Ekstrüzyon Sipariş / Hammadde Boyu:' : 'Raw Extrusion Bar Length:'} <strong className="font-mono text-white print:text-black">{((project.customBarLengthMm || 6000) / 1000).toFixed(2)} m</strong> {project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (lang === 'tr' ? '(Özel Ekstrüzyon)' : '(Custom Extrusion)') : (lang === 'tr' ? '(Standart 6m)' : '(Standard 6m)')}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <h2 className="text-xl font-bold text-white print:text-black">{t(lang, 'profilesSummary')}</h2>
+                                    {project.customBarLengthMm && project.customBarLengthMm !== 6000 && (
+                                        <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 print:bg-amber-50 print:text-amber-800 print:border-amber-300">
+                                            ★ {lang === 'tr' ? 'Özel Boy Optimizasyonu Aktif' : 'Custom Bar Optimization Active'}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left border-collapse">
                                         <thead className="text-[11px] text-white uppercase bg-slate-950 border-b border-slate-700 print:bg-slate-100 print:text-slate-700 print:border-slate-300">
                                             <tr>
-                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'profileType')}</th>
-                                                <th className="px-8 py-4 font-black tracking-widest">{t(lang, 'profileCode')}</th>
-                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'totalMeters')}</th>
-                                                <th className="px-8 py-4 text-right font-black tracking-widest">{t(lang, 'totalWeight')}</th>
-                                                <th className="px-8 py-4 text-center font-black tracking-widest">{t(lang, 'totalBars')} (6m)</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">{t(lang, 'profileType')}</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">{t(lang, 'profileCode')}</th>
+                                                <th className="px-6 py-4 text-right font-black tracking-widest">{t(lang, 'totalMeters')}</th>
+                                                <th className="px-6 py-4 text-right font-black tracking-widest">{t(lang, 'totalWeight')}</th>
+                                                <th className="px-6 py-4 text-center font-black tracking-widest">
+                                                    {lang === 'tr' ? 'Sipariş / Çekim Boyu' : 'Order Bar Length'}
+                                                </th>
+                                                <th className="px-6 py-4 text-center font-black tracking-widest">
+                                                    {lang === 'tr' ? 'Gereken Boy Adedi' : 'Required Bars'}
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700 print:divide-slate-200">
                                             {optimizationSummary.map((opt, idx) => {
-                                                const totalMeters = opt.bars.reduce((acc, bar) => acc + (opt.barLength / 1000), 0);
-                                                // Assuming we want a sum of all lengths of this specific code across project
                                                 const totalCutLengthM = opt.bars.reduce((acc, bar) => acc + bar.cuts.reduce((sum, cut) => sum + cut, 0), 0) / 1000;
                                                 const sys = systems.find(s => s.id === opt.systemId);
                                                 const weightPerM = opt.profileLabel.toLowerCase().includes('frame') ? sys?.profileWeights?.frame :
@@ -6284,9 +6501,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                  opt.profileLabel.toLowerCase().includes('mullion') || opt.profileLabel.toLowerCase().includes('transom') ? sys?.profileWeights?.mullion :
                                                                  opt.profileLabel.toLowerCase().includes('bead') ? sys?.profileWeights?.glazingBead : 0;
 
+                                                const profileKey = opt.profileCode && opt.profileCode !== '-' ? opt.profileCode : `${opt.systemId}-${opt.profileLabel}`;
+                                                const hasSpecificOverride = Boolean(project.profileBarLengths && project.profileBarLengths[profileKey]);
+
                                                 return (
                                                     <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
-                                                        <td className="px-8 py-5">
+                                                        <td className="px-6 py-5">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="w-11 h-11 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center p-1.5 shrink-0 select-none print:border-slate-300">
                                                                     <ProfileThumbnail profileLabel={opt.profileLabel} profileCode={opt.profileCode} customImages={mergedProfileImages} />
@@ -6297,25 +6517,260 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-8 py-5">
-                                                            <span className="bg-slate-950 px-2 py-1 rounded text-xs font-mono text-emerald-400 border border-white/5 print:bg-slate-50 print:text-emerald-700 print:border-slate-200">{opt.profileCode}</span>
+                                                        <td className="px-6 py-5">
+                                                            <span className="bg-slate-950 px-2.5 py-1 rounded-md text-xs font-mono text-emerald-400 border border-white/5 print:bg-slate-50 print:text-emerald-700 print:border-slate-200 font-bold">{opt.profileCode}</span>
                                                         </td>
-                                                        <td className="px-8 py-5 text-right font-mono text-white font-black text-base print:text-black">
+                                                        <td className="px-6 py-5 text-right font-mono text-white font-black text-base print:text-black">
                                                             {totalCutLengthM.toFixed(2)} m
                                                         </td>
-                                                        <td className="px-8 py-5 text-right font-mono text-slate-300 font-bold text-base print:text-slate-600">
+                                                        <td className="px-6 py-5 text-right font-mono text-slate-300 font-bold text-base print:text-slate-600">
                                                             {(totalCutLengthM * (weightPerM || 0)).toFixed(1)} kg
                                                         </td>
-                                                        <td className="px-8 py-5 text-center">
-                                                            <span className="bg-blue-500/10 text-blue-400 px-4 py-1 rounded-full font-black text-lg print:bg-blue-50 print:text-blue-700">
-                                                                {opt.totalBars}
-                                                            </span>
+                                                        <td className="px-6 py-5 text-center">
+                                                            {/* Print view: Plain text */}
+                                                            <div className="hidden print:block font-mono font-bold text-xs text-slate-900">
+                                                                {opt.isMixedLength && opt.barLengthsBreakdown ? (
+                                                                    Object.entries(opt.barLengthsBreakdown).map(([l, c]) => {
+                                                                        const isCustomBar = Number(l) !== 6000;
+                                                                        return `${c} Boy ${(Number(l)/1000).toFixed(2)}m ${isCustomBar ? '(Özel)' : '(Standart)'}`;
+                                                                    }).join(' + ')
+                                                                ) : (
+                                                                    `${(opt.barLength / 1000).toFixed(2)} m ${opt.barLength !== 6000 ? '(Özel Boy)' : '(Standart)'}`
+                                                                )}
+                                                            </div>
+
+                                                            {/* Interactive Screen View: Quick length changer & split per profile */}
+                                                            {(() => {
+                                                                const currentCfg = project.profileBarLengths?.[profileKey];
+                                                                let currentSelectValue = String(opt.barLength);
+                                                                if (currentCfg && typeof currentCfg === 'object') {
+                                                                    if (currentCfg.mode === 'manual') {
+                                                                        currentSelectValue = 'manual';
+                                                                    } else if (currentCfg.mode === 'mixed') {
+                                                                        const sorted = (currentCfg.mixedLengths || []).slice().sort((a,b)=>a-b);
+                                                                        if (sorted.join(',') === '6000,7000') currentSelectValue = 'mixed_6000_7000';
+                                                                        else if (sorted.join(',') === '6000,6500') currentSelectValue = 'mixed_6000_6500';
+                                                                        else currentSelectValue = 'mixed_custom';
+                                                                    }
+                                                                }
+
+                                                                const isCustomStock = opt.barLength !== 6000;
+
+                                                                return (
+                                                                    <div className="print:hidden flex flex-col items-center gap-1.5">
+                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                            <select
+                                                                                value={currentSelectValue}
+                                                                                onChange={(e) => {
+                                                                                    const val = e.target.value;
+                                                                                    if (val === 'open_manual_modal' || val === 'manual') {
+                                                                                        openSplitModal(opt);
+                                                                                        return;
+                                                                                    }
+                                                                                    const updated = { ...(project.profileBarLengths || {}) };
+                                                                                    if (val === 'mixed_6000_7000') {
+                                                                                        updated[profileKey] = {
+                                                                                            mode: 'mixed',
+                                                                                            mixedLengths: [6000, 7000]
+                                                                                        };
+                                                                                    } else if (val === 'mixed_6000_6500') {
+                                                                                        updated[profileKey] = {
+                                                                                            mode: 'mixed',
+                                                                                            mixedLengths: [6000, 6500]
+                                                                                        };
+                                                                                    } else {
+                                                                                        const num = Number(val);
+                                                                                        if (num === 6000 && (!project.customBarLengthMm || project.customBarLengthMm === 6000)) {
+                                                                                            delete updated[profileKey];
+                                                                                        } else {
+                                                                                            updated[profileKey] = num;
+                                                                                        }
+                                                                                    }
+                                                                                    onUpdateProject({ ...project, profileBarLengths: updated });
+                                                                                }}
+                                                                                className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border transition-all cursor-pointer outline-none ${
+                                                                                    opt.isMixedLength
+                                                                                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 hover:bg-purple-500/30 font-black'
+                                                                                        : isCustomStock
+                                                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 font-black'
+                                                                                        : 'bg-slate-950 text-slate-200 border-slate-700 hover:border-slate-500'
+                                                                                }`}
+                                                                            >
+                                                                                <optgroup label="Standart & Özel Tek Boy">
+                                                                                    <option value="6000" className="bg-slate-900 text-white">6.00 m (Standart)</option>
+                                                                                    <option value="6500" className="bg-slate-900 text-amber-400">6.50 m (Özel)</option>
+                                                                                    <option value="6800" className="bg-slate-900 text-amber-400">6.80 m (Özel)</option>
+                                                                                    <option value="7000" className="bg-slate-900 text-amber-400">7.00 m (Özel)</option>
+                                                                                    <option value="7500" className="bg-slate-900 text-amber-400">7.50 m (Özel)</option>
+                                                                                    {![6000, 6500, 6800, 7000, 7500].includes(opt.barLength) && !opt.isMixedLength && (
+                                                                                        <option value={String(opt.barLength)} className="bg-slate-900 text-amber-300">
+                                                                                            {(opt.barLength / 1000).toFixed(2)} m (Özel)
+                                                                                        </option>
+                                                                                    )}
+                                                                                </optgroup>
+                                                                                <optgroup label="⚡ Karma Boy Dağıtımı (LogiKal)">
+                                                                                    <option value="mixed_6000_7000" className="bg-slate-900 text-purple-300">⚡ Karma: 6.00m + 7.00m (Akıllı)</option>
+                                                                                    <option value="mixed_6000_6500" className="bg-slate-900 text-purple-300">⚡ Karma: 6.00m + 6.50m (Akıllı)</option>
+                                                                                    {currentSelectValue === 'manual' && (
+                                                                                        <option value="manual" className="bg-slate-900 text-purple-300">
+                                                                                            ⚙️ Manuel Bölünmüş ({Object.entries(opt.barLengthsBreakdown || {}).map(([l, c]) => `${c}x${(Number(l)/1000).toFixed(1)}m`).join('+')})
+                                                                                        </option>
+                                                                                    )}
+                                                                                    <option value="open_manual_modal" className="bg-slate-900 text-emerald-300 font-bold">
+                                                                                        ⚙️ Manuel Boy Böl (Örn: 8x 6m + 3x 7m)...
+                                                                                    </option>
+                                                                                </optgroup>
+                                                                            </select>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => openSplitModal(opt)}
+                                                                                title={lang === 'tr' ? 'Boy Dağılımını Böl (Örn: 8x 6m + 3x 7m)' : 'Split Bar Lengths'}
+                                                                                className={`p-1.5 px-2.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all ${
+                                                                                    opt.isMixedLength
+                                                                                        ? 'bg-purple-600/25 text-purple-300 border-purple-500/50 hover:bg-purple-600/40 shadow-sm'
+                                                                                        : 'bg-slate-900 text-slate-300 hover:text-white border-slate-700 hover:border-slate-500'
+                                                                                }`}
+                                                                            >
+                                                                                <Scissors size={13} className={opt.isMixedLength ? 'text-purple-300' : 'text-slate-400'} />
+                                                                                <span className="text-[11px] font-semibold">{lang === 'tr' ? 'Böl' : 'Split'}</span>
+                                                                            </button>
+
+                                                                            {hasSpecificOverride && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const updated = { ...(project.profileBarLengths || {}) };
+                                                                                        delete updated[profileKey];
+                                                                                        onUpdateProject({ ...project, profileBarLengths: updated });
+                                                                                    }}
+                                                                                    title={lang === 'tr' ? 'Varsayılana döndür' : 'Reset to default'}
+                                                                                    className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[11px] font-bold flex items-center justify-center transition-all border border-slate-700"
+                                                                                >
+                                                                                    ↺
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {opt.isMixedLength && (
+                                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                                                                ★ {lang === 'tr' ? 'Karma Boy (LogiKal)' : 'Mixed Lengths'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                            {opt.barLength !== 6000 && !opt.isMixedLength && (
+                                                                <span className="hidden print:inline-block text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-800 border border-amber-300 font-bold uppercase mt-1">
+                                                                    {lang === 'tr' ? 'Özel Ekstrüzyon' : 'Custom Extrusion'}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-5 text-center">
+                                                            <div className="flex flex-col items-center justify-center">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={`px-4 py-1.5 rounded-full font-black text-lg ${
+                                                                        opt.isMixedLength
+                                                                            ? 'bg-purple-500/15 text-purple-300 border border-purple-500/40 shadow-sm print:bg-purple-50 print:text-purple-800'
+                                                                            : opt.barLength !== 6000
+                                                                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 shadow-sm print:bg-amber-50 print:text-amber-800'
+                                                                            : 'bg-blue-500/10 text-blue-400 print:bg-blue-50 print:text-blue-700'
+                                                                    }`}>
+                                                                        {opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}
+                                                                    </span>
+                                                                    {opt.isMixedLength && (
+                                                                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 print:hidden">
+                                                                            {lang === 'tr' ? 'Karma' : 'Mixed'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Breakdown of bars if mixed */}
+                                                                {opt.isMixedLength && opt.barLengthsBreakdown && (
+                                                                    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-1 max-w-[220px]">
+                                                                        {Object.entries(opt.barLengthsBreakdown).map(([lenMm, count]) => {
+                                                                            const isCustomBar = Number(lenMm) !== 6000;
+                                                                            return (
+                                                                                <span
+                                                                                    key={lenMm}
+                                                                                    className={`text-[11px] font-mono px-2 py-0.5 rounded border font-semibold ${
+                                                                                        isCustomBar
+                                                                                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 print:text-amber-800'
+                                                                                            : 'bg-slate-900 border-slate-700 text-slate-200 print:text-slate-800'
+                                                                                    }`}
+                                                                                >
+                                                                                    <strong>{count} Boy</strong> ({(Number(lenMm) / 1000).toFixed(2)}m{isCustomBar ? ' Özel' : ' Std'})
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+
+                                                                <span className="text-[10px] text-slate-400 font-mono mt-1.5 flex items-center gap-1.5 print:text-slate-600">
+                                                                    <span>%{(opt.totalEfficiency).toFixed(1)} Verim</span>
+                                                                    <span>•</span>
+                                                                    <span className={opt.totalWaste > 15 ? 'text-amber-400 font-bold' : 'text-slate-400'}>
+                                                                        %{(opt.totalWaste).toFixed(1)} Fire
+                                                                    </span>
+                                                                </span>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
                                     </table>
+                                </div>
+
+                                {/* Order & Extrusion Summary Footer */}
+                                <div className="bg-slate-950 p-6 border-t border-slate-700 flex flex-wrap items-center justify-between gap-4 print:bg-slate-100 print:border-slate-300">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl print:hidden">
+                                            <Package size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-white print:text-black">
+                                                {lang === 'tr' ? 'Fabrika Ekstrüzyon Sipariş & Hammadde Özeti' : 'Extrusion Factory Order Summary'}
+                                            </h4>
+                                            <p className="text-[11px] text-slate-400 print:text-slate-600">
+                                                {lang === 'tr' ? 'Projedeki profillerin boy ölçülerine göre sipariş dağılımı (LogiKal Standardı):' : 'Profile orders grouped by bar length (LogiKal standard):'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        {Object.entries(barLengthsBreakdown).map(([lenMm, count]) => {
+                                            const lenM = (Number(lenMm) / 1000).toFixed(2);
+                                            const isCustom = Number(lenMm) !== 6000;
+                                            return (
+                                                <div key={lenMm} className={`px-4 py-2 rounded-xl border flex items-center gap-3 ${
+                                                    isCustom 
+                                                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 print:bg-amber-50 print:text-amber-900 print:border-amber-300' 
+                                                        : 'bg-blue-500/10 border-blue-500/30 text-blue-300 print:bg-blue-50 print:text-blue-900 print:border-blue-300'
+                                                }`}>
+                                                    <span className="text-xs font-bold">
+                                                        {lenM} m {isCustom ? (lang === 'tr' ? 'Özel Boy' : 'Custom') : (lang === 'tr' ? 'Standart' : 'Standard')}:
+                                                    </span>
+                                                    <span className="text-lg font-black font-mono">
+                                                        {count} <span className="text-xs font-normal">{lang === 'tr' ? 'Boy' : 'Bars'}</span>
+                                                    </span>
+                                                    <span className="text-[10px] opacity-75 font-mono">
+                                                        ({((Number(lenMm) * count) / 1000).toFixed(1)} m)
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+
+                                        <div className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white flex items-center gap-3 print:bg-white print:text-black print:border-slate-300">
+                                            <span className="text-xs font-bold">{lang === 'tr' ? 'Toplam:' : 'Total:'}</span>
+                                            <span className="text-lg font-black font-mono text-emerald-400 print:text-emerald-700">
+                                                {optimizationSummary.reduce((acc, o) => acc + o.totalBars, 0)} {lang === 'tr' ? 'Boy' : 'Bars'}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 print:text-slate-600 font-mono">
+                                                ({Object.entries(barLengthsBreakdown).reduce((acc, [l, c]) => acc + (Number(l) * c / 1000), 0).toFixed(1)} m)
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -6385,7 +6840,13 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     {productionSubTab === 'cuts' && (
                         <div className="space-y-12">
                             <CuttingList units={project.units} systems={systems} lang={lang} />
-                            <OptimizationReport units={project.units} systems={systems} lang={lang} />
+                            <OptimizationReport 
+                                units={project.units} 
+                                systems={systems} 
+                                lang={lang} 
+                                customBarLengthMm={project.customBarLengthMm} 
+                                profileBarLengths={project.profileBarLengths} 
+                            />
                         </div>
                     )}
 
@@ -6530,6 +6991,32 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none" 
                   placeholder={lang === 'tr' ? 'İskonto (%)' : 'Discount (%)'} 
                 />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    {lang === 'tr' ? 'Profil Sipariş Boyu (mm)' : 'Extrusion Bar Length (mm)'}
+                  </label>
+                  <span className="text-[10px] font-mono text-amber-400 font-bold">
+                    LogiKal Standard
+                  </span>
+                </div>
+                <input 
+                  type="number"
+                  min="1000"
+                  max="15000"
+                  step="50"
+                  value={tempProject.customBarLengthMm || 6000}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    setTempProject({...tempProject, customBarLengthMm: val});
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-blue-500 outline-none font-mono" 
+                  placeholder="6000" 
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {lang === 'tr' ? 'Standart: 6000 mm. Özel ekstrüzyon için örn. 6500, 6800, 7000 mm girebilirsiniz.' : 'Standard: 6000 mm. Enter custom length (e.g. 6500, 6800, 7000 mm).'}
+                </p>
               </div>
               <button type="submit" className="w-full bg-blue-600 py-3 rounded-xl font-bold text-white hover:bg-blue-500 transition-colors mt-4">{lang === 'tr' ? 'Kaydet' : 'Save'}</button>
               <button type="button" onClick={() => setIsEditingInfo(false)} className="w-full py-3 rounded-xl font-bold text-slate-500 hover:text-slate-300">{lang === 'tr' ? 'İptal' : 'Cancel'}</button>
@@ -8155,6 +8642,372 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   <span>{lang === 'tr' ? 'Sayfa 1 / 1' : 'Page 1 / 1'}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Profile Bar Splitting / Mixed Length Modal (Orgadata LogiKal Standard) */}
+      {splitModalOpt && (() => {
+        const profileKey = splitModalOpt.profileCode && splitModalOpt.profileCode !== '-' 
+          ? splitModalOpt.profileCode 
+          : `${splitModalOpt.systemId}-${splitModalOpt.profileLabel}`;
+        
+        const totalCutsCount = splitModalOpt.bars.reduce((sum, b) => sum + b.cuts.length, 0);
+        const totalRequiredCutM = splitModalOpt.bars.reduce((acc, b) => acc + b.cuts.reduce((sum, c) => sum + c, 0), 0) / 1000;
+        
+        const totalProvidedM = manualSplitRows.reduce((acc, r) => acc + ((r.lengthMm * r.count) / 1000), 0);
+        const totalProvidedBars = manualSplitRows.reduce((acc, r) => acc + r.count, 0);
+        const isSufficient = totalProvidedM >= totalRequiredCutM;
+        const diffM = totalProvidedM - totalRequiredCutM;
+
+        const applyPreset = (splits: { lengthMm: number; count: number }[]) => {
+          setManualSplitRows(splits);
+        };
+
+        const handleSave = () => {
+          const validSplits = manualSplitRows.filter(r => r.count > 0 && r.lengthMm > 0);
+          const updated = { ...(project.profileBarLengths || {}) };
+          if (validSplits.length === 0) {
+            delete updated[profileKey];
+          } else if (validSplits.length === 1 && validSplits[0].lengthMm === 6000) {
+            delete updated[profileKey];
+          } else {
+            updated[profileKey] = {
+              mode: 'manual',
+              manualSplits: validSplits
+            };
+          }
+          onUpdateProject({ ...project, profileBarLengths: updated });
+          setSplitModalOpt(null);
+        };
+
+        const handleResetToStandard = () => {
+          const updated = { ...(project.profileBarLengths || {}) };
+          delete updated[profileKey];
+          onUpdateProject({ ...project, profileBarLengths: updated });
+          setSplitModalOpt(null);
+        };
+
+        const handleSetSmartMixed = (mixed: number[]) => {
+          const updated = { ...(project.profileBarLengths || {}) };
+          updated[profileKey] = {
+            mode: 'mixed',
+            mixedLengths: mixed
+          };
+          onUpdateProject({ ...project, profileBarLengths: updated });
+          setSplitModalOpt(null);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200">
+              
+              {/* Header */}
+              <div className="p-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <Scissors size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      {lang === 'tr' ? 'Profil Boy Bölme ve Özel Ölçü Dağıtımı' : 'Profile Bar Length Splitting'}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold border border-purple-500/30">
+                        LogiKal Standardı
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      <strong className="text-slate-200">{t(lang, splitModalOpt.profileLabel as any) || splitModalOpt.profileLabel}</strong>
+                      {' • '}
+                      <span className="font-mono text-emerald-400 font-bold">{splitModalOpt.profileCode}</span>
+                      {' • '}
+                      <span>{splitModalOpt.systemName}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSplitModalOpt(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors border border-slate-700"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Context Stats */}
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Gereken Net Kesim' : 'Net Cut Length'}
+                    </span>
+                    <span className="text-xl font-black font-mono text-white">
+                      {totalRequiredCutM.toFixed(2)} m
+                    </span>
+                  </div>
+                  <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Toplam Parça Sayısı' : 'Total Cuts Count'}
+                    </span>
+                    <span className="text-xl font-black font-mono text-emerald-400">
+                      {totalCutsCount} {lang === 'tr' ? 'Parça' : 'Pcs'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      {lang === 'tr' ? 'Standart 6m Karşılığı' : 'Std 6m Estimate'}
+                    </span>
+                    <span className="text-xl font-black font-mono text-blue-400">
+                      {splitModalOpt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div>
+                  <span className="text-xs font-bold text-slate-300 block mb-2">
+                    {lang === 'tr' ? '⚡ Hızlı Boy Dağıtım Şablonları:' : '⚡ Quick Split Presets:'}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyPreset([
+                        { lengthMm: 6000, count: Math.max(1, splitModalOpt.totalBars - 3) },
+                        { lengthMm: 7000, count: 3 }
+                      ])}
+                      className="px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all"
+                    >
+                      🎯 {Math.max(1, splitModalOpt.totalBars - 3)}x 6.00m + 3x 7.00m
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyPreset([
+                        { lengthMm: 6000, count: Math.max(1, splitModalOpt.totalBars - 2) },
+                        { lengthMm: 7000, count: 2 }
+                      ])}
+                      className="px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 text-xs font-bold transition-all"
+                    >
+                      🎯 {Math.max(1, splitModalOpt.totalBars - 2)}x 6.00m + 2x 7.00m
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSetSmartMixed([6000, 7000])}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all"
+                    >
+                      ⚡ Otomatik Akıllı Dağıtım (6m + 7m)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyPreset([
+                        { lengthMm: 6000, count: splitModalOpt.totalBars }
+                      ])}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold transition-all"
+                    >
+                      📐 Hepsi 6.00m Standart ({splitModalOpt.totalBars} Boy)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Manual Table */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                  <div className="p-3.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-slate-300 tracking-wider">
+                      {lang === 'tr' ? 'Seçili Profil Boy Ölçüleri ve Adetleri' : 'Bar Lengths & Quantities'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setManualSplitRows([...manualSplitRows, { lengthMm: 7000, count: 1 }])}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-sm"
+                    >
+                      <Plus size={14} />
+                      <span>{lang === 'tr' ? 'Yeni Boy Ekle' : 'Add Bar Length'}</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 space-y-3">
+                    {manualSplitRows.map((row, rIdx) => {
+                      const rowTotalM = (row.lengthMm * row.count) / 1000;
+                      return (
+                        <div key={rIdx} className="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                          
+                          {/* Length selector */}
+                          <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              {lang === 'tr' ? 'Boy Ölçüsü' : 'Stock Length'}
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={row.lengthMm}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  const next = [...manualSplitRows];
+                                  next[rIdx].lengthMm = val;
+                                  setManualSplitRows(next);
+                                }}
+                                className="bg-slate-950 text-white font-mono font-bold text-xs px-3 py-1.5 rounded-lg border border-slate-700 outline-none w-full"
+                              >
+                                <option value={6000}>6.00 m (Standart)</option>
+                                <option value={6500}>6.50 m (Özel)</option>
+                                <option value={6800}>6.80 m (Özel)</option>
+                                <option value={7000}>7.00 m (Özel)</option>
+                                <option value={7200}>7.20 m (Özel)</option>
+                                <option value={7500}>7.50 m (Özel)</option>
+                                <option value={8000}>8.00 m (Özel)</option>
+                                {![6000, 6500, 6800, 7000, 7200, 7500, 8000].includes(row.lengthMm) && (
+                                  <option value={row.lengthMm}>{(row.lengthMm / 1000).toFixed(2)} m (Özel)</option>
+                                )}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Count stepper */}
+                          <div className="w-36">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 text-center">
+                              {lang === 'tr' ? 'Boy Adedi' : 'Bar Count'}
+                            </label>
+                            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-700">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [...manualSplitRows];
+                                  next[rIdx].count = Math.max(0, next[rIdx].count - 1);
+                                  setManualSplitRows(next);
+                                }}
+                                className="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-black text-sm flex items-center justify-center transition-colors"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min={0}
+                                max={500}
+                                value={row.count}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  const next = [...manualSplitRows];
+                                  next[rIdx].count = val;
+                                  setManualSplitRows(next);
+                                }}
+                                className="w-full bg-transparent text-center font-mono font-black text-white text-sm outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [...manualSplitRows];
+                                  next[rIdx].count = next[rIdx].count + 1;
+                                  setManualSplitRows(next);
+                                }}
+                                className="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-black text-sm flex items-center justify-center transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Total Row Metraj */}
+                          <div className="w-28 text-right">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              {lang === 'tr' ? 'Toplam Metraj' : 'Row Total'}
+                            </span>
+                            <span className="font-mono font-black text-white text-sm block">
+                              {rowTotalM.toFixed(2)} m
+                            </span>
+                          </div>
+
+                          {/* Delete row */}
+                          {manualSplitRows.length > 1 && (
+                            <div className="pt-4">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = manualSplitRows.filter((_, idx) => idx !== rIdx);
+                                  setManualSplitRows(next);
+                                }}
+                                className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center border border-red-500/20 transition-colors"
+                                title={lang === 'tr' ? 'Satırı Sil' : 'Delete Row'}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Summary & Capacity Check */}
+                  <div className="p-4 bg-slate-900 border-t border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-400">{lang === 'tr' ? 'Sağlanan Toplam Boy:' : 'Total Provided Bars:'}</span>
+                      <strong className="text-white font-bold">{totalProvidedBars} Boy ({totalProvidedM.toFixed(2)} m)</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-400">{lang === 'tr' ? 'Gereken Net Kesim Metrajı:' : 'Net Cut Metres:'}</span>
+                      <strong className="text-emerald-400 font-bold">{totalRequiredCutM.toFixed(2)} m</strong>
+                    </div>
+
+                    <div className={`mt-2 p-3 rounded-xl border flex items-center gap-2.5 text-xs ${
+                      isSufficient 
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}>
+                      {isSufficient ? (
+                        <>
+                          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                          <span>
+                            {lang === 'tr' 
+                              ? `Yeterli profil metrajı sağlandı. Tahmini fire ve güvenlik payı: +${diffM.toFixed(2)} m (${((diffM / totalProvidedM) * 100).toFixed(1)}%)`
+                              : `Sufficient bar capacity. Estimated waste buffer: +${diffM.toFixed(2)} m`}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                          <span>
+                            {lang === 'tr' 
+                              ? `Dikkat: Sağlanan profil metrajı (${totalProvidedM.toFixed(1)}m), net kesim ihtiyacından (${totalRequiredCutM.toFixed(1)}m) az! Lütfen boy adedini artırın.`
+                              : `Warning: Provided capacity is less than required cut length!`}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleResetToStandard}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all border border-slate-700"
+                >
+                  {lang === 'tr' ? '↺ Standart Tek Boya Sıfırla' : 'Reset to Standard'}
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSplitModalOpt(null)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                  >
+                    {lang === 'tr' ? 'Vazgeç' : 'Cancel'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/25 transition-all flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>{lang === 'tr' ? 'Dağıtımı Kaydet ve Optimize Et' : 'Save & Optimize'}</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
         );

@@ -19,7 +19,16 @@ export interface Project {
   clientSignatureData?: string;
   shadingItems?: ShadingItem[];
   glassToolReports?: GlassToolReport[];
+  customBarLengthMm?: number; // Proje genel ekstrüzyon profil sipariş boyu (örn. 6500, 6800, 7000 mm - Varsayılan 6000 mm)
+  profileBarLengths?: Record<string, number | ProfileBarConfig>; // Profil kodu veya tipine göre tek veya karma boylar
   updatedAt?: number;
+}
+
+export interface ProfileBarConfig {
+  mode: 'single' | 'mixed' | 'manual';
+  lengthMm?: number; // Tek boy için (örn. 6000, 7000)
+  mixedLengths?: number[]; // Karma boy için (örn. [6000, 7000])
+  manualSplits?: { lengthMm: number; count: number }[]; // Manuel boy bölme için (örn. [{ lengthMm: 6000, count: 8 }, { lengthMm: 7000, count: 3 }])
 }
 
 export interface GlassToolReport {
