@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Project, ProfileSystem, Accessory, Language, WindowNode, isDoorUnit } from '../types';
 import { t } from '../translations';
 import Visualizer, { getViewBoxWithDimensions } from './Visualizer';
-import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
+import { PlanKesitSVG, BoyKesitSVG } from './CadSections';
 import { 
   Sparkles, CheckCircle2, AlertOctagon, HelpCircle, PenTool,
   Printer, ArrowLeftRight, ClipboardCheck, MessageSquare, 

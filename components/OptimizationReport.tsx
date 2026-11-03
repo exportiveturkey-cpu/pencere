@@ -40,11 +40,11 @@ const OptimizationReport: React.FC<OptimizationReportProps> = ({ units, systems,
         </h2>
         {uniqueLengths.length > 1 ? (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm print:bg-purple-50 print:text-purple-800 print:border-purple-300">
-            ★ {lang === 'tr' ? `Karma Profil Boyu Optimizasyonu: ${uniqueLengths.map(l => (l / 1000).toFixed(2) + 'm').join(' & ')} (LogiKal)` : `Mixed Bar Lengths: ${uniqueLengths.map(l => (l / 1000).toFixed(2) + 'm').join(' & ')}`}
+            ★ {lang === 'tr' ? `Karma Profil Boyu Optimizasyonu: ${uniqueLengths.map(l => (l / 1000).toFixed(2) + 'm').join(' & ')}` : `Mixed Bar Lengths: ${uniqueLengths.map(l => (l / 1000).toFixed(2) + 'm').join(' & ')}`}
           </span>
         ) : customBarLengthMm && customBarLengthMm !== 6000 ? (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm print:bg-amber-50 print:text-amber-800 print:border-amber-300">
-            ★ {lang === 'tr' ? `Özel Profil Sipariş Boyu: ${(customBarLengthMm / 1000).toFixed(2)} m (LogiKal Standardı)` : `Custom Extrusion Length: ${(customBarLengthMm / 1000).toFixed(2)} m`}
+            ★ {lang === 'tr' ? `Özel Profil Sipariş Boyu: ${(customBarLengthMm / 1000).toFixed(2)} m` : `Custom Extrusion Length: ${(customBarLengthMm / 1000).toFixed(2)} m`}
           </span>
         ) : null}
       </div>

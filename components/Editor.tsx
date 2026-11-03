@@ -1727,7 +1727,7 @@ const Editor: React.FC<EditorProps> = ({ unit: initialUnit, systems, accessories
         ctx.lineTo(glassX + Math.min(32, glassW - 10), glassY + Math.min(22, glassH - 10));
         ctx.stroke();
 
-        // Draw segment size badge inside pane (LogiKal style)
+        // Draw segment size badge inside pane
         if (glassW >= 50 && glassH >= 35) {
           const paneText = `${Math.round(w / scale)} × ${Math.round(h / scale)}`;
           ctx.font = 'bold 8px monospace';
@@ -3511,7 +3511,7 @@ max="0.95"
                             <div className="flex items-center gap-2 text-amber-400">
                               <Sparkles size={14} />
                               <span className="text-[10px] font-bold uppercase tracking-wider">
-                                {lang === 'tr' ? 'LogiKal Uyumlu Duvar/Kiriş Boşluğu' : 'LogiKal Wall Opening (Void)'}
+                                {lang === 'tr' ? 'Mimari Duvar/Kiriş Boşluğu' : 'Architectural Wall Opening (Void)'}
                               </span>
                             </div>
                             <p className="text-[9px] text-slate-400 leading-relaxed">

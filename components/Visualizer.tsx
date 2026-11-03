@@ -216,7 +216,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
       hx = gx + finalOffset;
       isLeft = false;
     } else if (type.includes('sliding')) {
-      hx = gx + finalOffset + 10; // Sürme için kulp sol kenarda (LogiKal standardı)
+      hx = gx + finalOffset + 10; // Sürme için kulp sol kenarda
       isLeft = false;
     } else if (type === 'tilt') {
       hx = gx + gw / 2 - finalW / 2;
@@ -253,7 +253,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
           rx="3" 
         />
 
-        {/* Exterior door cylinder keyhole (Dış kapı barel ve kilit rozeti - LogiKal mimari standardı) */}
+        {/* Exterior door cylinder keyhole (Dış kapı barel ve kilit rozeti) */}
         {isExterior && isDoorActive && (
           <g opacity="0.95">
             <circle 
@@ -608,7 +608,7 @@ const Visualizer: React.FC<VisualizerProps> = ({
           {isOpening && renderHinges(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
           {isOpening && renderHandle(glassX, glassY, glassW, glassH, node.openingType || 'fixed')}
 
-          {/* Segment Dimension Badge inside Pane (LogiKal Style) */}
+          {/* Segment Dimension Badge inside Pane */}
           {glassW >= 40 && glassH >= 40 && (
             <g className="select-none pointer-events-none opacity-90 hover:opacity-100 transition-opacity">
               {(() => {

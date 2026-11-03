@@ -15,7 +15,7 @@ import { getAggregatedGlassOrder, getAggregatedCuttingList, getProjectAccessoryS
 import { getColorPricePerKg, getActiveCurrency, getCurrencySymbol, getExchangeRate, getConvertedAccessoryPrice, getUnitSashLaborCounts } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
 import { cloud_saveProductTypes, cloud_getProductTypes } from '../services/authService';
-import { PlanKesitSVG, BoyKesitSVG } from './LogikalSections';
+import { PlanKesitSVG, BoyKesitSVG } from './CadSections';
 import { GlassToolManager, GlassToolPrintAnnex } from './GlassToolReportAnnex';
 
 const sortQuadrilateralPoints = (pts: any) => pts;
@@ -4185,12 +4185,12 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                             </span>
                                                         ))}
                                                     </span>
-                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'LogiKal Standardı' : 'LogiKal Standard'}</span>
+                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'Endüstri Standardı' : 'Industry Standard'}</span>
                                                 </div>
                                             ) : project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (
                                                 <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-between print:bg-amber-50 print:text-amber-900 print:border-amber-300">
                                                     <span>📦 {lang === 'tr' ? 'Ekstrüzyon Sipariş Boyu:' : 'Extrusion Bar Length:'} <span className="font-mono font-black">{(project.customBarLengthMm / 1000).toFixed(2)} m</span> ({lang === 'tr' ? 'Özel Boy Siparişi' : 'Custom Extrusion'})</span>
-                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'LogiKal Standardı' : 'LogiKal Standard'}</span>
+                                                    <span className="text-[9px] uppercase tracking-wider font-mono opacity-80">{lang === 'tr' ? 'Endüstri Standardı' : 'Industry Standard'}</span>
                                                 </div>
                                             ) : null}
 
@@ -6341,7 +6341,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
             {activeTab === 'production' && (
                 <div className="space-y-8 animate-in fade-in">
-                    {/* LogiKal Style Special Bar Length Control */}
+                    {/* Special Bar Length Control */}
                     <div className="bg-slate-900/90 border border-slate-700/80 rounded-3xl p-5 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 print:hidden">
                         <div className="flex items-center gap-3.5">
                             <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
@@ -6353,7 +6353,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                         {lang === 'tr' ? 'Profil Ekstrüzyon Sipariş / Kesim Boyu' : 'Profile Extrusion Order / Bar Length'}
                                     </h3>
                                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/5">
-                                        LogiKal Standard
+                                        {lang === 'tr' ? 'Endüstri Standardı' : 'Industry Standard'}
                                     </span>
                                     {project.customBarLengthMm && project.customBarLengthMm !== 6000 ? (
                                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
@@ -6608,7 +6608,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                                                         </option>
                                                                                     )}
                                                                                 </optgroup>
-                                                                                <optgroup label="⚡ Karma Boy Dağıtımı (LogiKal)">
+                                                                                <optgroup label="⚡ Karma Boy Dağıtımı">
                                                                                     <option value="mixed_6000_7000" className="bg-slate-900 text-purple-300">⚡ Karma: 6.00m + 7.00m (Akıllı)</option>
                                                                                     <option value="mixed_6000_6500" className="bg-slate-900 text-purple-300">⚡ Karma: 6.00m + 6.50m (Akıllı)</option>
                                                                                     {currentSelectValue === 'manual' && (
@@ -6654,7 +6654,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
 
                                                                         {opt.isMixedLength && (
                                                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                                                                ★ {lang === 'tr' ? 'Karma Boy (LogiKal)' : 'Mixed Lengths'}
+                                                                                ★ {lang === 'tr' ? 'Karma Boy' : 'Mixed Lengths'}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -6733,7 +6733,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                                 {lang === 'tr' ? 'Fabrika Ekstrüzyon Sipariş & Hammadde Özeti' : 'Extrusion Factory Order Summary'}
                                             </h4>
                                             <p className="text-[11px] text-slate-400 print:text-slate-600">
-                                                {lang === 'tr' ? 'Projedeki profillerin boy ölçülerine göre sipariş dağılımı (LogiKal Standardı):' : 'Profile orders grouped by bar length (LogiKal standard):'}
+                                                {lang === 'tr' ? 'Projedeki profillerin boy ölçülerine göre sipariş dağılımı:' : 'Profile orders grouped by bar length:'}
                                             </p>
                                         </div>
                                     </div>
@@ -6997,8 +6997,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">
                     {lang === 'tr' ? 'Profil Sipariş Boyu (mm)' : 'Extrusion Bar Length (mm)'}
                   </label>
-                  <span className="text-[10px] font-mono text-amber-400 font-bold">
-                    LogiKal Standard
+                  <span className="text-[10px] font-mono text-slate-400 font-bold">
+                    {lang === 'tr' ? 'Endüstri Standardı' : 'Industry Standard'}
                   </span>
                 </div>
                 <input 
@@ -8647,7 +8647,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
         );
       })()}
 
-      {/* Profile Bar Splitting / Mixed Length Modal (Orgadata LogiKal Standard) */}
+      {/* Profile Bar Splitting / Mixed Length Modal */}
       {splitModalOpt && (() => {
         const profileKey = splitModalOpt.profileCode && splitModalOpt.profileCode !== '-' 
           ? splitModalOpt.profileCode 
@@ -8713,7 +8713,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     <h3 className="text-lg font-black text-white flex items-center gap-2">
                       {lang === 'tr' ? 'Profil Boy Bölme ve Özel Ölçü Dağıtımı' : 'Profile Bar Length Splitting'}
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold border border-purple-500/30">
-                        LogiKal Standardı
+                        {lang === 'tr' ? 'Akıllı Dağıtım' : 'Smart Allocation'}
                       </span>
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
