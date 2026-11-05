@@ -2,9 +2,23 @@
 import { Unit, ProfileSystem, WindowNode, GlassType, UnitShape, Accessory, ProfileBarConfig } from '../types';
 import { GLASS_TYPES, PROFILE_SYSTEMS, KURTOGLU_70T_CATALOG, KURTOGLU_51LS_CATALOG } from '../constants';
 
+export interface CutPieceDetail {
+  id?: string;
+  length: number;
+  label: string;
+  code?: string;
+  unitName: string;
+  unitId?: string;
+  color?: string;
+  angleLeft: number;  // 45 or 90
+  angleRight: number; // 45 or 90
+  pieceNumber?: number;
+}
+
 export interface OptimizedBar {
   barLength: number;
   cuts: number[]; 
+  cutPieces?: CutPieceDetail[];
   remaining: number;
 }
 
@@ -13,12 +27,14 @@ export interface SystemOptimization {
   systemName: string;
   profileLabel: string;
   profileCode: string;
+  profileColor?: string;
   totalBars: number;
   barLength: number; 
   totalEfficiency: number; 
   totalWaste: number; 
   bars: OptimizedBar[];
   totalCutCount: number;
+  allCutPieces?: CutPieceDetail[];
   isCustomLength?: boolean;
   isMixedLength?: boolean;
   barLengthsBreakdown?: Record<number, number>; // e.g. { 6000: 8, 7000: 3 }
@@ -63,9 +79,10 @@ const findSystem = (systemId: string, systems: ProfileSystem[]): ProfileSystem |
   return systems[0];
 };
 
-const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label: string, code?: string, weightPerMeter?: number }[] => {
-  const cuts: { length: number, label: string, code?: string, weightPerMeter?: number }[] = [];
+const extractCuts = (unit: Unit, system: ProfileSystem): (CutPieceDetail & { weightPerMeter?: number })[] => {
+  const cuts: (CutPieceDetail & { weightPerMeter?: number })[] = [];
   const config = system.correctionConfig || { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 };
+  const unitColor = unit.specificColor || unit.color || 'RAL 7016';
   
   // Custom weights/codes support
   let frameCode = system.profileCodes?.frame;
@@ -110,11 +127,12 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
   const frameW = unit.width + (2 * config.frameCornerWelding);
   const frameH = unit.height + (2 * config.frameCornerWelding);
 
-  // Kasa Kesimleri
-  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
-  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
-  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
-  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight });
+  // Kasa Kesimleri (Miter 45 for hinged, 90 for sliding)
+  const frameAngle = isSliding ? 90 : 45;
+  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: frameAngle, angleRight: frameAngle });
+  cuts.push({ length: frameW, label: isSliding ? 'Kasa Alt/Üst Ray' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: frameAngle, angleRight: frameAngle });
+  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: frameAngle, angleRight: frameAngle });
+  cuts.push({ length: frameH, label: isSliding ? 'Kasa Yan Dikme' : 'Frame Profile', code: frameCode, weightPerMeter: frameWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: frameAngle, angleRight: frameAngle });
 
   const traverse = (node: WindowNode, w: number, h: number) => {
     if (node.type === 'container' && node.children?.length === 2 && node.splitRatio) {
@@ -126,7 +144,12 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
             length: Math.round(mullionCutLen), 
             label: isVert ? 'Mullion (Vertical)' : 'Transom (Horizontal)', 
             code: mullionCode, 
-            weightPerMeter: mullionWeight 
+            weightPerMeter: mullionWeight,
+            unitName: unit.name,
+            unitId: unit.id,
+            color: unitColor,
+            angleLeft: 90,
+            angleRight: 90
           });
       }
       const avail = isVert ? w - frameWidth : h - frameWidth;
@@ -148,10 +171,10 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
         const sashCutW = (daylightW + (2 * config.sashOverlap)) + (2 * config.frameCornerWelding);
         const sashCutH = (daylightH + (2 * config.sashOverlap)) + (2 * config.frameCornerWelding);
         if (sashCutW > 0 && sashCutH > 0) {
-            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
-            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight });
+            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+            cuts.push({ length: Math.round(sashCutW), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+            cuts.push({ length: Math.round(sashCutH), label: 'Sash Profile', code: sashCode, weightPerMeter: sashWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
         }
         const sashProfileWidth = 55;
         beadW = sashCutW - (2 * sashProfileWidth);
@@ -161,10 +184,10 @@ const extractCuts = (unit: Unit, system: ProfileSystem): { length: number, label
       // Cam Çıtası Kesimleri
       if (beadW > 0 && beadH > 0 && !isSliding) {
           const beadWeight = system.profileWeights?.glazingBead || 0;
-          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
-          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight });
+          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+          cuts.push({ length: Math.round(beadW), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
+          cuts.push({ length: Math.round(beadH), label: 'Glazing Bead', code: system.profileCodes?.glazingBead, weightPerMeter: beadWeight, unitName: unit.name, unitId: unit.id, color: unitColor, angleLeft: 45, angleRight: 45 });
       }
     }
   };
@@ -179,7 +202,14 @@ export const calculateProjectOptimization = (
   profileBarLengths?: Record<string, number | ProfileBarConfig>
 ): SystemOptimization[] => {
   const result: SystemOptimization[] = [];
-  const cutsByProfile: Record<string, { system: ProfileSystem, label: string, code: string, lengths: number[] }> = {};
+  const cutsByProfile: Record<string, { 
+    system: ProfileSystem; 
+    label: string; 
+    code: string; 
+    lengths: number[];
+    pieces: CutPieceDetail[];
+    color?: string;
+  }> = {};
 
   if (!units || units.length === 0) return [];
 
@@ -195,12 +225,18 @@ export const calculateProjectOptimization = (
                 system, 
                 label: cut.label, 
                 code: cut.code || '-', 
-                lengths: [] 
+                lengths: [],
+                pieces: [],
+                color: cut.color || u.specificColor || u.color
             };
         }
         const qty = u.quantity || 1;
         for (let i = 0; i < qty; i++) {
             cutsByProfile[key].lengths.push(cut.length);
+            cutsByProfile[key].pieces.push({
+              ...cut,
+              id: `${cut.unitId || u.id}-${cut.code}-${i}-${Math.random().toString(36).substring(2, 7)}`
+            });
         }
     });
   });
@@ -238,7 +274,7 @@ export const calculateProjectOptimization = (
       if (rawSetting.manualSplits && rawSetting.manualSplits.length > 0) manualSplits = rawSetting.manualSplits;
     }
 
-    const optimizedBars = optimizeCutsAdvanced(profileData.lengths, {
+    const optimizedBars = optimizeCutsAdvanced(profileData.pieces, {
       mode: configMode,
       baseLength: barLengthMm,
       mixedLengths,
@@ -261,12 +297,14 @@ export const calculateProjectOptimization = (
       systemName: profileData.system.name,
       profileLabel: profileData.label,
       profileCode: profileData.code,
+      profileColor: profileData.color,
       barLength: barLengthMm,
       totalBars: optimizedBars.length,
       bars: optimizedBars,
       totalEfficiency: efficiency,
       totalWaste: 100 - efficiency,
       totalCutCount: profileData.lengths.length,
+      allCutPieces: profileData.pieces,
       isCustomLength: isCustom,
       isMixedLength: isMixed,
       barLengthsBreakdown: breakdown
@@ -276,7 +314,7 @@ export const calculateProjectOptimization = (
 };
 
 const optimizeCutsAdvanced = (
-  lengths: number[], 
+  input: (number | CutPieceDetail)[], 
   config: {
     mode: 'single' | 'mixed' | 'manual';
     baseLength: number;
@@ -284,7 +322,29 @@ const optimizeCutsAdvanced = (
     manualSplits?: { lengthMm: number; count: number }[];
   }
 ): OptimizedBar[] => {
-  const sortedCuts = [...lengths].sort((a, b) => b - a);
+  // Normalize items to CutPieceDetail objects
+  const pieces: CutPieceDetail[] = input.map((item, idx) => {
+    if (typeof item === 'number') {
+      return {
+        id: `piece-${idx}`,
+        length: item,
+        label: 'Profil Kesimi',
+        unitName: `P${idx + 1}`,
+        angleLeft: 45,
+        angleRight: 45,
+        pieceNumber: idx + 1
+      };
+    }
+    return { ...item };
+  });
+
+  // Sort descending by length
+  const sortedPieces = [...pieces].sort((a, b) => b.length - a.length);
+  // Assign sequential piece sequence numbers
+  sortedPieces.forEach((p, idx) => {
+    p.pieceNumber = idx + 1;
+  });
+
   const bars: OptimizedBar[] = [];
 
   // Manual splits mode: Pre-seed specific bar counts and lengths
@@ -295,12 +355,14 @@ const optimizeCutsAdvanced = (
         bars.push({
           barLength: bLen,
           cuts: [],
+          cutPieces: [],
           remaining: bLen
         });
       }
     });
 
-    for (const cut of sortedCuts) {
+    for (const piece of sortedPieces) {
+      const cut = piece.length;
       const cutWithKerf = cut + SAW_BLADE_THICKNESS;
       let bestBarIndex = -1;
       let minRemaining = Number.MAX_VALUE;
@@ -317,12 +379,15 @@ const optimizeCutsAdvanced = (
 
       if (bestBarIndex !== -1) {
         bars[bestBarIndex].cuts.push(cut);
+        bars[bestBarIndex].cutPieces = bars[bestBarIndex].cutPieces || [];
+        bars[bestBarIndex].cutPieces.push(piece);
         bars[bestBarIndex].remaining -= cutWithKerf;
       } else {
         // Pre-allocated bars are full, add fallback bar with baseLength
         bars.push({
           barLength: config.baseLength,
           cuts: [cut],
+          cutPieces: [piece],
           remaining: config.baseLength - cutWithKerf
         });
       }
@@ -336,8 +401,9 @@ const optimizeCutsAdvanced = (
     ? [...config.mixedLengths].sort((a, b) => a - b)
     : [config.baseLength];
 
-  for (let cIdx = 0; cIdx < sortedCuts.length; cIdx++) {
-    const cut = sortedCuts[cIdx];
+  for (let cIdx = 0; cIdx < sortedPieces.length; cIdx++) {
+    const piece = sortedPieces[cIdx];
+    const cut = piece.length;
     const cutWithKerf = cut + SAW_BLADE_THICKNESS;
     let bestBarIndex = -1;
     let minRemaining = Number.MAX_VALUE;
@@ -355,19 +421,21 @@ const optimizeCutsAdvanced = (
 
     if (bestBarIndex !== -1) {
       bars[bestBarIndex].cuts.push(cut);
+      bars[bestBarIndex].cutPieces = bars[bestBarIndex].cutPieces || [];
+      bars[bestBarIndex].cutPieces.push(piece);
       bars[bestBarIndex].remaining -= cutWithKerf;
     } else {
       // 2. Open a new bar: select which stock length maximizes utilization
       let bestStockLength = allowedStockLengths[0];
       let bestWasteRatio = Number.MAX_VALUE;
-      const remainingCuts = sortedCuts.slice(cIdx + 1);
+      const remainingPieces = sortedPieces.slice(cIdx + 1);
 
       for (const stockLen of allowedStockLengths) {
         if (stockLen < cutWithKerf) continue;
 
         let rem = stockLen - cutWithKerf;
-        for (const nextCut of remainingCuts) {
-          const nextWithKerf = nextCut + SAW_BLADE_THICKNESS;
+        for (const nextPiece of remainingPieces) {
+          const nextWithKerf = nextPiece.length + SAW_BLADE_THICKNESS;
           if (rem >= nextWithKerf) {
             rem -= nextWithKerf;
           }
@@ -384,6 +452,7 @@ const optimizeCutsAdvanced = (
       bars.push({
         barLength: bestStockLength,
         cuts: [cut],
+        cutPieces: [piece],
         remaining: bestStockLength - cutWithKerf
       });
     }

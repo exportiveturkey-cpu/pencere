@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { cloud_saveProductTypes, cloud_getProductTypes } from '../services/authService';
 import { PlanKesitSVG, BoyKesitSVG } from './CadSections';
 import { GlassToolManager, GlassToolPrintAnnex } from './GlassToolReportAnnex';
+import { WorkshopSawReport } from './WorkshopSawReport';
 
 const sortQuadrilateralPoints = (pts: any) => pts;
 const getPerspectiveTransform = (src: any, dst: any) => "matrix(1, 0, 0, 1, 0, 0)";
@@ -2387,7 +2388,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
     alert(lang === 'tr' ? `${bulkCheckedUnitIds.length} poz başarıyla güncellendi!` : `${bulkCheckedUnitIds.length} units successfully updated in bulk!`);
   };
 
-  const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'glass' | 'bom'>('cuts');
+  const [productionSubTab, setProductionSubTab] = useState<'cuts' | 'saw-report' | 'glass' | 'bom'>('cuts');
   const [isScanning, setIsScanning] = useState(false);
   const [isGeneratingPitch, setIsGeneratingPitch] = useState(false);
   const [scannedReviewUnits, setScannedReviewUnits] = useState<{
@@ -6444,10 +6445,14 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     </div>
 
                     <div className="flex items-center justify-between print:hidden">
-                        <div className="flex gap-4 p-1 bg-slate-950 rounded-2xl border border-white/5 w-fit">
-                            <button onClick={() => setProductionSubTab('bom')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'materialSummary')}</button>
-                            <button onClick={() => setProductionSubTab('cuts')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'cuts' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'cuttingList')}</button>
-                            <button onClick={() => setProductionSubTab('glass')} className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'glass' ? 'bg-blue-500 text-white' : 'text-slate-500'}`}>{t(lang, 'glassList')}</button>
+                        <div className="flex flex-wrap gap-2 sm:gap-3 p-1.5 bg-slate-950 rounded-2xl border border-white/5 w-fit">
+                            <button onClick={() => setProductionSubTab('bom')} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'bom' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t(lang, 'materialSummary')}</button>
+                            <button onClick={() => setProductionSubTab('cuts')} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'cuts' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t(lang, 'cuttingList')}</button>
+                            <button onClick={() => setProductionSubTab('saw-report')} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${productionSubTab === 'saw-report' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:text-white'}`}>
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                {lang === 'tr' ? 'Atölye Testere Planı' : 'Workshop Saw Sheet'}
+                            </button>
+                            <button onClick={() => setProductionSubTab('glass')} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${productionSubTab === 'glass' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t(lang, 'glassList')}</button>
                         </div>
                         <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg border border-transparent">
                             <Printer size={16} /> {t(lang, 'exportPdf')}
@@ -6838,7 +6843,30 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                     )}
 
                     {productionSubTab === 'cuts' && (
-                        <div className="space-y-12">
+                        <div className="space-y-8">
+                            <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg print:hidden">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
+                                        📐
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold text-white flex items-center gap-2">
+                                            {lang === 'tr' ? 'Atölye Manuel Testere Kesim Listesi Hazır' : 'Manual Workshop Saw Sheet Ready'}
+                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">Endüstri Standardı</span>
+                                        </div>
+                                        <div className="text-xs text-slate-400">
+                                            {lang === 'tr' ? 'Manuel çift/tek kafa testere operatörleri için açılı (45°/90° V-V, I-V), poz etiketli ve profil kesitli optimize kesim föyü.' : 'Miter angle cut sheet with 45°/90° tags, unit labels, and cross-section marks for workshop saw operators.'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setProductionSubTab('saw-report')}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                                >
+                                    {lang === 'tr' ? 'Atölye Testere Planına Geç' : 'Open Workshop Saw Sheet'} →
+                                </button>
+                            </div>
+
                             <CuttingList units={project.units} systems={systems} lang={lang} />
                             <OptimizationReport 
                                 units={project.units} 
@@ -6846,6 +6874,19 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 lang={lang} 
                                 customBarLengthMm={project.customBarLengthMm} 
                                 profileBarLengths={project.profileBarLengths} 
+                            />
+                        </div>
+                    )}
+
+                    {productionSubTab === 'saw-report' && (
+                        <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                            <WorkshopSawReport
+                                units={project.units}
+                                systems={systems}
+                                lang={lang}
+                                projectName={project.name}
+                                customBarLengthMm={project.customBarLengthMm}
+                                profileBarLengths={project.profileBarLengths}
                             />
                         </div>
                     )}
