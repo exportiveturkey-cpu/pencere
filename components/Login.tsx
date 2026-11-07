@@ -7,13 +7,14 @@ import Logo from './Logo';
 
 interface LoginProps {
   lang: Language;
-  onLogin: (licenseKey: string) => Promise<boolean>; 
+  onLogin: (licenseKey: string) => Promise<{ success: boolean; isExpired?: boolean } | boolean>; 
   theme?: 'light' | 'dark';
 }
 
 const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
   const [key, setKey] = useState('');
   const [error, setError] = useState(false);
+  const [isExpiredError, setIsExpiredError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -24,11 +25,19 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
 
     setIsLoading(true);
     setError(false);
+    setIsExpiredError(false);
 
     try {
-      const success = await onLogin(key);
-      if (success) {
+      const res = await onLogin(key);
+      const isSuccessResult = typeof res === 'boolean' ? res : res?.success;
+      const expired = typeof res === 'object' && res?.isExpired;
+
+      if (isSuccessResult) {
         setIsSuccess(true);
+      } else if (expired) {
+        setIsExpiredError(true);
+        setShaking(true);
+        setTimeout(() => setShaking(false), 500);
       } else {
         setError(true);
         setShaking(true);
@@ -96,8 +105,24 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
                 </div>
                 {error && (
                     <div className="flex items-center gap-2 text-red-400 text-xs mt-2 ml-1 animate-in slide-in-from-top-1">
-                        <AlertCircle size={12} />
+                        <AlertCircle size={14} className="shrink-0" />
                         {t(lang, 'wrongPassword')}
+                    </div>
+                )}
+                {isExpiredError && (
+                    <div className="mt-3 p-4 bg-red-950/60 border border-red-500/40 rounded-xl text-left space-y-3 animate-in slide-in-from-top-2 shadow-lg">
+                        <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                            <AlertCircle size={16} className="shrink-0" />
+                            <span>Demo Süresi Doldu / Trial Expired</span>
+                        </div>
+                        <div className="text-xs text-slate-200 leading-relaxed font-sans border-t border-red-500/20 pt-2">
+                            <span className="font-bold text-red-300">🇹🇷 </span>
+                            "3 günlük deneme süreniz sona ermiştir. Alumetric tam sürüm lisansı ve fiyat teklifi için bizimle iletişime geçin. <a href="mailto:alumetric@alumetric.net" className="text-sky-400 font-bold hover:underline">alumetric@alumetric.net</a>"
+                        </div>
+                        <div className="text-xs text-slate-300 leading-relaxed font-sans border-t border-red-500/20 pt-2">
+                            <span className="font-bold text-sky-300">🇬🇧 </span>
+                            "Your 3-day trial period has expired. Please contact us for the Alumetric full version license and quotation. <a href="mailto:alumetric@alumetric.net" className="text-sky-400 font-bold hover:underline">alumetric@alumetric.net</a>"
+                        </div>
                     </div>
                 )}
             </div>

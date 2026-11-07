@@ -1,5 +1,5 @@
 
-import { ProfileSystem, GlassType, Project, Accessory, CatalogProfileItem } from './types';
+import { ProfileSystem, GlassType, Project, Accessory, CatalogProfileItem, BrandTenant, BrandTenantId } from './types';
 
 export const PROFILE_SYSTEMS: ProfileSystem[] = [
   // --- KURTOĞLU ALÜMİNYUM ---
@@ -63,6 +63,67 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     profileCodes: { frame: '51LS-101', sash: '51LS-201', mullion: '51LS-301', glazingBead: '51LS-401' },
     profileWeights: { frame: 2.350, sash: 1.750, mullion: 1.950, glazingBead: 0.280 }
   },
+  // --- ASAŞ ALÜMİNYUM (RESCARA SİSTEMLERİ) ---
+  { 
+    id: 'asas-rwt-64', 
+    name: 'Asaş Rescara RWT 64 (Thermal Hinged)', 
+    type: 'hinged',
+    materialType: 'aluminum',
+    uValue: 1.7, frameWidth: 64, frameDepth: 64, sashDepth: 74, thermalBreakWidth: 24, wallThickness: 1.6,
+    pricePerMeter: 102, profileLength: 6.0,
+    laborPricePerKg: 36,
+    laborPricePerKgUsd: 1.10,
+    tiltTurnLaborPrice: 350,
+    tiltTurnLaborPriceUsd: 10.5,
+    correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: 'RWT64-101', sash: 'RWT64-201', mullion: 'RWT64-301', glazingBead: 'RWT64-401' },
+    profileWeights: { frame: 1.480, sash: 1.720, mullion: 1.560, glazingBead: 0.285 }
+  },
+  { 
+    id: 'asas-rwt-75', 
+    name: 'Asaş Rescara RWT 75 (High Insulation Hinged)', 
+    type: 'hinged',
+    materialType: 'aluminum',
+    uValue: 1.3, frameWidth: 75, frameDepth: 75, sashDepth: 85, thermalBreakWidth: 34, wallThickness: 2.0,
+    pricePerMeter: 118, profileLength: 6.0,
+    laborPricePerKg: 40,
+    laborPricePerKgUsd: 1.20,
+    tiltTurnLaborPrice: 350,
+    tiltTurnLaborPriceUsd: 10.5,
+    correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: 'RWT75-101', sash: 'RWT75-201', mullion: 'RWT75-301', glazingBead: 'RWT75-401' },
+    profileWeights: { frame: 1.680, sash: 1.950, mullion: 1.780, glazingBead: 0.295 }
+  },
+  { 
+    id: 'asas-rs-56', 
+    name: 'Asaş Rescara RS 56 (Thermal Sliding / Sürme)', 
+    type: 'sliding',
+    materialType: 'aluminum',
+    uValue: 2.1, frameWidth: 56, frameDepth: 125, sashDepth: 48, thermalBreakWidth: 20, wallThickness: 1.8,
+    pricePerMeter: 125, profileLength: 6.0,
+    laborPricePerKg: 44,
+    laborPricePerKgUsd: 1.30,
+    hbsbLaborPrice: 750,
+    hbsbLaborPriceUsd: 22.5,
+    correctionConfig: { sashOverlap: 30, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: 'RS56-101', sash: 'RS56-201', mullion: 'RS56-301', glazingBead: 'RS56-401' },
+    profileWeights: { frame: 2.400, sash: 1.820, mullion: 2.000, glazingBead: 0.280 }
+  },
+  { 
+    id: 'asas-rne-55', 
+    name: 'Asaş Rescara RNE 55 (Non-Thermal Hinged)', 
+    type: 'hinged',
+    materialType: 'aluminum',
+    uValue: 2.8, frameWidth: 55, frameDepth: 55, sashDepth: 65, wallThickness: 1.5,
+    pricePerMeter: 78, profileLength: 6.0,
+    laborPricePerKg: 32,
+    laborPricePerKgUsd: 0.95,
+    tiltTurnLaborPrice: 320,
+    tiltTurnLaborPriceUsd: 9.5,
+    correctionConfig: { sashOverlap: 8, glassClearance: 5, mullionCorrection: 0, frameCornerWelding: 0 },
+    profileCodes: { frame: 'RNE55-101', sash: 'RNE55-201', mullion: 'RNE55-301', glazingBead: 'RNE55-401' },
+    profileWeights: { frame: 1.250, sash: 1.420, mullion: 1.310, glazingBead: 0.250 }
+  },
   // --- PİMAPEN PVC SİSTEMLERİ ---
   { 
     id: 'pvc-carisma-70', 
@@ -87,6 +148,65 @@ export const PROFILE_SYSTEMS: ProfileSystem[] = [
     profileWeights: { frame: 1.450, sash: 1.250, mullion: 1.350, glazingBead: 0.200 }
   }
 ];
+
+export const BRAND_TENANTS: Record<BrandTenantId, BrandTenant> = {
+  all: {
+    id: 'all',
+    name: 'Tüm Sistemler (Alumetric Master)',
+    tagline: 'Çoklu Marka & Sistem Entegrasyon Portalı',
+    brandColor: '#0284c7', // Sky Blue
+    brandColorHover: '#0369a1',
+    badgeBg: 'bg-sky-500/20',
+    badgeText: 'text-sky-300',
+    badgeBorder: 'border-sky-500/30',
+    systemPrefixes: [],
+    domainHint: 'app.alumetric.net',
+    dealerTitle: 'Mühendislik & Fabrikasyon Paketi',
+    description: 'Kurtoğlu, Asaş ve PVC serilerini tek merkezden yönetin.'
+  },
+  kurtoglu: {
+    id: 'kurtoglu',
+    name: 'Kurtoğlu Alüminyum',
+    tagline: 'Resmi Bayi & Üretici Mühendislik Sürümü',
+    brandColor: '#2563eb', // Royal Blue
+    brandColorHover: '#1d4ed8',
+    badgeBg: 'bg-blue-500/20',
+    badgeText: 'text-blue-300',
+    badgeBorder: 'border-blue-500/30',
+    systemPrefixes: ['kurt-'],
+    domainHint: 'kurtoglu.alumetric.net',
+    dealerTitle: 'Kurtoğlu Alüminyum Bayi Portalı',
+    description: 'KTR 64T, 70T-TH, 50LS ve 51LS serilerine özel optimize katalog.'
+  },
+  asas: {
+    id: 'asas',
+    name: 'Asaş Alüminyum (Rescara)',
+    tagline: 'Asaş Rescara Mimari Sistemler Sürümü',
+    brandColor: '#dc2626', // Asaş Red
+    brandColorHover: '#b91c1c',
+    badgeBg: 'bg-red-500/20',
+    badgeText: 'text-red-300',
+    badgeBorder: 'border-red-500/30',
+    systemPrefixes: ['asas-'],
+    domainHint: 'asas.alumetric.net',
+    dealerTitle: 'Asaş Rescara Bayi Portalı',
+    description: 'RWT 64, RWT 75, RS 56 ve RNE 55 serilerine özel optimize katalog.'
+  },
+  pimapen: {
+    id: 'pimapen',
+    name: 'Pimapen PVC Sistemleri',
+    tagline: 'Pimapen Doğrama & Sürme Portalı',
+    brandColor: '#16a34a', // Emerald Green
+    brandColorHover: '#15803d',
+    badgeBg: 'bg-emerald-500/20',
+    badgeText: 'text-emerald-300',
+    badgeBorder: 'border-emerald-500/30',
+    systemPrefixes: ['pvc-'],
+    domainHint: 'pimapen.alumetric.net',
+    dealerTitle: 'Pimapen Bayi Portalı',
+    description: 'Carisma 70 ve Albatros PVC sürme serilerine özel katalog.'
+  }
+};
 
 export const MOCK_ACCESSORIES: Accessory[] = [
   { id: 'sig-h1', name: 'Siegenia Globe Alüminyum Pencere Kolu (Sürme & Kasa)', type: 'handle', unit: 'pce', price: 18.5, compatibility: 'both' },

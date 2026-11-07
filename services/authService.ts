@@ -65,7 +65,54 @@ export interface LicenseInfo {
   key: string;
   companyName: string;
   plan: 'Standard' | 'Pro' | 'Enterprise';
+  isDemo?: boolean;
+  demoExpiresAt?: number;
+  demoFirstLoginAt?: number;
+  demoRemainingMs?: number;
+  isExpired?: boolean;
 }
+
+export const getOrCreateDeviceId = (): string => {
+  let deviceId = '';
+  try {
+    deviceId = localStorage.getItem('alumetric_device_id') || '';
+  } catch (e) {}
+
+  if (!deviceId) {
+    let glRenderer = '';
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl');
+      if (gl) {
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          glRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || '';
+        }
+      }
+    } catch (e) {}
+
+    const seed = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width,
+      screen.height,
+      screen.colorDepth,
+      glRenderer
+    ].join('###');
+
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const hex = Math.abs(hash).toString(16).padStart(8, '0');
+    deviceId = `dev_${hex}`;
+    try {
+      localStorage.setItem('alumetric_device_id', deviceId);
+    } catch (e) {}
+  }
+  return deviceId;
+};
 
 const extractNameFromData = (data: any): string => {
     if (data.companyName) return data.companyName;
@@ -80,6 +127,92 @@ export const validateLicense = async (inputKey: string): Promise<LicenseInfo | n
   const trimmedKey = inputKey.trim();
   if (!trimmedKey) return null;
 
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 72 hours (3 days)
+  const now = Date.now();
+
+  // 1. Check for DEMO2026 Special 3-Day Demo License
+  if (trimmedKey.toUpperCase() === 'DEMO2026') {
+    const deviceId = getOrCreateDeviceId();
+    let firstLoginAt = now;
+    let expiresAt = now + THREE_DAYS_MS;
+    let isClockTampered = false;
+
+    // Check monotonic local clock to prevent user from rolling system date back
+    const lastSeenStr = localStorage.getItem('alumetric_demo_last_seen_' + deviceId);
+    if (lastSeenStr) {
+      const lastSeen = Number(lastSeenStr);
+      if (now < lastSeen - 300000) { // More than 5 mins in past indicates system clock rollback
+        isClockTampered = true;
+      }
+    }
+    try {
+      localStorage.setItem('alumetric_demo_last_seen_' + deviceId, String(now));
+    } catch (e) {}
+
+    // Check Cloud Firestore for this device's demo session
+    try {
+      const demoDocRef = doc(db, "demo_sessions", deviceId);
+      const demoSnap = await getDoc(demoDocRef);
+      if (demoSnap.exists()) {
+        const dData = demoSnap.data();
+        firstLoginAt = dData.firstLoginAt || now;
+        expiresAt = dData.expiresAt || (firstLoginAt + THREE_DAYS_MS);
+      } else {
+        // First login on this device! Register in Cloud Firestore
+        await setDoc(demoDocRef, {
+          key: 'DEMO2026',
+          deviceId,
+          firstLoginAt: now,
+          expiresAt: now + THREE_DAYS_MS,
+          createdAt: new Date(now).toISOString(),
+          expiresAtDate: new Date(now + THREE_DAYS_MS).toISOString(),
+          userAgent: navigator.userAgent || 'unknown',
+          platform: navigator.platform || 'unknown'
+        });
+      }
+    } catch (fsErr) {
+      console.warn("Could not reach Cloud Firestore for demo session; checking local storage:", fsErr);
+      const localFirst = localStorage.getItem('alumetric_demo_first_' + deviceId);
+      const localExpires = localStorage.getItem('alumetric_demo_expires_' + deviceId);
+      if (localFirst && localExpires) {
+        firstLoginAt = Number(localFirst);
+        expiresAt = Number(localExpires);
+      } else {
+        firstLoginAt = now;
+        expiresAt = now + THREE_DAYS_MS;
+      }
+    }
+
+    // Persist to local backup
+    try {
+      localStorage.setItem('alumetric_demo_first_' + deviceId, String(firstLoginAt));
+      localStorage.setItem('alumetric_demo_expires_' + deviceId, String(expiresAt));
+    } catch (e) {}
+
+    const isExpired = isClockTampered || (now >= expiresAt);
+    const remainingMs = Math.max(0, expiresAt - now);
+
+    const demoLicense: LicenseInfo = {
+      key: 'DEMO2026',
+      companyName: 'Alumetric Demo Kullanıcısı',
+      plan: 'Enterprise',
+      isDemo: true,
+      isExpired,
+      demoFirstLoginAt: firstLoginAt,
+      demoExpiresAt: expiresAt,
+      demoRemainingMs: remainingMs
+    };
+
+    if (isExpired) {
+      sessionStorage.removeItem('alumetric_auth');
+      return demoLicense;
+    }
+
+    saveAuthSession(demoLicense);
+    return demoLicense;
+  }
+
+  // 2. Standard License Validation via Cloud Firestore
   try {
     const docRef = doc(db, "licenses", trimmedKey);
     const docSnap = await getDoc(docRef);
@@ -89,7 +222,9 @@ export const validateLicense = async (inputKey: string): Promise<LicenseInfo | n
       const license: LicenseInfo = {
         key: trimmedKey,
         companyName: detectedName,
-        plan: data.plan || "Standard"
+        plan: data.plan || "Standard",
+        isDemo: false,
+        isExpired: false
       };
       saveAuthSession(license);
       localStorage.setItem('cached_license_' + trimmedKey, JSON.stringify(license));
@@ -103,16 +238,6 @@ export const validateLicense = async (inputKey: string): Promise<LicenseInfo | n
       const license = JSON.parse(cached);
       saveAuthSession(license);
       return license;
-    }
-    // Allow demo/test bypass in full offline scenarios
-    if (trimmedKey.toLowerCase() === 'demo' || trimmedKey.toLowerCase() === 'test' || trimmedKey.length > 5) {
-      const fallbackLicense: LicenseInfo = {
-        key: trimmedKey,
-        companyName: trimmedKey.toLowerCase() === 'demo' ? "Demo Kullanıcısı" : "Çevrimdışı Kullanıcı (" + trimmedKey + ")",
-        plan: "Enterprise"
-      };
-      saveAuthSession(fallbackLicense);
-      return fallbackLicense;
     }
     throw error;
   }
@@ -479,14 +604,51 @@ export const saveAuthSession = (license: LicenseInfo) => {
     sessionStorage.setItem('alumetric_key', license.key);
     sessionStorage.setItem('alumetric_company', license.companyName);
     sessionStorage.setItem('alumetric_plan', license.plan);
+    sessionStorage.setItem('alumetric_is_demo', license.isDemo ? 'true' : 'false');
+    if (license.demoExpiresAt) {
+      sessionStorage.setItem('alumetric_demo_expires_at', String(license.demoExpiresAt));
+    } else {
+      sessionStorage.removeItem('alumetric_demo_expires_at');
+    }
 };
 
-export const getSessionInfo = () => {
+export const getSessionInfo = (): LicenseInfo => {
+    const isDemo = sessionStorage.getItem('alumetric_is_demo') === 'true';
+    const expiresAtStr = sessionStorage.getItem('alumetric_demo_expires_at');
+    const demoExpiresAt = expiresAtStr ? Number(expiresAtStr) : undefined;
+    const now = Date.now();
+    const isExpired = isDemo && demoExpiresAt ? now >= demoExpiresAt : false;
+    const remainingMs = isDemo && demoExpiresAt ? Math.max(0, demoExpiresAt - now) : undefined;
+
     return {
         key: sessionStorage.getItem('alumetric_key') || '',
         companyName: sessionStorage.getItem('alumetric_company') || 'Unknown',
-        plan: sessionStorage.getItem('alumetric_plan') || 'Standard'
+        plan: (sessionStorage.getItem('alumetric_plan') as any) || 'Standard',
+        isDemo,
+        demoExpiresAt,
+        demoRemainingMs: remainingMs,
+        isExpired
     };
+};
+
+export const formatDemoRemainingTime = (remainingMs: number, lang: 'tr' | 'en' = 'tr'): string => {
+  if (remainingMs <= 0) {
+    return lang === 'tr' ? 'Süre Doldu' : 'Expired';
+  }
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (lang === 'tr') {
+    if (days > 0) return `${days} gün ${hours} saat`;
+    if (hours > 0) return `${hours} saat ${minutes} dakika`;
+    return `${minutes} dakika`;
+  } else {
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }
 };
 
 export const cloud_saveProductTypes = async (

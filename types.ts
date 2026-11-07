@@ -322,3 +322,21 @@ export interface ShadingItem {
   ledOn?: boolean;
   extension?: number;
 }
+
+export type BrandTenantId = 'all' | 'kurtoglu' | 'asas' | 'pimapen';
+
+export interface BrandTenant {
+  id: BrandTenantId;
+  name: string;
+  tagline: string;
+  brandColor: string;
+  brandColorHover: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  systemPrefixes: string[]; // e.g. ['kurt-'] or ['asas-'] or [] for all
+  domainHint: string;
+  dealerTitle: string;
+  description: string;
+}
+

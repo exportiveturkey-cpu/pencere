@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
-import { Project, Language, ProfileSystem, Accessory, Customer } from '../types';
+import { Project, Language, ProfileSystem, Accessory, Customer, BrandTenantId } from '../types';
 import { Plus, Settings, User, Search, MoreVertical, Calendar, X, Save, Edit2, Sparkles, Trash2, Cpu, FileCheck, FileText, LayoutGrid, TrendingUp, DollarSign, Package, Users, UserX, UserCheck, Phone, Mail, Ban, AlertOctagon, MapPin, Sun, Moon, Printer, ArrowLeft, Calculator } from 'lucide-react';
 import { t } from '../translations';
 import Logo from './Logo';
 import { getSessionInfo } from '../services/authService';
 import { calculateProjectCost } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
+import { BrandTenantSelector } from './BrandTenantSelector';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface DashboardProps {
   projects: Project[];
@@ -27,6 +29,8 @@ interface DashboardProps {
   forcedName?: string;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  currentBrand?: BrandTenantId;
+  onBrandChange?: (brand: BrandTenantId) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -47,7 +51,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   onOpenGlassAnalysis,
   forcedName,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  currentBrand = 'all',
+  onBrandChange
 }) => {
   const [activeTab, setActiveTab] = useState<'projects' | 'customers'>('projects');
   const [searchTerm, setSearchTerm] = useState('');
@@ -539,8 +545,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
             
-            <div className="flex items-center gap-6">
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-white/5 text-xs">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
+                {/* Brand / Multi-Tenant Selector */}
+                {onBrandChange && (
+                  <BrandTenantSelector
+                    currentBrand={currentBrand}
+                    onBrandChange={onBrandChange}
+                    lang={lang}
+                  />
+                )}
+
+                {/* In-App PWA Install Button */}
+                <PWAInstallButton lang={lang} variant="header" />
+
+                <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-white/5 text-xs">
                     <User size={14} className="text-blue-400" />
                     <span className="text-slate-300 font-medium">{displayName}</span>
                     <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] uppercase font-bold tracking-tighter">

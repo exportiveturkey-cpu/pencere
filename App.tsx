@@ -14,6 +14,8 @@ import { t } from './translations';
 import { 
   validateLicense, 
   getSessionInfo, 
+  formatDemoRemainingTime,
+  LicenseInfo,
   cloud_getProjects, 
   cloud_saveProject, 
   cloud_deleteProject,
@@ -27,7 +29,7 @@ import {
   cloud_saveCustomers
 } from './services/authService';
 import { idb_getProjects } from './services/idbStorage';
-import { Cloud, Loader2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Cloud, Loader2, AlertTriangle, ShieldAlert, Lock, Clock, Mail } from 'lucide-react';
 
 type ViewState = 'DASHBOARD' | 'PROJECT_VIEW' | 'EDITOR' | 'SETTINGS' | 'GLASS_ANALYSIS';
 
@@ -101,7 +103,41 @@ const App: React.FC = () => {
   
   const [companyName, setCompanyName] = useState<string>(() => sessionStorage.getItem('alumetric_company') || 'Unknown');
 
+  const [demoState, setDemoState] = useState<{
+    isDemo: boolean;
+    expiresAt?: number;
+    remainingMs?: number;
+    isExpired?: boolean;
+  }>(() => {
+    const s = getSessionInfo();
+    return {
+      isDemo: Boolean(s.isDemo),
+      expiresAt: s.demoExpiresAt,
+      remainingMs: s.demoRemainingMs,
+      isExpired: Boolean(s.isExpired)
+    };
+  });
+
   const session = getSessionInfo();
+
+  // Active Demo Countdown Monitor
+  useEffect(() => {
+    if (!isAuthenticated || !demoState.isDemo || !demoState.expiresAt) return;
+
+    const checkExpiration = () => {
+      const now = Date.now();
+      const diff = demoState.expiresAt! - now;
+      if (diff <= 0) {
+        setDemoState(prev => ({ ...prev, isExpired: true, remainingMs: 0 }));
+      } else {
+        setDemoState(prev => ({ ...prev, remainingMs: diff }));
+      }
+    };
+
+    checkExpiration();
+    const timer = setInterval(checkExpiration, 10000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated, demoState.isDemo, demoState.expiresAt]);
 
   const loadCloudData = useCallback(async () => {
     if (!isAuthenticated || !session.key) return;
@@ -111,6 +147,16 @@ const App: React.FC = () => {
       const freshLicense = await validateLicense(session.key);
       if (freshLicense) {
           setCompanyName(freshLicense.companyName);
+          if (freshLicense.isExpired) {
+              setDemoState(prev => ({ ...prev, isExpired: true, remainingMs: 0 }));
+          } else if (freshLicense.isDemo) {
+              setDemoState({
+                isDemo: true,
+                expiresAt: freshLicense.demoExpiresAt,
+                remainingMs: freshLicense.demoRemainingMs,
+                isExpired: false
+              });
+          }
       }
 
       const cloudProjects = await cloud_getProjects(session.key);
@@ -223,13 +269,22 @@ const App: React.FC = () => {
     syncLocalImagesToCloud();
   }, [isAuthenticated, session.key, accessories]);
 
-  const handleLogin = async (licenseKey: string): Promise<boolean> => {
+  const handleLogin = async (licenseKey: string): Promise<{ success: boolean; isExpired?: boolean } | boolean> => {
       try {
           const license = await validateLicense(licenseKey);
           if (license) {
+              if (license.isExpired) {
+                  return { success: false, isExpired: true };
+              }
               setCompanyName(license.companyName);
+              setDemoState({
+                isDemo: Boolean(license.isDemo),
+                expiresAt: license.demoExpiresAt,
+                remainingMs: license.demoRemainingMs,
+                isExpired: false
+              });
               setIsAuthenticated(true);
-              return true;
+              return { success: true };
           }
           return false;
       } catch (err: any) {
@@ -534,6 +589,76 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200">
       
+      {/* Floating Demo Status Badge */}
+      {demoState.isDemo && !demoState.isExpired && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white text-xs font-bold py-2 px-4 shadow-md flex items-center justify-between z-40 relative print:hidden">
+          <div className="flex items-center gap-2 mx-auto">
+            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+            <span>⏱️ {lang === 'tr' ? 'Alumetric 3 Günlük Demo Sürümü' : 'Alumetric 3-Day Trial Version'}</span>
+            <span className="opacity-75">•</span>
+            <span>{lang === 'tr' ? 'Kalan Süre:' : 'Time Left:'} <strong className="font-mono bg-black/20 px-2 py-0.5 rounded">{formatDemoRemainingTime(demoState.remainingMs || 0, lang)}</strong></span>
+          </div>
+          <a
+            href="mailto:alumetric@alumetric.net?subject=Alumetric%20Tam%20S%C3%BCr%C3%BCm%20Teklifi"
+            className="hidden sm:inline-flex text-[11px] bg-white text-amber-900 font-black px-2.5 py-1 rounded-lg hover:bg-amber-50 transition-all shadow-sm"
+          >
+            {lang === 'tr' ? 'Tam Sürüme Geç →' : 'Upgrade to Full →'}
+          </a>
+        </div>
+      )}
+
+      {/* Demo Expired Full-screen Lockout Overlay */}
+      {demoState.isExpired && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/50 rounded-3xl p-8 sm:p-10 max-w-xl w-full text-center shadow-2xl relative animate-in fade-in zoom-in-95">
+            <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-3xl border border-red-500/30 flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Lock size={40} />
+            </div>
+            
+            <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
+              Demo Süresi Doldu / Trial Expired
+            </h2>
+            <p className="text-xs text-slate-400 mb-6 uppercase tracking-widest font-semibold">
+              Alumetric Engineering Suite
+            </p>
+
+            <div className="space-y-4 text-sm text-slate-200 bg-slate-950/70 p-5 rounded-2xl border border-white/5 mb-8 text-left leading-relaxed">
+              <div className="flex items-start gap-3">
+                <span className="text-red-400 font-bold text-lg leading-none shrink-0 mt-0.5">🇹🇷</span>
+                <p className="font-medium text-slate-200">
+                  "3 günlük deneme süreniz sona ermiştir. Alumetric tam sürüm lisansı ve fiyat teklifi için bizimle iletişime geçin. <a href="mailto:alumetric@alumetric.net" className="text-sky-400 font-bold hover:underline">alumetric@alumetric.net</a>"
+                </p>
+              </div>
+              <div className="border-t border-white/10 pt-3 flex items-start gap-3">
+                <span className="text-sky-400 font-bold text-lg leading-none shrink-0 mt-0.5">🇬🇧</span>
+                <p className="font-medium text-slate-300">
+                  "Your 3-day trial period has expired. Please contact us for the Alumetric full version license and quotation. <a href="mailto:alumetric@alumetric.net" className="text-sky-400 font-bold hover:underline">alumetric@alumetric.net</a>"
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a
+                href="mailto:alumetric@alumetric.net?subject=Alumetric%20Tam%20S%C3%BCr%C3%BCm%20Lisans%20Talebi"
+                className="flex-1 py-3.5 px-6 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+              >
+                <Mail size={18} />
+                alumetric@alumetric.net
+              </a>
+              <button
+                onClick={() => {
+                  sessionStorage.clear();
+                  window.location.reload();
+                }}
+                className="py-3.5 px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-sm transition-all"
+              >
+                Giriş Ekranına Dön
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {permissionError && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-full max-w-2xl px-4 animate-in fade-in slide-in-from-top-4">
               <div className="bg-red-600/90 backdrop-blur-md border border-red-400/50 rounded-2xl p-6 shadow-2xl flex items-start gap-5">
@@ -643,6 +768,7 @@ const App: React.FC = () => {
           onDeleteUnit={handleDeleteUnit}
           theme={theme}
           onToggleTheme={toggleTheme}
+          isDemo={Boolean(demoState.isDemo || session.isDemo)}
         />
       )}
 

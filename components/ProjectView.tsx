@@ -86,6 +86,7 @@ interface ProjectViewProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   licenseKey?: string;
+  isDemo?: boolean;
 }
 
 const compressImageIfNeeded = (file: File): Promise<{ base64: string; type: string }> => {
@@ -375,7 +376,7 @@ const AccessoryThumbnail: React.FC<{ accessoryName: string; accessoryType: strin
   );
 };
 
-const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme, licenseKey }) => {
+const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories = [], customers = [], lang, onBack, onUpdateProject, onAddUnit, onEditUnit, onDeleteUnit, machines = [], theme, onToggleTheme, licenseKey, isDemo = false }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'shading' | 'production' | 'cnc' | 'quote'>('details');
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -3539,9 +3540,27 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         lang={lang} 
                     />
 
-                    <div className="bg-white text-black p-12 print:p-2 rounded-[2rem] print:rounded-none shadow-2xl print:shadow-none min-h-[1000px] print:min-h-0 flex flex-col border border-slate-200 print:border-none">
+                    <div className="bg-white text-black p-12 print:p-2 rounded-[2rem] print:rounded-none shadow-2xl print:shadow-none min-h-[1000px] print:min-h-0 flex flex-col border border-slate-200 print:border-none relative overflow-hidden">
+                        {/* ALUMETRIC DEMO Watermark for Proposal Print / PDF */}
+                        {isDemo && (
+                            <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-around overflow-hidden select-none opacity-[0.06] print:opacity-[0.12] text-slate-900 font-black">
+                                <div className="-rotate-12 text-center text-4xl sm:text-6xl tracking-[0.35em] uppercase py-8">
+                                    ALUMETRIC DEMO
+                                </div>
+                                <div className="-rotate-12 text-center text-4xl sm:text-6xl tracking-[0.35em] uppercase py-8">
+                                    ALUMETRIC DEMO
+                                </div>
+                                <div className="-rotate-12 text-center text-4xl sm:text-6xl tracking-[0.35em] uppercase py-8">
+                                    ALUMETRIC DEMO
+                                </div>
+                                <div className="-rotate-12 text-center text-4xl sm:text-6xl tracking-[0.35em] uppercase py-8">
+                                    ALUMETRIC DEMO
+                                </div>
+                            </div>
+                        )}
+
                         {/* Header */}
-                        <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10">
+                        <div className="flex justify-between items-start border-b-2 border-slate-100 pb-10 mb-10 relative z-10">
                             <div className="flex items-start gap-5">
                                 {companyLogo && (
                                     <div className="relative group/logo shrink-0">
@@ -4322,6 +4341,13 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                                 <div className="text-[11px] text-slate-600 font-bold mt-1 font-mono">{project.clientSignatureDate || new Date().toISOString().split('T')[0]}</div>
                              </div>
                         </div>
+
+                        {/* Demo Notice for Proposal Sheet */}
+                        {isDemo && (
+                            <div className="mt-8 pt-4 border-t border-slate-300 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest relative z-10 print:block">
+                                ALUMETRIC DEMO SÜRÜMÜ • 3 GÜNLÜK DENEME KULLANIMI • TEKLİF GEÇERLİLİĞİ DEMO KAPSAMINDADIR
+                            </div>
+                        )}
 
                         {/* Şişecam GlassTool Certified Report Proposal Annex */}
                         <GlassToolPrintAnnex project={project} lang={lang} />

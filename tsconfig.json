@@ -23,6 +23,7 @@
     "allowJs": true,
     "esModuleInterop": true,
     "baseUrl": ".",
+    "types": ["vite/client", "vite-plugin-pwa/client"],
     "paths": {
       "three": ["node_modules/three"]
     }
