@@ -72,7 +72,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   
   const toggleLang = () => setLang(lang === 'en' ? 'tr' : 'en');
   const session = getSessionInfo();
-  const displayName = forcedName || session.companyName;
+  const rawDisplayName = forcedName || session.companyName;
+  const isDemoUser = session.isDemo || (rawDisplayName && rawDisplayName.toLowerCase().includes('demo'));
+  const displayName = isDemoUser
+    ? (lang === 'tr' ? 'Alumetric Demo Kullanıcısı' : 'Alumetric Demo User')
+    : rawDisplayName;
 
   const stats = useMemo(() => {
     let totalCount = projects.length;
@@ -510,7 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="hidden print:flex justify-between items-center pt-24 mt-12 border-t border-slate-300 text-xs">
               <div className="text-center w-48">
                 <div className="font-bold border-b border-slate-400 pb-16 mb-2">Hazırlayan / Issued By</div>
-                <div className="text-[10px] text-slate-500 uppercase">{displayName} Yetkilisi</div>
+                <div className="text-[10px] text-slate-500 uppercase">{displayName} {lang === 'tr' ? 'Yetkilisi' : 'Representative'}</div>
               </div>
               <div className="text-center w-48">
                 <div className="font-bold border-b border-slate-400 pb-16 mb-2">Belge Onayı / Verification</div>
@@ -1289,7 +1293,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   value={editingProject.client}
                   onChange={e => setEditingProject({...editingProject, client: e.target.value})}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500/50"
-                  placeholder="Müşteri adı giriniz..."
+                  placeholder={lang === 'tr' ? "Müşteri adı giriniz..." : "Enter customer name..."}
                 />
               </div>
               <div>

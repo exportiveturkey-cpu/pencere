@@ -4345,7 +4345,9 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, systems, accessories
                         {/* Demo Notice for Proposal Sheet */}
                         {isDemo && (
                             <div className="mt-8 pt-4 border-t border-slate-300 text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest relative z-10 print:block">
-                                ALUMETRIC DEMO SÜRÜMÜ • 3 GÜNLÜK DENEME KULLANIMI • TEKLİF GEÇERLİLİĞİ DEMO KAPSAMINDADIR
+                                {lang === 'tr' 
+                                    ? 'ALUMETRIC DEMO SÜRÜMÜ • 3 GÜNLÜK DENEME KULLANIMI • TEKLİF GEÇERLİLİĞİ DEMO KAPSAMINDADIR' 
+                                    : 'ALUMETRIC DEMO VERSION • 3-DAY TRIAL USE • QUOTATION VALIDITY IS FOR DEMO EVALUATION ONLY'}
                             </div>
                         )}
 

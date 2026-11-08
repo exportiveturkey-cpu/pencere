@@ -56,8 +56,14 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
     return (
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center text-slate-400">
         <Scissors size={40} className="mx-auto mb-3 text-slate-500 opacity-60" />
-        <p className="font-semibold text-white">Henüz optimize edilecek kesim verisi bulunmuyor.</p>
-        <p className="text-xs text-slate-400 mt-1">Projeye poz ekleyip profil seçimi yaptığınızda atölye kesim planı otomatik üretilir.</p>
+        <p className="font-semibold text-white">
+          {lang === 'tr' ? 'Henüz optimize edilecek kesim verisi bulunmuyor.' : 'No cutting optimization data available yet.'}
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          {lang === 'tr' 
+            ? 'Projeye poz ekleyip profil seçimi yaptığınızda atölye kesim planı otomatik üretilir.' 
+            : 'Add units and choose profiles to automatically generate the workshop cutting plan.'}
+        </p>
       </div>
     );
   }
@@ -83,13 +89,15 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
           </div>
           <div>
             <h2 className="text-base font-black text-white flex items-center gap-2">
-              Atölye Manuel Testere Kesim Planı
+              {lang === 'tr' ? 'Atölye Manuel Testere Kesim Planı' : 'Workshop Manual Saw Cutting Plan'}
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Endüstri Standardı
+                {lang === 'tr' ? 'Endüstri Standardı' : 'Industry Standard'}
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Manuel çift kafa ve tek kafa açı ayarlı testere operatörleri için birebir kesim şeması ve fire tablosu.
+              {lang === 'tr'
+                ? 'Manuel çift kafa ve tek kafa açı ayarlı testere operatörleri için birebir kesim şeması ve fire tablosu.'
+                : 'Direct cutting diagram and waste table for manual double-head and single-head saw operators.'}
             </p>
           </div>
         </div>
@@ -103,10 +111,12 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
               onChange={(e) => setSelectedProfileKey(e.target.value)}
               className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900 text-white">Tüm Profiller ({optimization.length})</option>
+              <option value="all" className="bg-slate-900 text-white">
+                {lang === 'tr' ? `Tüm Profiller (${optimization.length})` : `All Profiles (${optimization.length})`}
+              </option>
               {optimization.map(opt => (
                 <option key={`${opt.systemId}-${opt.profileCode}`} value={`${opt.systemId}-${opt.profileCode}`} className="bg-slate-900 text-white">
-                  {opt.profileCode} - {opt.profileLabel} ({opt.totalBars} Boy)
+                  {opt.profileCode} - {opt.profileLabel} ({opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'})
                 </option>
               ))}
             </select>
@@ -114,12 +124,12 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
 
           {/* Responsible Person Input */}
           <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300">
-            <span className="text-slate-400 font-bold">Sorumlu:</span>
+            <span className="text-slate-400 font-bold">{lang === 'tr' ? 'Sorumlu:' : 'Operator:'}</span>
             <input
               type="text"
               value={operatorName}
               onChange={(e) => setOperatorName(e.target.value)}
-              placeholder="Operatör / Mühendis"
+              placeholder={lang === 'tr' ? "Operatör / Mühendis" : "Operator / Engineer"}
               className="bg-transparent text-white font-medium focus:outline-none w-28"
             />
           </div>
@@ -130,7 +140,7 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold rounded-xl text-xs shadow-lg shadow-blue-500/20 transition-all border border-blue-400/30"
           >
             <Printer size={16} />
-            Yazdır / PDF Kaydet
+            {lang === 'tr' ? 'Yazdır / PDF Kaydet' : 'Print / Save PDF'}
           </button>
         </div>
       </div>
@@ -169,28 +179,30 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
                 <div className="flex justify-between items-start">
                   <div>
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-black uppercase">
-                      Kesim Optimizasyonu
+                      {lang === 'tr' ? 'Kesim Optimizasyonu' : 'Cutting Optimization'}
                     </h1>
                     <div className="mt-1 text-xs">
-                      <span className="font-bold">Sorumlu Kişi:</span> {operatorName || 'Volkan KARA'}
+                      <span className="font-bold">{lang === 'tr' ? 'Sorumlu Kişi:' : 'Responsible:'}</span> {operatorName || 'Volkan KARA'}
                     </div>
                   </div>
 
                   <div className="text-right text-xs space-y-0.5">
-                    <div><span className="font-bold">Sayfa</span> : {pageIdx + 1} / {displayedProfiles.length}</div>
-                    <div><span className="font-bold">Tarih</span> : {currentDate}</div>
-                    <div><span className="font-bold">Saat</span> : {currentTime}</div>
+                    <div><span className="font-bold">{lang === 'tr' ? 'Sayfa' : 'Page'}</span> : {pageIdx + 1} / {displayedProfiles.length}</div>
+                    <div><span className="font-bold">{lang === 'tr' ? 'Tarih' : 'Date'}</span> : {currentDate}</div>
+                    <div><span className="font-bold">{lang === 'tr' ? 'Saat' : 'Time'}</span> : {currentTime}</div>
                     <div className="truncate max-w-[280px]">
-                      <span className="font-bold">Proje Adı</span> : {projectName}
+                      <span className="font-bold">{lang === 'tr' ? 'Proje Adı' : 'Project Name'}</span> : {projectName}
                     </div>
                     <div className="text-[10px] text-gray-600">
-                      <span className="font-bold">Sistem</span> : {opt.systemName}
+                      <span className="font-bold">{lang === 'tr' ? 'Sistem' : 'System'}</span> : {opt.systemName}
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-3 text-[11px] italic text-gray-800 border-t border-gray-300 pt-1.5">
-                  Kesim ve açı bilgisi Çıktı Dosyası olmadan testere ayarlarına uygun.
+                  {lang === 'tr'
+                    ? 'Kesim ve açı bilgisi Çıktı Dosyası olmadan testere ayarlarına uygun.'
+                    : 'Cutting and angle specifications conform to saw calibration without external output file.'}
                 </div>
               </div>
 
@@ -201,11 +213,11 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-black text-[11px]">
-                        <th className="py-1 pr-2 font-bold w-12">Adet</th>
-                        <th className="py-1 px-2 font-bold text-right">Kes.Uznlğu</th>
-                        <th className="py-1 px-2 font-bold text-right">Uzunluk</th>
-                        <th className="py-1 px-3 font-bold text-center">Kesim</th>
-                        <th className="py-1 pl-2 font-bold">Ünite Num.</th>
+                        <th className="py-1 pr-2 font-bold w-12">{lang === 'tr' ? 'Adet' : 'Qty'}</th>
+                        <th className="py-1 px-2 font-bold text-right">{lang === 'tr' ? 'Kes.Uznlğu' : 'Cut Len'}</th>
+                        <th className="py-1 px-2 font-bold text-right">{lang === 'tr' ? 'Uzunluk' : 'Length'}</th>
+                        <th className="py-1 px-3 font-bold text-center">{lang === 'tr' ? 'Kesim' : 'Cut'}</th>
+                        <th className="py-1 pl-2 font-bold">{lang === 'tr' ? 'Ünite Num.' : 'Unit No.'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -233,35 +245,35 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
                 {/* Right: Profile Specifications Box */}
                 <div className="md:col-span-5 bg-gray-50 p-3 rounded border border-gray-300 text-xs space-y-1 self-start">
                   <div className="flex justify-between">
-                    <span className="font-bold">Numara:</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Numara:' : 'Number:'}</span>
                     <span className="font-semibold">{opt.profileCode}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Renk:</span>
-                    <span className="truncate max-w-[160px]">{opt.profileColor || 'RAL 7016 Antrasit'}</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Renk:' : 'Color:'}</span>
+                    <span className="truncate max-w-[160px]">{opt.profileColor || (lang === 'tr' ? 'RAL 7016 Antrasit' : 'RAL 7016 Anthracite')}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Adı:</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Adı:' : 'Name:'}</span>
                     <span className="font-semibold truncate max-w-[160px]">{opt.profileLabel}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Başl./Bitş ölçüsü</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Başl./Bitş ölçüsü' : 'Trim Cut'}</span>
                     <span>= {trimCutMm.toFixed(1).replace('.', ',')} mm</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Testere ağzı</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Testere ağzı' : 'Blade Kerf'}</span>
                     <span>= {sawKerfMm.toFixed(1).replace('.', ',')} mm</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Artan Uzunluk</span>
-                    <span>= Yok</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Artan Uzunluk' : 'Offcut Waste'}</span>
+                    <span>{lang === 'tr' ? '= Yok' : '= None'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Profil Uzunluğu</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Profil Uzunluğu' : 'Profile Length'}</span>
                     <span>= {opt.barLength.toFixed(1).replace('.', ',')} mm</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-bold">Profil Yüksekliği</span>
+                    <span className="font-bold">{lang === 'tr' ? 'Profil Yüksekliği' : 'Profile Height'}</span>
                     <span>= {profileHeightMm.toFixed(1).replace('.', ',')} mm</span>
                   </div>
                 </div>
@@ -306,14 +318,14 @@ export const WorkshopSawReport: React.FC<WorkshopSawReportProps> = ({
               {/* 4. Footer Summary */}
               <div className="border-t-2 border-black pt-3 mt-6 flex flex-wrap justify-between items-center text-xs font-bold">
                 <div className="flex items-center gap-6">
-                  <span>{opt.totalBars} Boy</span>
+                  <span>{opt.totalBars} {lang === 'tr' ? 'Boy' : 'Bars'}</span>
                   <span>
-                    Kesim firesi (kalan boylar dahil): {totalWasteMm} mm = {wastePercent.toFixed(1).replace('.', ',')} %
+                    {lang === 'tr' ? 'Kesim firesi (kalan boylar dahil):' : 'Cutting waste (incl. remnant offcuts):'} {totalWasteMm} mm = {wastePercent.toFixed(1).replace('.', ',')} %
                   </span>
                 </div>
 
                 <div className="text-right text-[11px] text-gray-600 font-normal">
-                  Alumetric Engineering Suite • Atölye Kesim Tablosu
+                  Alumetric Engineering Suite • {lang === 'tr' ? 'Atölye Kesim Tablosu' : 'Workshop Cutting Plan'}
                 </div>
               </div>
             </div>

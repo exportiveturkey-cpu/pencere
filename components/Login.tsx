@@ -57,8 +57,12 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
                   <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
                       <ShieldCheck size={40} className="text-emerald-500" />
                   </div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Erişim Doğrulandı</h1>
-                  <p className="text-slate-400">Bulut verileri senkronize ediliyor...</p>
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    {lang === 'tr' ? 'Erişim Doğrulandı' : 'Access Verified'}
+                  </h1>
+                  <p className="text-slate-400">
+                    {lang === 'tr' ? 'Bulut verileri senkronize ediliyor...' : 'Syncing cloud data...'}
+                  </p>
               </div>
           </div>
       );
@@ -80,7 +84,7 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
               {t(lang, 'welcomeTitle')}
             </h1>
             <p className="text-slate-400 text-sm mt-2 text-center">
-              Bulut tabanlı lisans kontrolü aktif
+              {lang === 'tr' ? 'Bulut tabanlı lisans kontrolü aktif' : 'Cloud-based license verification active'}
             </p>
         </div>
 
@@ -99,7 +103,7 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
                         disabled={isLoading}
                         onChange={(e) => { setKey(e.target.value); setError(false); }}
                         className={`w-full bg-slate-950 border ${error ? 'border-red-500 focus:border-red-500' : 'border-slate-700 focus:border-blue-500'} rounded-lg py-3 pl-10 pr-4 text-white placeholder-slate-600 outline-none transition-all shadow-inner font-mono disabled:opacity-50`}
-                        placeholder="ŞİFREYİ GİRİNİZ"
+                        placeholder={lang === 'tr' ? "ŞİFREYİ GİRİNİZ" : "ENTER ACCESS KEY"}
                         autoFocus
                     />
                 </div>
@@ -158,7 +162,7 @@ const Login: React.FC<LoginProps> = ({ lang, onLogin, theme }) => {
                 &copy; {new Date().getFullYear()} Alumetric Cloud Licensing
             </p>
             <div className="text-[10px] text-slate-600 uppercase tracking-tighter">
-                ALUMETRIC GÜVENLİ BAĞLANTI SAĞLANDI
+                {lang === 'tr' ? 'ALUMETRIC GÜVENLİ BAĞLANTI SAĞLANDI' : 'ALUMETRIC SECURE CONNECTION ESTABLISHED'}
             </div>
         </div>
       </div>

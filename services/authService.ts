@@ -194,7 +194,7 @@ export const validateLicense = async (inputKey: string): Promise<LicenseInfo | n
 
     const demoLicense: LicenseInfo = {
       key: 'DEMO2026',
-      companyName: 'Alumetric Demo Kullanıcısı',
+      companyName: 'Alumetric Demo',
       plan: 'Enterprise',
       isDemo: true,
       isExpired,

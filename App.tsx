@@ -574,8 +574,12 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
           <Loader2 className="text-blue-500 animate-spin mb-4" size={48} />
-          <h2 className="text-white text-xl font-bold">Verileriniz Senkronize Ediliyor</h2>
-          <p className="text-slate-400 mt-2">Bulut hesabınıza bağlanılıyor...</p>
+          <h2 className="text-white text-xl font-bold">
+            {lang === 'tr' ? 'Verileriniz Senkronize Ediliyor' : 'Syncing Your Data'}
+          </h2>
+          <p className="text-slate-400 mt-2">
+            {lang === 'tr' ? 'Bulut hesabınıza bağlanılıyor...' : 'Connecting to your cloud account...'}
+          </p>
       </div>
     );
   }
@@ -652,7 +656,7 @@ const App: React.FC = () => {
                 }}
                 className="py-3.5 px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-sm transition-all"
               >
-                Giriş Ekranına Dön
+                {lang === 'tr' ? 'Giriş Ekranına Dön' : 'Return to Login'}
               </button>
             </div>
           </div>
