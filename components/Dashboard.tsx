@@ -8,7 +8,6 @@ import { getSessionInfo } from '../services/authService';
 import { calculateProjectCost } from '../services/priceCalculator';
 import { v4 as uuidv4 } from 'uuid';
 import { BrandTenantSelector } from './BrandTenantSelector';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface DashboardProps {
   projects: Project[];
@@ -558,9 +557,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                     lang={lang}
                   />
                 )}
-
-                {/* In-App PWA Install Button */}
-                <PWAInstallButton lang={lang} variant="header" />
 
                 <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-slate-800/50 rounded-full border border-white/5 text-xs">
                     <User size={14} className="text-blue-400" />
